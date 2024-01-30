@@ -1,0 +1,3 @@
+router_hostname: MyRouter
+router_ip: 192.168.1.1
+router_subnet: 255.255.255.0
