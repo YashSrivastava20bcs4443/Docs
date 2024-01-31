@@ -7,6 +7,5 @@
     router_hostname: "{{ router_hostname }}"
   tasks:
     - name: Set hostname
-      ios_config:
-        lines:
-          - hostname {{ router_hostname }}
+      debug:
+        msg: "Setting hostname on {{ inventory_hostname }} to {{ router_hostname }}"
