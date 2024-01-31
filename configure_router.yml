@@ -2,17 +2,11 @@
 - name: Configure Routers
   hosts: routers
   gather_facts: no
+  connection: local
+  vars:
+    router_hostname: "{{ router_hostname }}"
   tasks:
     - name: Set hostname
       ios_config:
         lines:
           - hostname {{ router_hostname }}
-      become: yes
-
-    - name: Configure interface
-      ios_config:
-        lines:
-          - interface GigabitEthernet0/0
-          - ip address {{ router_ip }} {{ router_subnet }}
-          - no shutdown
-      become: yes
