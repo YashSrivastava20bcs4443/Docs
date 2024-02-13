@@ -3,3 +3,14 @@ https://chat.openai.com/share/81945f72-dfc3-461d-b375-c67ff8903c76
 https://chat.openai.com/share/81945f72-dfc3-461d-b375-c67ff8903c76
 
 https://chat.openai.com/share/81945f72-dfc3-461d-b375-c67ff8903c76
+
+
+[12/02, 10:24 pm] Yash Srivastava: Why I am working on ansible?
+[12/02, 10:25 pm] Yash Srivastava: How ansible help me in IaC project
+[12/02, 10:27 pm] Yash Srivastava: With due respect as per my understanding that the project which I have got is theresearch project on Infra as code via terraform.
+[12/02, 10:32 pm] Yash Srivastava: After researching on Google, YouTube I have found that the IaC learning path includes 
+1) foundation (Linux, shell scripting basic) 
+2) Containers ( Docker basic) 
+3) IaC tools (Terraform)
+4) configuration management (ansible)
+[12/02, 10:34 pm] Yash Srivastava: I don't know much about Docker, shell scripting, Terraform ( know basic still studying) then how can I work on ansible without having any pre-requisite of ansible.
