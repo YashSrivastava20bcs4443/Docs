@@ -1,21 +1,4 @@
-https://chat.openai.com/share/81945f72-dfc3-461d-b375-c67ff8903c76
-
-https://chat.openai.com/share/81945f72-dfc3-461d-b375-c67ff8903c76
-
-https://chat.openai.com/share/81945f72-dfc3-461d-b375-c67ff8903c76
+https://youtu.be/7kgiF4UsPEo?si=lG9dTo0LpZ9uzf99
 
 
----
-- name: Backup Fortinet firewall configuration
-  hosts: fortigate
-  gather_facts: no
-  tasks:
-    - name: Execute backup command
-      command: >
-        sshpass -p "{{ fortinet_password }}" ssh "{{ fortinet_username }}"@"{{ ansible_host }}"
-        "execute backup config flash backup-{{ lookup('pipe', 'date +%Y-%m-%d') }}.conf"
-      register: backup_result
-
-    - name: Print backup result
-      debug:
-        msg: "{{ backup_result }}"
+https://github.com/fortinet-solutions-cse/40ansible
