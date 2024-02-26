@@ -1,0 +1,27 @@
+---
+- name: Get system status of Fortigate device
+  hosts: fortigates
+  gather_facts: no
+  connection: httpapi
+  collections:
+    - fortinet.fortios
+
+  vars:
+    vdom: "root"
+    ansible_httpapi_use_ssl: yes
+    ansible_httpapi_validate_certs: no
+    ansible_httpapi_port: 443
+    ansible_network_os: fortinet.fortios.fortios
+    
+  tasks:
+    - name: Collect facts from Fortigate device
+      fortinet.fortios.fortios_configuration_fact:
+        selector: "system_global"
+        filters:
+          - "status"
+      register: system_status
+
+    - name: Save entire system status to file
+      copy:
+        content: "{{ system_status | to_nice_json }}"
+        dest: "/home/yash/system_status.txt"
