@@ -10,13 +10,10 @@
     ansible_httpapi_port: 443
     ansible_network_os: fortinet.fortios.fortios
   tasks:
-  - name: Add member to address group
-    fortios_firewall_addrgrp:
-      vdom:  "{{ vdom }}"
-      state: "present"
-      access_token: "Q39mkmH1rm7756rrQfjrnjmdhc1nGs"
-      firewall_addrgrp:
-        name: "Test"
-        member:
-          -
-            name: "192.168.1.0/24"
+    - name: Configure IPv4 addresses.
+      fortios_firewall_address:
+        state: present
+        firewall_address:
+          name: "ansible-test1"
+          subnet: 0.0.0.0/30
+          visibility: disable

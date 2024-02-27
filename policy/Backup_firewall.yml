@@ -1,0 +1,30 @@
+---
+- hosts: fortigates
+  connection: httpapi
+  collections:
+    - fortinet.fortios
+  vars:
+    vdom: "root"
+    ansible_httpapi_use_ssl: yes
+    ansible_httpapi_validate_certs: no
+    ansible_httpapi_port: 443
+    ansible_network_os: fortinet.fortios.fortios
+  tasks:
+    - name: Backup a virtual domain.
+      fortios_monitor:
+        access_token: "f5xzrG81G6cN6y0w0bphGzzmzwQc4Q"
+        selector: 'backup.system.config'
+        vdom: 'root'
+        params:
+          scope: 'global'   
+      register: backupinfo
+      failed_when: backupinfo is failed
+
+    - name: Debug Backup Information
+      debug:
+        var: backupinfo
+
+    - name: Save the backup information.
+      copy:
+        content: '{{ backupinfo.meta.raw }}'
+        dest: '/home/yash/40ansible/examples/{{ inventory_hostname }}_{{ lookup("pipe", "date +%Y%m%d%H%M%S") }}.backup'

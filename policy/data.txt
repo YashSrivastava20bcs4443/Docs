@@ -1,0 +1,33 @@
+a32c0c1a-d332-51ee-e26c-5a095d74e790
+
+
+  tasks:
+  - name: Perform firmware upgrade with local firmware file.
+    fortios_system_firmware:
+      host:  "{{ host }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      vdom:  "{{ vdom }}"
+      ssl_verify: "False"
+      system_firmware:
+        file_content: "<your_own_value>"
+        filename: "<your_own_value>"
+        format_partition: "<your_own_value>"
+        source: "upload"
+    register: fortios_system_firmware_upgrade_result
+
+  - debug:
+      var:
+        # please check the following status to confirm
+        fortios_system_firmware_upgrade_result.meta.results.status
+		
+		
+tasks:
+  - name: Configure update schedule.
+    fortios_system_autoupdate_schedule:
+      vdom:  "{{ vdom }}"
+      system_autoupdate_schedule:
+        day: "Sunday"
+        frequency: "every"
+        status: "enable"
+        time: "<your_own_value>"
