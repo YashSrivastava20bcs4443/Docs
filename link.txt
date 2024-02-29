@@ -8,3 +8,7 @@ https://github.com/fortinet-ansible-dev/ansible-galaxy-fortios-collection/issues
 https://ansible-galaxy-fortios-docs.readthedocs.io/en/galaxy-2.1.6/fortios_monitor.html
 
 Q39mkmH1rm7756rrQfjrnjmdhc1nGs
+
+
+https://docs.rackspace.com/docs/back-up-the-fortinet-fortigate-vm
+scp admin@192.168.1.7:sys_config /home/yash/fortigate_backup
