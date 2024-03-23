@@ -1,0 +1,54 @@
+apt install software-properties-common curl gnupg2 wget -y
+
+install docker engine from documents 
+https://docs.docker.com/engine/install/ubuntu/
+
+#curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+
+#stable"
+#apt update -y
+#apt install docker-ce docker-ce-cli containerd.io -y
+#systemctl start docker
+#systemctl enable docker 
+
+#prefer to documents 
+https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-compose-on-ubuntu-20-04
+
+#apt install docker-compose -y
+#docker-compose --version
+
+#ansible installed 
+
+apt install nodejs npm -y
+
+command -v nvm
+source ~/.nvm/nvm.sh
+nvm install 20.5.0
+nvm use 20.5.0
+
+npm install npm --global
+
+apt install python3-pip git pwgen -y
+pip3 install docker-compose==1.25.0
+
+wget https://github.com/ansible/awx/archive/17.1.0.zip
+
+apt install unzip
+unzip 17.1.0.zip
+
+cd awx-17.1.0/
+cd installer/
+
+pwgen -N 1 -s 30
+copy the scret code
+
+nano inventory
+do the changes
+
+ansible-playbook -i inventory install.yml 
+
+docker ps
+
+docker exec -it awx_web bash
+awx-manage createsuperuser
+
