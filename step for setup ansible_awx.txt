@@ -3,11 +3,6 @@ apt install software-properties-common curl gnupg2 wget -y
 install docker engine from documents 
 https://docs.docker.com/engine/install/ubuntu/
 
-#curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-
-#stable"
-#apt update -y
-#apt install docker-ce docker-ce-cli containerd.io -y
 #systemctl start docker
 #systemctl enable docker 
 
@@ -21,6 +16,9 @@ https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-c
 
 apt install nodejs npm -y
 
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+
+
 command -v nvm
 source ~/.nvm/nvm.sh
 nvm install 20.5.0
@@ -29,7 +27,7 @@ nvm use 20.5.0
 npm install npm --global
 
 apt install python3-pip git pwgen -y
-pip3 install docker-compose==1.25.0
+pip3 install docker-compose==1.29.2
 
 wget https://github.com/ansible/awx/archive/17.1.0.zip
 
@@ -40,12 +38,15 @@ cd awx-17.1.0/
 cd installer/
 
 pwgen -N 1 -s 30
-copy the scret code
+copy the code
 
 nano inventory
-do the changes
+do the changes paste code and set password 
 
 ansible-playbook -i inventory install.yml 
+
+#if needed only some error occur
+pip install --upgrade ansible
 
 docker ps
 
