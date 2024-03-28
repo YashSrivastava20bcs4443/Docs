@@ -52,3 +52,63 @@ for subscription_id in subscription_ids:
 # Print each alert data separately
 for alert in alerts_list:
     print(alert)
+
+
+#----------------------------------------#
+
+import requests
+from azure.identity import ClientSecretCredential
+
+# Tenant ID, Client ID, and Client Secret
+tenant_id = "YourTenantId"
+client_id = "YourClientId"
+client_secret = "YourClientSecret"
+
+# Azure credentials
+credential = ClientSecretCredential(tenant_id, client_id, client_secret)
+
+# Get access token
+access_token = credential.get_token("https://management.azure.com/.default").token
+
+# Headers with access token
+headers = {
+    "Authorization": f"Bearer {access_token}",
+    "Content-Type": "application/json"
+}
+
+# Azure Monitor API endpoint
+monitor_endpoint = "https://management.azure.com"
+
+# API version
+api_version = "2018-03-01"
+
+# Resource URI for alerts
+alert_uri = f"{monitor_endpoint}/subscriptions/{{subscription_id}}/providers/microsoft.insights/metricAlerts?api-version={api_version}"
+
+# Subscription IDs for which you want alerts (replace with your subscription IDs)
+subscription_ids = ["SubscriptionID1", "SubscriptionID2"]
+
+# List to store alerts
+alerts_list = []
+
+# Loop through subscriptions
+for subscription_id in subscription_ids:
+    # Make request to get alerts
+    response = requests.get(alert_uri.format(subscription_id=subscription_id), headers=headers)
+
+    # Check if request was successful
+    if response.status_code == 200:
+        alerts_data = response.json()
+        print(f"Alerts data for subscription {subscription_id}: {alerts_data}")  # Debug statement
+        # Loop through retrieved alerts and filter
+        for alert in alerts_data.get('value', []):
+            # Check if alert name is either "emsalerts" or "operations resource group"
+            if alert.get('name') == 'emsalerts' or alert.get('name') == 'operations resource group':
+                alerts_list.append(alert)
+    else:
+        print(f"Failed to retrieve alerts for subscription {subscription_id}: {response.text}")
+
+# Print each alert data separately
+for alert in alerts_list:
+    print(alert)
+
