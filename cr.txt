@@ -1,0 +1,41 @@
+from azure.identity import DefaultAzureCredential
+from azure.mgmt.monitor import MonitorManagementClient
+from azure.mgmt.subscription import SubscriptionClient
+
+# Azure credentials
+credential = DefaultAzureCredential()
+
+# Initialize MonitorManagementClient and SubscriptionClient
+monitor_client = MonitorManagementClient(credential, "<your_subscription_id>")
+subscription_client = SubscriptionClient(credential)
+
+# Get all subscriptions
+subscriptions = subscription_client.subscriptions.list()
+
+# List to store alerts
+alerts_list = []
+
+# Loop through subscriptions
+for subscription in subscriptions:
+    subscription_id = subscription.subscription_id
+    print(f"Subscription ID: {subscription_id}")
+
+    # Get all resource groups in the subscription
+    resource_groups = monitor_client.metric_alerts.list_by_subscription(subscription_id=subscription_id)
+
+    # Loop through resource groups
+    for resource_group in resource_groups:
+        resource_group_name = resource_group.name
+        print(f"Resource Group: {resource_group_name}")
+
+        # Get alerts for the resource group
+        alerts = monitor_client.metric_alerts.list_by_resource_group(subscription_id=subscription_id, resource_group_name=resource_group_name)
+
+        # Process retrieved alerts
+        for alert in alerts:
+            alerts_list.append(alert)
+
+# Print alerts list
+print("Alerts List:")
+for alert in alerts_list:
+    print(alert)
