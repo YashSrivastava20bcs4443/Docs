@@ -19,3 +19,77 @@ fgt-restore-config
 
 
 https://chat.openai.com/share/199795c1-6982-4300-9277-b5ca8af2e89d
+
+
+import requests
+import datetime
+from azure.identity import ClientSecretCredential
+
+# Azure Monitor API endpoint
+endpoint = "https://management.azure.com"
+
+# Tenant ID, Client ID, and Client Secret
+tenant_id = "YourTenantId"
+client_id = "YourClientId"
+client_secret = "YourClientSecret"
+
+# API version
+api_version = "2019-06-01-preview"
+
+# Start time and end time (last 1 hour)
+start_time = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+end_time = datetime.datetime.utcnow()
+
+# Azure credentials
+credential = ClientSecretCredential(tenant_id, client_id, client_secret)
+
+# Get access token
+access_token = credential.get_token("https://management.azure.com/.default").token
+
+# Headers with access token
+headers = {
+    "Authorization": f"Bearer {access_token}",
+    "Content-Type": "application/json"
+}
+
+# Get subscriptions
+subscriptions_url = f"{endpoint}/subscriptions?api-version={api_version}"
+subscriptions_response = requests.get(subscriptions_url, headers=headers)
+subscriptions_data = subscriptions_response.json()
+
+# Loop through subscriptions
+for subscription in subscriptions_data['value']:
+    subscription_id = subscription['subscriptionId']
+    
+    # Get resource groups
+    resource_groups_url = f"{endpoint}/subscriptions/{subscription_id}/resourcegroups?api-version={api_version}"
+    resource_groups_response = requests.get(resource_groups_url, headers=headers)
+    resource_groups_data = resource_groups_response.json()
+    
+    # Loop through resource groups
+    for resource_group in resource_groups_data['value']:
+        resource_group_name = resource_group['name']
+        
+        # Get Application Insights resources
+        app_insights_url = f"{endpoint}/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Insights/components?api-version={api_version}"
+        app_insights_response = requests.get(app_insights_url, headers=headers)
+        app_insights_data = app_insights_response.json()
+        
+        # Loop through Application Insights resources
+        for app_insights_resource in app_insights_data['value']:
+            app_insights_name = app_insights_resource['name']
+            
+            # Construct API URL for alerts
+            alerts_url = f"{endpoint}/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Insights/components/{app_insights_name}/alertrules?api-version={api_version}"
+            
+            # Make the API call to get alerts
+            alerts_response = requests.get(alerts_url, headers=headers)
+            
+            # Check if request was successful
+            if alerts_response.status_code == 200:
+                alerts = alerts_response.json()
+                # Process retrieved alerts
+                for alert in alerts['value']:
+                    print(alert['name'])
+            else:
+                print(f"Failed to retrieve alerts for {app_insights_name} in {resource_group_name} under subscription {subscription_id}: {alerts_response.text}")
