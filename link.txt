@@ -18,47 +18,8 @@ admin@192.168.1.10's password:
 fgt-restore-config
 
 
-https://chat.openai.com/share/199795c1-6982-4300-9277-b5ca8af2e89d
-
-
 import requests
-from azure.identity import ClientSecretCredential
-
-# Tenant ID, Client ID, and Client Secret
-tenant_id = "YourTenantId"
-client_id = "YourClientId"
-client_secret = "YourClientSecret"
-
-# Azure credentials
-credential = ClientSecretCredential(tenant_id, client_id, client_secret)
-
-# Get access token
-access_token = credential.get_token("https://graph.microsoft.com/.default").token
-
-# Headers with access token
-headers = {
-    "Authorization": f"Bearer {access_token}",
-    "Content-Type": "application/json"
-}
-
-# Microsoft Graph API endpoint
-graph_endpoint = "https://graph.microsoft.com/v1.0"
-
-# Get Application Insights resources using Microsoft Graph API
-app_insights_url = f"{graph_endpoint}/me/applications"
-app_insights_response = requests.get(app_insights_url, headers=headers)
-
-# Check if request was successful
-if app_insights_response.status_code == 200:
-    app_insights_data = app_insights_response.json()
-    # Process retrieved Application Insights resources
-    for app_insights_resource in app_insights_data['value']:
-        print(app_insights_resource['displayName'])
-else:
-    print(f"Failed to retrieve Application Insights resources: {app_insights_response.text}")
-
-
-import requests
+import datetime
 from azure.identity import ClientSecretCredential
 
 # Tenant ID, Client ID, and Client Secret
@@ -84,28 +45,42 @@ monitor_endpoint = "https://management.azure.com"
 # API version
 api_version = "2018-03-01"
 
+# Start time and end time (last 1 hour)
+start_time = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+end_time = datetime.datetime.utcnow()
+
 # Resource URI for alerts
 alert_uri = f"{monitor_endpoint}/subscriptions/{{subscription_id}}/providers/microsoft.insights/metricAlerts?api-version={api_version}"
 
 # Subscription IDs for which you want alerts (replace with your subscription IDs)
 subscription_ids = ["SubscriptionID1", "SubscriptionID2"]
 
+# Resource groups for which you want alerts
+resource_groups = ["ems", "operations"]
+
 # List to store alerts
 alerts_list = []
 
 # Loop through subscriptions
 for subscription_id in subscription_ids:
-    # Make request to get alerts
-    response = requests.get(alert_uri.format(subscription_id=subscription_id), headers=headers)
+    # Loop through resource groups
+    for resource_group_name in resource_groups:
+        # Make request to get alerts
+        response = requests.get(alert_uri.format(subscription_id=subscription_id), headers=headers)
 
-    # Check if request was successful
-    if response.status_code == 200:
-        alerts_data = response.json()
-        # Process retrieved alerts
-        for alert in alerts_data.get('value', []):
-            alerts_list.append(alert)
-    else:
-        print(f"Failed to retrieve alerts for subscription {subscription_id}: {response.text}")
+        # Check if request was successful
+        if response.status_code == 200:
+            alerts_data = response.json()
+            # Process retrieved alerts
+            for alert in alerts_data.get('value', []):
+                # Check if alert is within the last hour and belongs to specified resource groups
+                alert_time = datetime.datetime.strptime(alert['properties']['lastModifiedTime'], "%Y-%m-%dT%H:%M:%SZ")
+                if start_time <= alert_time <= end_time and alert['properties']['scope'].split("/")[-1] in resource_groups:
+                    alerts_list.append(alert)
+        else:
+            print(f"Failed to retrieve alerts for subscription {subscription_id} and resource group {resource_group_name}: {response.text}")
 
 # Print alerts list
-print(alerts_list)
+for alert in alerts_list:
+    print(alert)
+
