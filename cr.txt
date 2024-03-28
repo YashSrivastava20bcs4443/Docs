@@ -1,46 +1,54 @@
+import requests
 from azure.identity import ClientSecretCredential
-from azure.mgmt.monitor import MonitorManagementClient
-from azure.mgmt.subscription import SubscriptionClient
 
-# Azure credentials
+# Tenant ID, Client ID, and Client Secret
 tenant_id = "YourTenantId"
 client_id = "YourClientId"
 client_secret = "YourClientSecret"
 
-# Initialize ClientSecretCredential
+# Azure credentials
 credential = ClientSecretCredential(tenant_id, client_id, client_secret)
 
-# Initialize MonitorManagementClient and SubscriptionClient
-monitor_client = MonitorManagementClient(credential, "<your_subscription_id>")
-subscription_client = SubscriptionClient(credential)
+# Get access token
+access_token = credential.get_token("https://management.azure.com/.default").token
 
-# Get all subscriptions
-subscriptions = subscription_client.subscriptions.list()
+# Headers with access token
+headers = {
+    "Authorization": f"Bearer {access_token}",
+    "Content-Type": "application/json"
+}
+
+# Azure Monitor API endpoint
+monitor_endpoint = "https://management.azure.com"
+
+# API version
+api_version = "2018-03-01"
+
+# Resource URI for alerts
+alert_uri = f"{monitor_endpoint}/subscriptions/{{subscription_id}}/providers/microsoft.insights/metricAlerts?api-version={api_version}"
+
+# Subscription IDs for which you want alerts (replace with your subscription IDs)
+subscription_ids = ["SubscriptionID1", "SubscriptionID2"]
 
 # List to store alerts
 alerts_list = []
 
 # Loop through subscriptions
-for subscription in subscriptions:
-    subscription_id = subscription.subscription_id
-    print(f"Subscription ID: {subscription_id}")
+for subscription_id in subscription_ids:
+    # Make request to get alerts
+    response = requests.get(alert_uri.format(subscription_id=subscription_id), headers=headers)
 
-    # Get all resource groups in the subscription
-    resource_groups = monitor_client.metric_alerts.list_by_subscription(subscription_id=subscription_id)
+    # Check if request was successful
+    if response.status_code == 200:
+        alerts_data = response.json()
+        # Loop through retrieved alerts and filter
+        for alert in alerts_data.get('value', []):
+            # Check if alert name is either "emsalerts" or "operations resource group"
+            if alert.get('name') == 'emsalerts' or alert.get('name') == 'operations resource group':
+                alerts_list.append(alert)
+    else:
+        print(f"Failed to retrieve alerts for subscription {subscription_id}: {response.text}")
 
-    # Loop through resource groups
-    for resource_group in resource_groups:
-        resource_group_name = resource_group.name
-        print(f"Resource Group: {resource_group_name}")
-
-        # Get alerts for the resource group
-        alerts = monitor_client.metric_alerts.list_by_resource_group(subscription_id=subscription_id, resource_group_name=resource_group_name)
-
-        # Process retrieved alerts
-        for alert in alerts:
-            alerts_list.append(alert)
-
-# Print alerts list
-print("Alerts List:")
+# Print each alert data separately
 for alert in alerts_list:
     print(alert)
