@@ -16,3 +16,5 @@ https://chat.openai.com/share/50657191-09e9-4913-b4b2-9a5cdd8a19a9
 yash@MSI:~$ scp /home/yash/fgt-restore-config admin@192.168.1.10:fgt-restore-config
 admin@192.168.1.10's password:
 fgt-restore-config
+
+https://chat.openai.com/share/199795c1-6982-4300-9277-b5ca8af2e89d
