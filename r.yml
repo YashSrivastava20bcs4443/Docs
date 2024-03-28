@@ -1,0 +1,39 @@
+---
+- name: Restore Configuration to FortiGate
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    fortigate_ip: "10.255.255.65:8443"
+    username: "yash"
+    password: "333333"
+    config_file_path: "/home/yash/fgt-restore-config"
+    backup_file_path: "/home/yash/"
+	backup_file_name: 
+    config_file_name: "fgt-restore-config"
+
+  tasks:
+    - name: Rename Backup File to fgt-restore-config
+      command: mv "{{ backup_file_path }}/{{ backup_file_name }}" "{{ backup_file_path }}/{{ config_file_name }}"
+      args:
+        chdir: "{{ backup_file_path }}"
+      register: rename_output
+      ignore_errors: yes
+
+    - name: Check Rename Output
+      debug:
+        msg: "{{ rename_output }}"
+      failed_when: rename_output.rc != 0
+
+    - name: Copy Configuration File to FortiGate
+      expect:
+        command: "scp {{ backup_file_path }}/{{ config_file_name }} {{ username }}@{{ fortigate_ip }}:{{ config_file_name }}"
+        responses:
+          "assword:": "{{ password }}"
+        timeout: 60
+      register: scp_output
+
+    - name: Check SCP Output
+      debug:
+        msg: "{{ scp_output.stdout }}"
+      failed_when: "'100%' not in scp_output.stdout or 'denied' in scp_output.stdout or 'Host key verification failed' in scp_output.stdout or 'No such file or directory' in scp_output.stdout or 'Timeout' in scp_output.stdout or 'Connection closed' in scp_output.stdout"
