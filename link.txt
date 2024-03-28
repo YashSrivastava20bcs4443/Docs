@@ -22,32 +22,18 @@ https://chat.openai.com/share/199795c1-6982-4300-9277-b5ca8af2e89d
 
 
 import requests
-import datetime
 from azure.identity import ClientSecretCredential
-
-# Azure Monitor API endpoint
-endpoint = "https://management.azure.com"
 
 # Tenant ID, Client ID, and Client Secret
 tenant_id = "YourTenantId"
 client_id = "YourClientId"
 client_secret = "YourClientSecret"
 
-# API version
-api_version = "2019-06-01-preview"
-
-# Start time and end time (last 1 hour)
-start_time = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
-end_time = datetime.datetime.utcnow()
-
-# Resource groups for which you want alerts (replace these with your resource group names)
-resource_groups = ["ResourceGroup1", "ResourceGroup2"]
-
 # Azure credentials
 credential = ClientSecretCredential(tenant_id, client_id, client_secret)
 
 # Get access token
-access_token = credential.get_token("https://management.azure.com/.default").token
+access_token = credential.get_token("https://graph.microsoft.com/.default").token
 
 # Headers with access token
 headers = {
@@ -55,29 +41,18 @@ headers = {
     "Content-Type": "application/json"
 }
 
-# Loop through specified resource groups
-for resource_group_name in resource_groups:
-    # Get Application Insights resources
-    app_insights_url = f"{endpoint}/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Insights/components?api-version={api_version}"
-    app_insights_response = requests.get(app_insights_url, headers=headers)
+# Microsoft Graph API endpoint
+graph_endpoint = "https://graph.microsoft.com/v1.0"
+
+# Get Application Insights resources using Microsoft Graph API
+app_insights_url = f"{graph_endpoint}/me/applications"
+app_insights_response = requests.get(app_insights_url, headers=headers)
+
+# Check if request was successful
+if app_insights_response.status_code == 200:
     app_insights_data = app_insights_response.json()
-    
-    # Loop through Application Insights resources
+    # Process retrieved Application Insights resources
     for app_insights_resource in app_insights_data['value']:
-        app_insights_name = app_insights_resource['name']
-        
-        # Construct API URL for alerts
-        alerts_url = f"{endpoint}/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Insights/components/{app_insights_name}/alertrules?api-version={api_version}"
-        
-        # Make the API call to get alerts
-        alerts_response = requests.get(alerts_url, headers=headers)
-        
-        # Check if request was successful
-        if alerts_response.status_code == 200:
-            alerts = alerts_response.json()
-            # Process retrieved alerts
-            for alert in alerts['value']:
-                print(alert['name'])
-        else:
-            print(f"Failed to retrieve alerts for {app_insights_name} in {resource_group_name}: {alerts_response.text}")
-            
+        print(app_insights_resource['displayName'])
+else:
+    print(f"Failed to retrieve Application Insights resources: {app_insights_response.text}")
