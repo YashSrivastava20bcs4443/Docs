@@ -40,6 +40,9 @@ api_version = "2019-06-01-preview"
 start_time = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
 end_time = datetime.datetime.utcnow()
 
+# Resource groups for which you want alerts (replace these with your resource group names)
+resource_groups = ["ResourceGroup1", "ResourceGroup2"]
+
 # Azure credentials
 credential = ClientSecretCredential(tenant_id, client_id, client_secret)
 
@@ -52,44 +55,29 @@ headers = {
     "Content-Type": "application/json"
 }
 
-# Get subscriptions
-subscriptions_url = f"{endpoint}/subscriptions?api-version={api_version}"
-subscriptions_response = requests.get(subscriptions_url, headers=headers)
-subscriptions_data = subscriptions_response.json()
-
-# Loop through subscriptions
-for subscription in subscriptions_data['value']:
-    subscription_id = subscription['subscriptionId']
+# Loop through specified resource groups
+for resource_group_name in resource_groups:
+    # Get Application Insights resources
+    app_insights_url = f"{endpoint}/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Insights/components?api-version={api_version}"
+    app_insights_response = requests.get(app_insights_url, headers=headers)
+    app_insights_data = app_insights_response.json()
     
-    # Get resource groups
-    resource_groups_url = f"{endpoint}/subscriptions/{subscription_id}/resourcegroups?api-version={api_version}"
-    resource_groups_response = requests.get(resource_groups_url, headers=headers)
-    resource_groups_data = resource_groups_response.json()
-    
-    # Loop through resource groups
-    for resource_group in resource_groups_data['value']:
-        resource_group_name = resource_group['name']
+    # Loop through Application Insights resources
+    for app_insights_resource in app_insights_data['value']:
+        app_insights_name = app_insights_resource['name']
         
-        # Get Application Insights resources
-        app_insights_url = f"{endpoint}/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Insights/components?api-version={api_version}"
-        app_insights_response = requests.get(app_insights_url, headers=headers)
-        app_insights_data = app_insights_response.json()
+        # Construct API URL for alerts
+        alerts_url = f"{endpoint}/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Insights/components/{app_insights_name}/alertrules?api-version={api_version}"
         
-        # Loop through Application Insights resources
-        for app_insights_resource in app_insights_data['value']:
-            app_insights_name = app_insights_resource['name']
+        # Make the API call to get alerts
+        alerts_response = requests.get(alerts_url, headers=headers)
+        
+        # Check if request was successful
+        if alerts_response.status_code == 200:
+            alerts = alerts_response.json()
+            # Process retrieved alerts
+            for alert in alerts['value']:
+                print(alert['name'])
+        else:
+            print(f"Failed to retrieve alerts for {app_insights_name} in {resource_group_name}: {alerts_response.text}")
             
-            # Construct API URL for alerts
-            alerts_url = f"{endpoint}/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Insights/components/{app_insights_name}/alertrules?api-version={api_version}"
-            
-            # Make the API call to get alerts
-            alerts_response = requests.get(alerts_url, headers=headers)
-            
-            # Check if request was successful
-            if alerts_response.status_code == 200:
-                alerts = alerts_response.json()
-                # Process retrieved alerts
-                for alert in alerts['value']:
-                    print(alert['name'])
-            else:
-                print(f"Failed to retrieve alerts for {app_insights_name} in {resource_group_name} under subscription {subscription_id}: {alerts_response.text}")
