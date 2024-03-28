@@ -110,5 +110,9 @@ for subscription_id in subscription_ids:
 
 # Print each alert data separately
 for alert in alerts_list:
-    print(alert)
+    print("Alert:")
+    for key, value in alert.items():
+        print(f"{key}: {value}")
+    print()
+
 
