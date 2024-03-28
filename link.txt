@@ -84,3 +84,5 @@ for subscription_id in subscription_ids:
 for alert in alerts_list:
     print(alert)
 
+alert_time = datetime.datetime.strptime(alert['properties']['lastModifiedTime'], "%Y-%m-%dT%H:%M:%SZ")
+
