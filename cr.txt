@@ -114,5 +114,58 @@ for alert in alerts_list:
     for key, value in alert.items():
         print(f"{key}: {value}")
     print()
+#--------------------------------------------------------------#
+import requests
+from azure.identity import ClientSecretCredential
 
+# Tenant ID, Client ID, and Client Secret
+tenant_id = "YourTenantId"
+client_id = "YourClientId"
+client_secret = "YourClientSecret"
+
+# Azure credentials
+credential = ClientSecretCredential(tenant_id, client_id, client_secret)
+
+# Get access token
+access_token = credential.get_token("https://management.azure.com/.default").token
+
+# Headers with access token
+headers = {
+    "Authorization": f"Bearer {access_token}",
+    "Content-Type": "application/json"
+}
+
+# Azure Monitor API endpoint
+monitor_endpoint = "https://management.azure.com"
+
+# API version
+api_version = "2018-03-01"
+
+# Resource URI for alerts
+alert_uri = f"{monitor_endpoint}/subscriptions/{{subscription_id}}/providers/microsoft.insights/metricAlerts?api-version={api_version}"
+
+# Subscription IDs for which you want alerts (replace with your subscription IDs)
+subscription_ids = ["SubscriptionID1", "SubscriptionID2"]
+
+# List to store alerts
+alerts_list = []
+
+# Loop through subscriptions
+for subscription_id in subscription_ids:
+    # Make request to get alerts
+    response = requests.get(alert_uri.format(subscription_id=subscription_id), headers=headers)
+
+    # Check if request was successful
+    if response.status_code == 200:
+        alerts_data = response.json()
+        print("Alerts data for subscription", subscription_id)
+        print(alerts_data)  # Debug statement to print entire alerts data
+        print("\n")
+        # Append retrieved alerts to the list
+        alerts_list.append(alerts_data)
+    else:
+        print(f"Failed to retrieve alerts for subscription {subscription_id}: {response.text}")
+
+# Print alerts list
+print(alerts_list)
 
