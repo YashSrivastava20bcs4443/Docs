@@ -1,9 +1,14 @@
-from azure.identity import DefaultAzureCredential
+from azure.identity import ClientSecretCredential
 from azure.mgmt.monitor import MonitorManagementClient
 from azure.mgmt.subscription import SubscriptionClient
 
 # Azure credentials
-credential = DefaultAzureCredential()
+tenant_id = "YourTenantId"
+client_id = "YourClientId"
+client_secret = "YourClientSecret"
+
+# Initialize ClientSecretCredential
+credential = ClientSecretCredential(tenant_id, client_id, client_secret)
 
 # Initialize MonitorManagementClient and SubscriptionClient
 monitor_client = MonitorManagementClient(credential, "<your_subscription_id>")
@@ -39,4 +44,3 @@ for subscription in subscriptions:
 print("Alerts List:")
 for alert in alerts_list:
     print(alert)
-pip install azure-identity azure-mgmt-monitor azure-mgmt-subscription
