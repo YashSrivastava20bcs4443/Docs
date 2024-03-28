@@ -39,3 +39,4 @@ for subscription in subscriptions:
 print("Alerts List:")
 for alert in alerts_list:
     print(alert)
+pip install azure-identity azure-mgmt-monitor azure-mgmt-subscription
