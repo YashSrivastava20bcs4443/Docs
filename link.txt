@@ -54,38 +54,37 @@ subscription_ids = ["SubscriptionID1", "SubscriptionID2"]
 # Resource groups for which you want alerts
 resource_groups = ["ems", "operations"]
 
+# Local time for comparison (last 60 minutes)
+current_time = datetime.utcnow()
+start_time = current_time - timedelta(minutes=60)
+
 # List to store alerts
 alerts_list = []
 
-# Local time for comparison (last 60 minutes)
-current_time = datetime.now()
-start_time = current_time - timedelta(minutes=60)
-
 # Loop through subscriptions
 for subscription_id in subscription_ids:
-    # Loop through resource groups
-    for resource_group_name in resource_groups:
-        # Make request to get alerts
-        response = requests.get(alert_uri.format(subscription_id=subscription_id), headers=headers)
+    # Make request to get alerts
+    response = requests.get(alert_uri.format(subscription_id=subscription_id), headers=headers)
 
-        # Check if request was successful
-        if response.status_code == 200:
-            alerts_data = response.json()
-            # Process retrieved alerts
-            for alert in alerts_data.get('value', []):
-                # Get alert time in local time
+    # Check if request was successful
+    if response.status_code == 200:
+        alerts_data = response.json()
+        # Process retrieved alerts
+        for alert in alerts_data.get('value', []):
+            # Check if alert belongs to specified resource groups
+            if alert['properties']['scope'].split("/")[-1] in resource_groups:
+                # Parse the alert start time
                 alert_time = datetime.strptime(alert['properties']['startTime'], "%Y-%m-%dT%H:%M:%SZ")
-                # Convert alert time to local time
-                alert_time = alert_time + timedelta(hours=current_time.hour - alert_time.hour)
-                # Check if alert is within the last 60 minutes and belongs to specified resource groups
-                if alert_time >= start_time and alert['properties']['scope'].split("/")[-1] in resource_groups:
+                # Check if alert is within the last 60 minutes
+                if alert_time >= start_time:
                     alerts_list.append(alert)
-        else:
-            print(f"Failed to retrieve alerts for subscription {subscription_id} and resource group {resource_group_name}: {response.text}")
+    else:
+        print(f"Failed to retrieve alerts for subscription {subscription_id}: {response.text}")
 
 # Print alerts list
 for alert in alerts_list:
     print(alert)
+
 
 
 
