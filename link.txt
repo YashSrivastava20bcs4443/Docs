@@ -84,5 +84,9 @@ for subscription_id in subscription_ids:
 for alert in alerts_list:
     print(alert)
 
-alert_time = datetime.datetime.strptime(alert['properties']['lastModifiedTime'], "%Y-%m-%dT%H:%M:%SZ")
+from dateutil import parser
+
+# Parse the alert time
+alert_time = parser.parse(alert['properties']['lastModifiedTime'])
+
 
