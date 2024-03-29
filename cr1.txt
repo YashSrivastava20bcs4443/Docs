@@ -45,3 +45,7 @@ if response.status_code == 200:
         print(json.dumps(alert, indent=2))
 else:
     print(f'Error fetching alerts: {response.status_code} - {response.text}')
+
+
+subscription_id = 'your_subscription_id'
+monitor_api_endpoint = f'https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.AlertsManagement/alerts?'
