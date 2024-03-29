@@ -1,6 +1,10 @@
 import requests
 import datetime
 
+# Function to convert date string to datetime object
+def parse_date(date_str):
+    return datetime.datetime.strptime(date_str, "%m/%d/%Y, %I:%M %p")
+
 # Azure AD credentials
 tenant_id = 'your_tenant_id'
 client_id = 'your_client_id'
@@ -24,8 +28,12 @@ def get_access_token(tenant_id, client_id, client_secret):
 
 # Calculate the time range for the past 12 hours
 current_time = datetime.datetime.utcnow()
-start_time = current_time - datetime.timedelta(hours=12)
 end_time = current_time
+start_time = current_time - datetime.timedelta(hours=12)
+
+# Format the time range in ISO 8601 format
+start_time_iso = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+end_time_iso = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 # Fetch alerts using Azure Monitor API
 access_token = get_access_token(tenant_id, client_id, client_secret)
@@ -35,7 +43,7 @@ headers = {
 }
 params = {
     'api-version': '2019-05-05',
-    '$filter': f'properties/startTime ge {start_time.isoformat()} and properties/startTime le {end_time.isoformat()}'
+    '$filter': f"properties/startTime ge '{start_time_iso}' and properties/startTime le '{end_time_iso}'"
 }
 response = requests.get(monitor_api_endpoint, headers=headers, params=params)
 
