@@ -78,6 +78,6 @@ for alert in alerts_list:
     print(alert)
 
 
-
+https://chat.openai.com/share/534ab52a-20cb-4a76-9679-16791597f606
 
 
