@@ -1,0 +1,47 @@
+import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+# Chrome WebDriver ke Liye path set karein
+driver_path = './chromedriver.exe'  # Apne system ke chromedriver ka path set karein
+
+# WebDriver ka object banaen
+driver = webdriver.Chrome(executable_path=driver_path)
+
+# URL ko kholen
+url = "https://login.microsoftonline.com"  # Microsoft ke Login page ka URL
+driver.get(url)
+
+# Email field, password field, aur next button ka locators define karein
+EMAILFIELD = (By.ID, "i0116")
+PASSWORDFIELD = (By.ID, "i0118")
+NEXTBUTTON = (By.ID, "idSIButton9")
+
+# Wait karein taaki email field load ho sake aur email enter karein
+WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EMAILFIELD)).send_keys("your_email@example.com")
+WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+
+# Password field load hone ka wait karein aur password enter karein
+WebDriverWait(driver, 10).until(EC.element_to_be_clickable(PASSWORDFIELD)).send_keys("your_password")
+
+# Click karein login button
+WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+
+# Thoda intezaar karein taaki page load ho sake
+time.sleep(5)
+
+# Stay signed in pop-up ka element ko dhundhe
+stay_signed_in_popup = driver.find_element_by_xpath("//div[contains(text(),'Stay signed in?')]")
+
+# Agar pop-up mil gaya toh 'No' button par click karein
+if stay_signed_in_popup:
+    no_button = driver.find_element_by_xpath("//input[@value='No']")
+    no_button.click()
+
+# Screenshot lein aur save karein
+driver.save_screenshot("microsoft_login_screenshot.png")
+
+# WebDriver ko band karein
+driver.quit()
