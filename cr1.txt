@@ -1,6 +1,5 @@
 import requests
 import datetime
-import json
 
 # Azure AD credentials
 tenant_id = 'your_tenant_id'
@@ -8,7 +7,8 @@ client_id = 'your_client_id'
 client_secret = 'your_client_secret'
 
 # Azure Monitor API endpoint
-monitor_api_endpoint = 'https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.AlertsManagement/alerts?'
+subscription_id = 'your_subscription_id'
+monitor_api_endpoint = f'https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.AlertsManagement/alerts?'
 
 # Function to obtain Azure AD access token
 def get_access_token(tenant_id, client_id, client_secret):
@@ -22,9 +22,9 @@ def get_access_token(tenant_id, client_id, client_secret):
     response = requests.post(token_url, data=data)
     return response.json().get('access_token')
 
-# Calculate the time range
+# Calculate the time range for the past 12 hours
 current_time = datetime.datetime.utcnow()
-start_time = current_time - datetime.timedelta(hours=3)
+start_time = current_time - datetime.timedelta(hours=12)
 end_time = current_time
 
 # Fetch alerts using Azure Monitor API
@@ -42,10 +42,6 @@ response = requests.get(monitor_api_endpoint, headers=headers, params=params)
 if response.status_code == 200:
     alerts = response.json().get('value', [])
     for alert in alerts:
-        print(json.dumps(alert, indent=2))
+        print(alert)
 else:
     print(f'Error fetching alerts: {response.status_code} - {response.text}')
-
-
-subscription_id = 'your_subscription_id'
-monitor_api_endpoint = f'https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.AlertsManagement/alerts?'
