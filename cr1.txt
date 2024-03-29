@@ -85,3 +85,45 @@ if response.status_code == 200:
     print(alerts_data)
 else:
     print(f"Failed to retrieve alerts: {response.text}")
+
+
+.........
+import requests
+from datetime import datetime, timedelta
+
+# Azure Monitor API endpoint
+monitor_endpoint = "https://management.azure.com"
+
+# Set the time range for the last 3 hours
+end_time = datetime.utcnow()
+start_time = end_time - timedelta(hours=3)
+
+# Azure Monitor API version
+api_version = "2019-03-01-preview"  # Use appropriate API version
+
+# Resource URI for alerts
+alert_uri = f"{monitor_endpoint}/providers/microsoft.insights/alerts"
+
+# Parameters
+params = {
+    "api-version": api_version,
+    "$filter": f"properties/essentials/monitorCondition eq 'Fired' and properties/essentials/startTime ge {start_time.isoformat()} and properties/essentials/startTime le {end_time.isoformat()}",
+}
+
+# Make request to get alerts
+response = requests.get(alert_uri, params=params)
+
+# Check if request was successful
+if response.status_code == 200:
+    alerts_data = response.json()
+    
+    # Specify the resource group names to filter alerts
+    resource_groups_to_fetch = ["ResourceGroup1", "ResourceGroup2"]
+    
+    # Filter alerts based on resource group names
+    alerts_filtered = [alert for alert in alerts_data['value'] if alert['resourceGroupName'] in resource_groups_to_fetch]
+    
+    print("Alerts data for the last 3 hours for specified resource groups:")
+    print(alerts_filtered)
+else:
+    print(f"Failed to retrieve alerts: {response.text}")
