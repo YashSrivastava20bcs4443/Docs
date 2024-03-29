@@ -1,5 +1,6 @@
 import requests
 from azure.identity import ClientSecretCredential
+import datetime
 
 # Tenant ID, Client ID, and Client Secret
 tenant_id = "YourTenantId"
@@ -41,12 +42,24 @@ for subscription_id in subscription_ids:
     # Check if request was successful
     if response.status_code == 200:
         alerts_data = response.json()
-        # Filter alerts based on resource group names "emsalerts" or "operations"
-        filtered_alerts = [alert for alert in alerts_data.get('value', []) if alert.get('properties', {}).get('scopes', [{}])[0].get('resourceGroupName') in ['emsalerts', 'operations']]
-        alerts_list.extend(filtered_alerts)
+        print(f"Alerts data for subscription {subscription_id}: {alerts_data}")  # Debug statement
+        # Loop through retrieved alerts and filter
+        for alert in alerts_data.get('value', []):
+            # Check if alert name is either "emsalerts" or "operations resource group"
+            if alert.get('name') == 'emsalerts' or alert.get('name') == 'operations resource group':
+                alerts_list.append(alert)
     else:
         print(f"Failed to retrieve alerts for subscription {subscription_id}: {response.text}")
 
-# Print filtered alerts list
-for alert in alerts_list:
-    print(alert)
+# Get the current time
+current_time = datetime.datetime.utcnow()
+
+# Filter alerts that occurred within the last 60 minutes
+recent_alerts = [alert for alert in alerts_list if (current_time - datetime.datetime.strptime(alert['properties']['startTime'], '%Y-%m-%dT%H:%M:%SZ')).total_seconds() / 60 <= 60]
+
+# Print each recent alert data separately
+for alert in recent_alerts:
+    print("Alert:")
+    for key, value in alert.items():
+        print(f"{key}: {value}")
+    print("\n")
