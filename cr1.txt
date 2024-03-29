@@ -6,6 +6,7 @@ import datetime
 tenant_id = "YourTenantId"
 client_id = "YourClientId"
 client_secret = "YourClientSecret"
+subscription_id = "YourSubscriptionId"
 
 # Azure credentials
 credential = ClientSecretCredential(tenant_id, client_id, client_secret)
@@ -13,57 +14,74 @@ credential = ClientSecretCredential(tenant_id, client_id, client_secret)
 # Get access token
 access_token = credential.get_token("https://management.azure.com/.default").token
 
-# Headers with access token
+# Azure Monitor API endpoint
+monitor_endpoint = "https://management.azure.com"
+
+# API version
+api_version = "2019-03-01-preview"  # Use appropriate API version
+
+# Resource URI for alerts
+alert_uri = f"{monitor_endpoint}/subscriptions/{subscription_id}/providers/microsoft.insights/alertRules"
+
+# Set the time range for the last 3 hours
+start_time = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+end_time = datetime.datetime.utcnow()
+
+# Headers with access token and parameters
 headers = {
     "Authorization": f"Bearer {access_token}",
     "Content-Type": "application/json"
 }
 
+params = {
+    "api-version": api_version,
+    "$filter": f"properties/createdTime ge {start_time.isoformat()}Z and properties/createdTime le {end_time.isoformat()}Z"
+}
+
+# Make request to get alerts
+response = requests.get(alert_uri, headers=headers, params=params)
+
+# Check if request was successful
+if response.status_code == 200:
+    alerts_data = response.json()
+    print("Alerts data for the last 3 hours:")
+    print(alerts_data)
+else:
+    print(f"Failed to retrieve alerts: {response.text}")
+
+
+........
+
+
+import requests
+from datetime import datetime, timedelta
+
 # Azure Monitor API endpoint
 monitor_endpoint = "https://management.azure.com"
 
-# API version
-api_version = "2018-03-01"
+# Set the time range for the last 3 hours
+end_time = datetime.utcnow()
+start_time = end_time - timedelta(hours=3)
+
+# Azure Monitor API version
+api_version = "2019-03-01-preview"  # Use appropriate API version
 
 # Resource URI for alerts
-alert_uri = f"{monitor_endpoint}/subscriptions/{{subscription_id}}/providers/microsoft.insights/metricAlerts?api-version={api_version}"
+alert_uri = f"{monitor_endpoint}/providers/microsoft.insights/alerts"
 
-# Subscription IDs for which you want alerts (replace with your subscription IDs)
-subscription_ids = ["SubscriptionID1", "SubscriptionID2"]
+# Parameters
+params = {
+    "api-version": api_version,
+    "$filter": f"properties/essentials/monitorCondition eq 'Fired' and properties/essentials/startTime ge {start_time.isoformat()} and properties/essentials/startTime le {end_time.isoformat()}",
+}
 
-# List to store alerts
-alerts_list = []
+# Make request to get alerts
+response = requests.get(alert_uri, params=params)
 
-# Loop through subscriptions
-for subscription_id in subscription_ids:
-    # Make request to get alerts
-    response = requests.get(alert_uri.format(subscription_id=subscription_id), headers=headers)
-
-    # Check if request was successful
-    if response.status_code == 200:
-        alerts_data = response.json()
-        print(f"Alerts data for subscription {subscription_id}: {alerts_data}")  # Debug statement
-        # Loop through retrieved alerts and filter
-        for alert in alerts_data.get('value', []):
-            # Check if alert name is either "emsalerts" or "operations resource group"
-            if alert.get('name') == 'emsalerts' or alert.get('name') == 'operations resource group':
-                alerts_list.append(alert)
-    else:
-        print(f"Failed to retrieve alerts for subscription {subscription_id}: {response.text}")
-
-# Get the current time
-current_time = datetime.datetime.utcnow()
-
-# Filter alerts that occurred within the last 60 minutes
-recent_alerts = []
-for alert in alerts_list:
-    start_time = datetime.datetime.strptime(alert['properties']['startTime'], '%Y-%m-%dT%H:%M:%SZ')
-    if (current_time - start_time).total_seconds() / 60 <= 60:
-        recent_alerts.append(alert)
-
-# Print each recent alert data separately
-for alert in recent_alerts:
-    print("Alert:")
-    for key, value in alert.items():
-        print(f"{key}: {value}")
-    print("\n")
+# Check if request was successful
+if response.status_code == 200:
+    alerts_data = response.json()
+    print("Alerts data for the last 3 hours:")
+    print(alerts_data)
+else:
+    print(f"Failed to retrieve alerts: {response.text}")
