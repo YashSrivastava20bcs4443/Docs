@@ -72,3 +72,5 @@ for index, alert_element in enumerate(alert_elements, 1):
 
 # Quit the driver
 driver.quit()
+
+driver = webdriver.Chrome(executable_path='./chromedriver.exe', options=options)
