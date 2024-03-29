@@ -1,13 +1,12 @@
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-from webdriver_manager.chrome import ChromeDriverManager
 import time
 
 # Function to perform Azure AD authentication
 def azure_ad_login(tenant_id, client_id, client_secret):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')  # Run Chrome in headless mode (without opening a browser window)
-    driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+    driver = webdriver.Chrome(executable_path='./chromedriver.exe', options=options)
 
     # Navigate to the Azure AD login page
     driver.get(f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize')
