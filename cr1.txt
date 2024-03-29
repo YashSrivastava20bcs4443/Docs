@@ -1,129 +1,47 @@
 import requests
-from azure.identity import ClientSecretCredential
 import datetime
+import json
 
-# Tenant ID, Client ID, and Client Secret
-tenant_id = "YourTenantId"
-client_id = "YourClientId"
-client_secret = "YourClientSecret"
-subscription_id = "YourSubscriptionId"
-
-# Azure credentials
-credential = ClientSecretCredential(tenant_id, client_id, client_secret)
-
-# Get access token
-access_token = credential.get_token("https://management.azure.com/.default").token
+# Azure AD credentials
+tenant_id = 'your_tenant_id'
+client_id = 'your_client_id'
+client_secret = 'your_client_secret'
 
 # Azure Monitor API endpoint
-monitor_endpoint = "https://management.azure.com"
+monitor_api_endpoint = 'https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.AlertsManagement/alerts?'
 
-# API version
-api_version = "2019-03-01-preview"  # Use appropriate API version
+# Function to obtain Azure AD access token
+def get_access_token(tenant_id, client_id, client_secret):
+    token_url = f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token'
+    data = {
+        'grant_type': 'client_credentials',
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'scope': 'https://management.azure.com/.default'
+    }
+    response = requests.post(token_url, data=data)
+    return response.json().get('access_token')
 
-# Resource URI for alerts
-alert_uri = f"{monitor_endpoint}/subscriptions/{subscription_id}/providers/microsoft.insights/alertRules"
+# Calculate the time range
+current_time = datetime.datetime.utcnow()
+start_time = current_time - datetime.timedelta(hours=3)
+end_time = current_time
 
-# Set the time range for the last 3 hours
-start_time = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-end_time = datetime.datetime.utcnow()
-
-# Headers with access token and parameters
+# Fetch alerts using Azure Monitor API
+access_token = get_access_token(tenant_id, client_id, client_secret)
 headers = {
-    "Authorization": f"Bearer {access_token}",
-    "Content-Type": "application/json"
+    'Authorization': f'Bearer {access_token}',
+    'Content-Type': 'application/json'
 }
-
 params = {
-    "api-version": api_version,
-    "$filter": f"properties/createdTime ge {start_time.isoformat()}Z and properties/createdTime le {end_time.isoformat()}Z"
+    'api-version': '2019-05-05',
+    '$filter': f'properties/startTime ge {start_time.isoformat()} and properties/startTime le {end_time.isoformat()}'
 }
+response = requests.get(monitor_api_endpoint, headers=headers, params=params)
 
-# Make request to get alerts
-response = requests.get(alert_uri, headers=headers, params=params)
-
-# Check if request was successful
 if response.status_code == 200:
-    alerts_data = response.json()
-    print("Alerts data for the last 3 hours:")
-    print(alerts_data)
+    alerts = response.json().get('value', [])
+    for alert in alerts:
+        print(json.dumps(alert, indent=2))
 else:
-    print(f"Failed to retrieve alerts: {response.text}")
-
-
-........
-
-
-import requests
-from datetime import datetime, timedelta
-
-# Azure Monitor API endpoint
-monitor_endpoint = "https://management.azure.com"
-
-# Set the time range for the last 3 hours
-end_time = datetime.utcnow()
-start_time = end_time - timedelta(hours=3)
-
-# Azure Monitor API version
-api_version = "2019-03-01-preview"  # Use appropriate API version
-
-# Resource URI for alerts
-alert_uri = f"{monitor_endpoint}/providers/microsoft.insights/alerts"
-
-# Parameters
-params = {
-    "api-version": api_version,
-    "$filter": f"properties/essentials/monitorCondition eq 'Fired' and properties/essentials/startTime ge {start_time.isoformat()} and properties/essentials/startTime le {end_time.isoformat()}",
-}
-
-# Make request to get alerts
-response = requests.get(alert_uri, params=params)
-
-# Check if request was successful
-if response.status_code == 200:
-    alerts_data = response.json()
-    print("Alerts data for the last 3 hours:")
-    print(alerts_data)
-else:
-    print(f"Failed to retrieve alerts: {response.text}")
-
-
-.........
-import requests
-from datetime import datetime, timedelta
-
-# Azure Monitor API endpoint
-monitor_endpoint = "https://management.azure.com"
-
-# Set the time range for the last 3 hours
-end_time = datetime.utcnow()
-start_time = end_time - timedelta(hours=3)
-
-# Azure Monitor API version
-api_version = "2019-03-01-preview"  # Use appropriate API version
-
-# Resource URI for alerts
-alert_uri = f"{monitor_endpoint}/providers/microsoft.insights/alerts"
-
-# Parameters
-params = {
-    "api-version": api_version,
-    "$filter": f"properties/essentials/monitorCondition eq 'Fired' and properties/essentials/startTime ge {start_time.isoformat()} and properties/essentials/startTime le {end_time.isoformat()}",
-}
-
-# Make request to get alerts
-response = requests.get(alert_uri, params=params)
-
-# Check if request was successful
-if response.status_code == 200:
-    alerts_data = response.json()
-    
-    # Specify the resource group names to filter alerts
-    resource_groups_to_fetch = ["ResourceGroup1", "ResourceGroup2"]
-    
-    # Filter alerts based on resource group names
-    alerts_filtered = [alert for alert in alerts_data['value'] if alert['resourceGroupName'] in resource_groups_to_fetch]
-    
-    print("Alerts data for the last 3 hours for specified resource groups:")
-    print(alerts_filtered)
-else:
-    print(f"Failed to retrieve alerts: {response.text}")
+    print(f'Error fetching alerts: {response.status_code} - {response.text}')
