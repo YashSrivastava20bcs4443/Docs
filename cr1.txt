@@ -1,47 +1,48 @@
 from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 
-# Function to capture screenshot and save it
-def capture_screenshot(alert_name, resource_name, screenshot_counter):
+# Function to perform Azure AD authentication
+def azure_ad_login(tenant_id, client_id, client_secret):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')  # Run Chrome in headless mode (without opening a browser window)
     driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
 
-    # Navigate to the Azure Monitor Alerts page
-    driver.get('https://portal.azure.com/#view/Microsoft Azure Monitoring/AzureMonitoring Browse Blade/~/alertsV2')
+    # Navigate to the Azure AD login page
+    driver.get(f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize')
 
     # Wait for page to load
     time.sleep(5)
 
-    # Find the alert element by its name
-    alert_element = driver.find_element_by_xpath(f"//div[@data-automation-id='detailsList']/div[contains(@role, 'listitem') and .//*[text()='{alert_name}']]")
+    # Enter client_id
+    driver.find_element_by_id('username').send_keys(client_id)
+    driver.find_element_by_id('username').send_keys(Keys.RETURN)
 
-    # Click on the alert element to view details
-    alert_element.click()
-
-    # Wait for alert details to load
+    # Wait for page to load
     time.sleep(5)
 
-    # Find the affected resource element by its name
-    resource_element = driver.find_element_by_xpath(f"//*[contains(text(), '{resource_name}')]")
+    # Enter client_secret
+    driver.find_element_by_id('password').send_keys(client_secret)
+    driver.find_element_by_id('password').send_keys(Keys.RETURN)
 
-    # Scroll to the affected resource element
-    driver.execute_script("arguments[0].scrollIntoView();", resource_element)
+    # Wait for login process to complete
+    time.sleep(10)
 
-    # Capture screenshot of the affected resource
-    screenshot_path = f'{alert_name}_resource_{screenshot_counter}.png'
-    resource_element.screenshot(screenshot_path)
+    return driver
 
-    # Quit the driver
-    driver.quit()
-
+# Function to capture screenshot and save it
+def capture_screenshot(driver, screenshot_path):
+    driver.save_screenshot(screenshot_path)
     print(f'Screenshot saved: {screenshot_path}')
 
-# Initialize Chrome driver
-options = webdriver.ChromeOptions()
-options.add_argument('--headless')  # Run Chrome in headless mode (without opening a browser window)
-driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+# Azure AD credentials
+tenant_id = 'your_tenant_id'
+client_id = 'your_client_id'
+client_secret = 'your_client_secret'
+
+# Initialize Chrome driver and perform Azure AD login
+driver = azure_ad_login(tenant_id, client_id, client_secret)
 
 # Navigate to the Azure Monitor Alerts page
 driver.get('https://portal.azure.com/#view/Microsoft Azure Monitoring/AzureMonitoring Browse Blade/~/alertsV2')
@@ -53,26 +54,16 @@ time.sleep(5)
 alert_elements = driver.find_elements_by_xpath("//div[@data-automation-id='detailsList']/div[contains(@role, 'listitem')]")
 
 # Capture screenshots for each alert's affected resource
-for alert_element in alert_elements:
-    # Get the alert name
-    alert_name = alert_element.find_element_by_xpath(".//div[contains(@class, 'ms-DetailsRow-cell') and @data-automation-id='column-group-header-title']").text
-
-    # Open the alert to view details
+for index, alert_element in enumerate(alert_elements, 1):
+    # Click on the alert element to view details
     alert_element.click()
 
     # Wait for alert details to load
     time.sleep(5)
 
-    # Find all affected resource elements
-    resource_elements = driver.find_elements_by_xpath("//*[contains(text(), 'Affected Resource')]")
-
-    # Capture screenshot for each affected resource
-    for i, resource_element in enumerate(resource_elements, 1):
-        # Get the affected resource name
-        resource_name = resource_element.text.split(':', 1)[1].strip()
-
-        # Capture screenshot of the affected resource
-        capture_screenshot(alert_name, resource_name, i)
+    # Capture screenshot of the alert
+    screenshot_path = f'alert_{index}_details.png'
+    capture_screenshot(driver, screenshot_path)
 
     # Go back to the alerts page
     driver.back()
