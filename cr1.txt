@@ -74,3 +74,22 @@ for index, alert_element in enumerate(alert_elements, 1):
 driver.quit()
 
 driver = webdriver.Chrome(executable_path='./chromedriver.exe', options=options)
+
+....
+from selenium import webdriver
+
+# Selenium ke webdriver ke liye path set karein (e.g., Chrome)
+driver_path = '/path/to/your/chromedriver' # Aap apne system par chromedriver ka path set karen
+url = 'https://www.example.com'  # URL ko yahan par set karen
+
+# Chrome WebDriver ka object banaen
+driver = webdriver.Chrome(executable_path=driver_path)
+
+# URL ko kholen
+driver.get(url)
+
+# Screenshot lein aur save karen
+driver.save_screenshot("screenshot.png")
+
+# WebDriver ko band karen
+driver.quit()
