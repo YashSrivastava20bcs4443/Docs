@@ -70,3 +70,43 @@ for index, alert_element in enumerate(alert_elements, 1):
 
 # Quit the driver
 driver.quit()
+
+
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+import time
+
+# Chrome WebDriver ke liye path set karein
+driver_path = '/path/to/your/chromedriver'  # Apne system ke chromedriver ka path set karein
+url = 'https://login.microsoftonline.com'  # Microsoft ke login page ka URL
+
+# WebDriver ka object banaen
+driver = webdriver.Chrome(executable_path=driver_path)
+
+# URL ko kholen
+driver.get(url)
+
+# Email id aur password ko yahan set karen
+email = "your_email@example.com"
+password = "your_password"
+
+# Email id aur password ko enter karen
+email_input = driver.find_element_by_name("loginfmt")
+email_input.send_keys(email)
+email_input.send_keys(Keys.RETURN)
+
+time.sleep(2)  # Thoda wait karein taaki next page load ho sake
+
+# Password enter karen
+password_input = driver.find_element_by_name("passwd")
+password_input.send_keys(password)
+password_input.send_keys(Keys.RETURN)
+
+# Thoda intezaar karein taaki login ho sake
+time.sleep(5)
+
+# Screenshot lein aur save karen
+driver.save_screenshot("microsoft_login_screenshot.png")
+
+# WebDriver ko band karein
+driver.quit()
