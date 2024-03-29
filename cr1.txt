@@ -4,31 +4,27 @@ from webdriver_manager.chrome import ChromeDriverManager
 import time
 
 # Function to perform Azure AD authentication
-def azure_ad_login(tenant_id, client_id, client_secret):
+def azure_ad_login(email, password):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')  # Run Chrome in headless mode (without opening a browser window)
     driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
 
-    # Construct the login URL with client ID
-    login_url = f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token'
-
-    # Open the login URL
-    driver.get(login_url)
+    # Navigate to the Azure AD login page
+    driver.get('https://login.microsoftonline.com/')
 
     # Wait for page to load
     time.sleep(5)
 
-    # Enter client ID
-    driver.find_element_by_name('client_id').send_keys(client_id)
+    # Enter email
+    driver.find_element_by_name('loginfmt').send_keys(email)
+    driver.find_element_by_id('idSIButton9').click()
 
-    # Enter client secret
-    driver.find_element_by_name('client_secret').send_keys(client_secret)
+    # Wait for page to load
+    time.sleep(5)
 
-    # Select client credentials flow
-    driver.find_element_by_id('client_credentials').click()
-
-    # Click on "Get token"
-    driver.find_element_by_id('get_token').click()
+    # Enter password
+    driver.find_element_by_name('passwd').send_keys(password)
+    driver.find_element_by_id('idSIButton9').click()
 
     # Wait for login process to complete
     time.sleep(10)
@@ -40,13 +36,12 @@ def capture_screenshot(driver, screenshot_path):
     driver.save_screenshot(screenshot_path)
     print(f'Screenshot saved: {screenshot_path}')
 
-# Azure AD credentials
-tenant_id = 'your_tenant_id'
-client_id = 'your_client_id'
-client_secret = 'your_client_secret'
+# Email and password
+email = 'your_email@example.com'
+password = 'your_password'
 
 # Initialize Chrome driver and perform Azure AD login
-driver = azure_ad_login(tenant_id, client_id, client_secret)
+driver = azure_ad_login(email, password)
 
 # Navigate to the Azure Monitor Alerts page
 driver.get('https://portal.azure.com/#view/Microsoft Azure Monitoring/AzureMonitoring Browse Blade/~/alertsV2')
