@@ -1,29 +1,34 @@
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+from webdriver_manager.chrome import ChromeDriverManager
 import time
 
 # Function to perform Azure AD authentication
 def azure_ad_login(tenant_id, client_id, client_secret):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')  # Run Chrome in headless mode (without opening a browser window)
-    driver = webdriver.Chrome(executable_path='./chromedriver.exe', options=options)
+    driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
 
-    # Navigate to the Azure AD login page
-    driver.get(f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/authorize')
+    # Construct the login URL with client ID
+    login_url = f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token'
 
-    # Wait for page to load
-    time.sleep(5)
-
-    # Enter client_id
-    driver.find_element_by_id('username').send_keys(client_id)
-    driver.find_element_by_id('username').send_keys(Keys.RETURN)
+    # Open the login URL
+    driver.get(login_url)
 
     # Wait for page to load
     time.sleep(5)
 
-    # Enter client_secret
-    driver.find_element_by_id('password').send_keys(client_secret)
-    driver.find_element_by_id('password').send_keys(Keys.RETURN)
+    # Enter client ID
+    driver.find_element_by_name('client_id').send_keys(client_id)
+
+    # Enter client secret
+    driver.find_element_by_name('client_secret').send_keys(client_secret)
+
+    # Select client credentials flow
+    driver.find_element_by_id('client_credentials').click()
+
+    # Click on "Get token"
+    driver.find_element_by_id('get_token').click()
 
     # Wait for login process to complete
     time.sleep(10)
@@ -71,25 +76,4 @@ for index, alert_element in enumerate(alert_elements, 1):
     time.sleep(5)
 
 # Quit the driver
-driver.quit()
-
-driver = webdriver.Chrome(executable_path='./chromedriver.exe', options=options)
-
-....
-from selenium import webdriver
-
-# Selenium ke webdriver ke liye path set karein (e.g., Chrome)
-driver_path = '/path/to/your/chromedriver' # Aap apne system par chromedriver ka path set karen
-url = 'https://www.example.com'  # URL ko yahan par set karen
-
-# Chrome WebDriver ka object banaen
-driver = webdriver.Chrome(executable_path=driver_path)
-
-# URL ko kholen
-driver.get(url)
-
-# Screenshot lein aur save karen
-driver.save_screenshot("screenshot.png")
-
-# WebDriver ko band karen
 driver.quit()
