@@ -55,7 +55,11 @@ for subscription_id in subscription_ids:
 current_time = datetime.datetime.utcnow()
 
 # Filter alerts that occurred within the last 60 minutes
-recent_alerts = [alert for alert in alerts_list if (current_time - datetime.datetime.strptime(alert['properties']['startTime'], '%Y-%m-%dT%H:%M:%SZ')).total_seconds() / 60 <= 60]
+recent_alerts = []
+for alert in alerts_list:
+    start_time = datetime.datetime.strptime(alert['properties']['startTime'], '%Y-%m-%dT%H:%M:%SZ')
+    if (current_time - start_time).total_seconds() / 60 <= 60:
+        recent_alerts.append(alert)
 
 # Print each recent alert data separately
 for alert in recent_alerts:
