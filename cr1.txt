@@ -1,20 +1,18 @@
-for index, alert_element in enumerate(alert_elements, 1):
-    # Click on the alert element to view details
-    alert_element.click()
+from selenium.webdriver.common.by import By
+import time
 
-    # Wait for alert details to load
-    time.sleep(5)
+# Find all alert elements by class name
+alert_links = driver.find_elements(By.CLASS_NAME, "fxc-gcflink-link")
 
-    # Get the relative URL of the next dashboard from the href attribute of the anchor element
-    next_dashboard_relative_url = alert_element.get_attribute('href')
-    
+# Iterate through each alert link
+for index, alert_link in enumerate(alert_links, 1):
+    # Get the href attribute containing the relative URL of the dashboard
+    next_dashboard_relative_url = alert_link.get_attribute('href')
+
     # Open the next dashboard if the link is not empty
     if next_dashboard_relative_url:
-        # Construct the absolute URL of the next dashboard
-        next_dashboard_url = f"https://portal.azure.com/{next_dashboard_relative_url}"
-        
-        # Open the next dashboard
-        driver.get(next_dashboard_url)
+        # Open the next dashboard using the relative URL
+        driver.get(next_dashboard_relative_url)
         
         # Wait for the next dashboard to load
         time.sleep(5)
