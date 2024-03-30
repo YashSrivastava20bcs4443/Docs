@@ -6,6 +6,10 @@ alert_links = driver.find_elements(By.CLASS_NAME, "fxc-gcflink-link")
 
 # Iterate through each alert link
 for index, alert_link in enumerate(alert_links, 1):
+    # Skip opening the link if its index is odd
+    if index % 2 != 0:
+        continue
+    
     # Construct the JavaScript to click on the anchor tag
     js_script = "arguments[0].click();"
     
