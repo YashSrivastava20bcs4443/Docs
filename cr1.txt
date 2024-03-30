@@ -1,11 +1,5 @@
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-
-# Wait for alert elements to be visible
-alert_elements = WebDriverWait(driver, 10).until(
-    EC.visibility_of_all_elements_located((By.XPATH, "//div[@data-automation-id='detailsList']/div[contains(@role, 'listitem')]"))
-)
+# Find all alert elements
+alert_elements = driver.find_elements_by_xpath("//div[@data-automation-id='detailsList']/div[contains(@role, 'listitem')]")
 
 # Capture screenshots of "Affected Resources" for each alert
 for index, alert_element in enumerate(alert_elements, 1):
@@ -13,37 +7,26 @@ for index, alert_element in enumerate(alert_elements, 1):
     alert_element.click()
 
     # Wait for alert details to load
-    time.sleep(5)  # You can replace this with a WebDriverWait if needed
+    time.sleep(5)
 
-    # Find all links within the current alert
-    links = WebDriverWait(driver, 10).until(
-        EC.presence_of_all_elements_located((By.TAG_NAME, "a"))
-    )
+    # Find the link to navigate to the detail page of the current alert
+    detail_link = driver.find_element_by_xpath("//a[contains(@href,'details')]").get_attribute('href')
 
-    # Iterate through each link and click on the one containing "Affected Resources" text
-    for link in links:
-        if "Affected Resources" in link.text:
-            link.click()
-            break
+    # Open the detail page for the current alert
+    driver.get(detail_link)
 
-    # Wait for the page with affected resources to load
-    time.sleep(5)  # You can replace this with a WebDriverWait if needed
+    # Wait for page to load
+    time.sleep(5)
 
-    # Capture screenshot of the page with affected resources
-    driver.save_screenshot(f'alert_{index}_affected_resources.png')
+    # Capture screenshot of the "Affected Resources" section
+    affected_resources_element = driver.find_element_by_xpath("//div[@class='affected-resources']")
+    affected_resources_element.screenshot(f'alert_{index}_affected_resources.png')
 
     # Go back to the dashboard
     driver.back()
 
     # Wait for page to load
-    time.sleep(5)  # You can replace this with a WebDriverWait if needed
-#--------------------------------------------------------#
-from selenium import webdriver
+    time.sleep(5)
 
-# Initialize Chrome driver
-driver = webdriver.Chrome()
-
-# Maximize the window
-driver.maximize_window()
-
-driver.execute_script("document.body.style.zoom='80%'")
+# Quit the driver
+driver.quit()
