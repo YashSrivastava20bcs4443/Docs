@@ -1,8 +1,11 @@
-from selenium.webdriver.common.keys import Keys
+# Set Chrome options
+chrome_options = Options()
+chrome_options.add_argument("--disable-infobars")  # Disable infobars
+chrome_options.add_argument("--disable-extensions")  # Disable extensions
+chrome_options.add_argument("--start-maximized")  # Maximize window
+chrome_options.add_argument("--disable-dev-shm-usage")  # Disable dev-shm-usage
+chrome_options.add_argument("--no-sandbox")  # No sandbox
+chrome_options.add_argument("--disable-gpu")  # Disable GPU
 
-html_element = driver.find_element(By.TAG_NAME, "html")
-
-# Send keys to adjust zoom level (Ctrl + - to decrease zoom)
-for _ in range(5):  # Decrease zoom level by 5 times (each - key press decreases by 25%)
-    html_element.send_keys(Keys.CONTROL, "-")
-    time.sleep(1)
+# Set zoom level to 75%
+driver.execute_cdp_cmd("Emulation.setPageScaleFactor", {"pageScaleFactor": 0.75})
