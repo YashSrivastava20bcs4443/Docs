@@ -1,4 +1,3 @@
-# Iterate through each alert
 for index, alert_element in enumerate(alert_elements, 1):
     # Click on the alert element to view details
     alert_element.click()
@@ -9,23 +8,27 @@ for index, alert_element in enumerate(alert_elements, 1):
     # Get the relative URL of the next dashboard from the href attribute of the anchor element
     next_dashboard_relative_url = alert_element.get_attribute('href')
     
-    # Construct the absolute URL of the next dashboard
-    next_dashboard_url = urljoin("https://portal.azure.com/#", next_dashboard_relative_url)
-    
-    # Open the next dashboard
-    driver.get(next_dashboard_url)
-    
-    # Wait for the next dashboard to load
-    time.sleep(5)
-    
-    # Capture screenshot of the next dashboard
-    driver.save_screenshot(f'next_dashboard_{index}.png')
+    # Open the next dashboard if the link is not empty
+    if next_dashboard_relative_url:
+        # Construct the absolute URL of the next dashboard
+        next_dashboard_url = f"https://portal.azure.com/{next_dashboard_relative_url}"
+        
+        # Open the next dashboard
+        driver.get(next_dashboard_url)
+        
+        # Wait for the next dashboard to load
+        time.sleep(5)
+        
+        # Capture screenshot of the next dashboard
+        driver.save_screenshot(f'next_dashboard_{index}.png')
 
-    # Go back to the previous page (the alert details)
-    driver.back()
+        # Go back to the previous page (the alert details)
+        driver.back()
 
-    # Wait for page to load
-    time.sleep(5)
+        # Wait for page to load
+        time.sleep(5)
+    else:
+        print(f"No link found for alert {index}")
 
 # Quit the driver
 driver.quit()
