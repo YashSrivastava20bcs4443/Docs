@@ -1,56 +1,7 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
-import time
-
-# Function to perform Azure AD authentication
-def azure_ad_login(email, password):
-    options = webdriver.ChromeOptions()
-    options.add_argument('--headless')  # Run Chrome in headless mode (without opening a browser window)
-    driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
-
-    # Navigate to the Azure AD login page
-    driver.get('https://login.microsoftonline.com/')
-
-    # Input email
-    driver.find_element_by_name('loginfmt').send_keys(email)
-    driver.find_element_by_id('idSIButton9').click()
-
-    # Input password
-    driver.find_element_by_name('passwd').send_keys(password)
-    driver.find_element_by_id('idSIButton9').click()
-
-    # Wait for login process to complete
-    WebDriverWait(driver, 10).until(EC.url_contains('portal.azure.com'))
-    time.sleep(5)  # Additional wait to ensure all elements are loaded
-
-    return driver
-
-# Function to capture screenshot and save it
-def capture_screenshot(driver, screenshot_path):
-    driver.save_screenshot(screenshot_path)
-    print(f'Screenshot saved: {screenshot_path}')
-
-# Email and password
-email = 'your_email@example.com'
-password = 'your_password'
-
-# Initialize Chrome driver and perform Azure AD login
-driver = azure_ad_login(email, password)
-
-# Navigate to the Azure Monitor Alerts page
-driver.get('https://portal.azure.com/#view/Microsoft Azure Monitoring/AzureMonitoring Browse Blade/~/alertsV2')
-
-# Wait for page to load
-time.sleep(5)
-
 # Find all alert elements
 alert_elements = driver.find_elements_by_xpath("//div[@data-automation-id='detailsList']/div[contains(@role, 'listitem')]")
 
-# Capture screenshots for each alert's affected resource
+# Capture screenshots of "Affected Resources" for each alert
 for index, alert_element in enumerate(alert_elements, 1):
     # Click on the alert element to view details
     alert_element.click()
@@ -58,55 +9,26 @@ for index, alert_element in enumerate(alert_elements, 1):
     # Wait for alert details to load
     time.sleep(5)
 
-    # Capture screenshot of the alert
-    screenshot_path = f'alert_{index}_details.png'
-    capture_screenshot(driver, screenshot_path)
+    # Find all links within the current alert
+    links = driver.find_elements_by_xpath("//a")
 
-    # Go back to the alerts page
+    # Iterate through each link and click on the one containing "Affected Resources" text
+    for link in links:
+        if "Affected Resources" in link.text:
+            link.click()
+            break
+
+    # Wait for the page with affected resources to load
+    time.sleep(5)
+
+    # Capture screenshot of the page with affected resources
+    driver.save_screenshot(f'alert_{index}_affected_resources.png')
+
+    # Go back to the dashboard
     driver.back()
 
     # Wait for page to load
     time.sleep(5)
 
 # Quit the driver
-driver.quit()
-
-
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-import time
-
-# Chrome WebDriver ke liye path set karein
-driver_path = '/path/to/your/chromedriver'  # Apne system ke chromedriver ka path set karein
-url = 'https://login.microsoftonline.com'  # Microsoft ke login page ka URL
-
-# WebDriver ka object banaen
-driver = webdriver.Chrome(executable_path=driver_path)
-
-# URL ko kholen
-driver.get(url)
-
-# Email id aur password ko yahan set karen
-email = "your_email@example.com"
-password = "your_password"
-
-# Email id aur password ko enter karen
-email_input = driver.find_element_by_name("loginfmt")
-email_input.send_keys(email)
-email_input.send_keys(Keys.RETURN)
-
-time.sleep(2)  # Thoda wait karein taaki next page load ho sake
-
-# Password enter karen
-password_input = driver.find_element_by_name("passwd")
-password_input.send_keys(password)
-password_input.send_keys(Keys.RETURN)
-
-# Thoda intezaar karein taaki login ho sake
-time.sleep(5)
-
-# Screenshot lein aur save karen
-driver.save_screenshot("microsoft_login_screenshot.png")
-
-# WebDriver ko band karein
 driver.quit()
