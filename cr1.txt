@@ -1,44 +1,40 @@
-import time
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
+import time
 
-# Initialize WebDriver
-driver = webdriver.Chrome()  # Or choose your preferred WebDriver
+# Selenium WebDriver ka upyog karke browser ko kholo
+driver = webdriver.Chrome()
 
-try:
-    # Find all alert links
-    alert_links = driver.find_elements(By.CLASS_NAME, "fxc-gcflink-link")
+# Azure Monitor dashboard ka URL
+url = "https://portal.azure.com/#view/Microsoft_Azure_Monitoring/AzureMonitoring_BrowseBlade/~/alertsV2"
+driver.get(url)
 
-    # Iterate through each alert link
-    for index, alert_link in enumerate(alert_links, 1):
-        # Skip odd-indexed links
-        if index % 2 != 0:
-            continue
+# Wait for page to load
+time.sleep(5)
 
-        # Construct JavaScript to click on the anchor tag
-        js_script = "arguments[0].click();"
-        # Execute JavaScript to click on the anchor tag
-        driver.execute_script(js_script, alert_link)
+# Find all alert elements
+alert_elements = driver.find_elements_by_xpath("//div[@class='fxc-gc-row fxc-gc-row e azc-br-muted fxs-portal-hover fxs-portal-selected']")
 
-        # Wait for the next dashboard to load
-        time.sleep(8)
-
-        # Capture screenshot of the next dashboard
-        driver.save_screenshot(f'next_dashboard_{index}.png')
-
+# Iterate through each alert
+for index, alert_element in enumerate(alert_elements, 1):
+    # Find the second link inside the alert element
+    links = alert_element.find_elements_by_tag_name("a")
+    if len(links) >= 2:
+        second_link = links[1]
+        
+        # Click on the second link
+        second_link.click()
+        
+        # Wait for the page to load
+        time.sleep(5)
+        
+        # Capture screenshot
+        driver.save_screenshot(f'alert_{index}_affected_resource.png')
+        
         # Go back to the previous page (the alert details)
         driver.back()
-
+        
         # Wait for the page to load
         time.sleep(5)
 
-except NoSuchElementException as e:
-    print("Element not found:", e)
-
-except Exception as e:
-    print("An error occurred:", e)
-
-finally:
-    # Quit the driver
-    driver.quit()
+# Quit the driver
+driver.quit()
