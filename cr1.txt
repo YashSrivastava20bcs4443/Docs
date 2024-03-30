@@ -1,32 +1,8 @@
-from selenium.webdriver.common.by import By
-import time
+from selenium.webdriver.common.keys import Keys
 
-# Find all alert links by class name
-alert_links = driver.find_elements(By.CLASS_NAME, "fxc-gcflink-link")
+html_element = driver.find_element(By.TAG_NAME, "html")
 
-# Iterate through each alert link
-for index, alert_link in enumerate(alert_links, 1):
-    # Skip opening the link if its index is odd
-    if index % 2 != 0:
-        continue
-    
-    # Construct the JavaScript to click on the anchor tag
-    js_script = "arguments[0].click();"
-    
-    # Execute the JavaScript to click on the anchor tag
-    driver.execute_script(js_script, alert_link)
-    
-    # Wait for the next dashboard to load
-    time.sleep(5)
-    
-    # Capture screenshot of the next dashboard
-    driver.save_screenshot(f'next_dashboard_{index}.png')
-
-    # Go back to the previous page (the alert details)
-    driver.back()
-
-    # Wait for page to load
-    time.sleep(5)
-
-# Quit the driver
-driver.quit()
+# Send keys to adjust zoom level (Ctrl + - to decrease zoom)
+for _ in range(5):  # Decrease zoom level by 5 times (each - key press decreases by 25%)
+    html_element.send_keys(Keys.CONTROL, "-")
+    time.sleep(1)
