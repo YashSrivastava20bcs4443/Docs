@@ -1,17 +1,12 @@
-
-
-# Base URL of the dashboard
-base_url = "https://p.azure.com/"
-
-
+from urllib.parse import urljoin
 
 # Iterate through each alert
 for index, alert_element in enumerate(alert_elements, 1):
     # Get the relative URL of the next dashboard from the href attribute of the anchor element
     next_dashboard_relative_url = alert_element.get_attribute('href')
     
-    # Construct the absolute URL of the next dashboard by appending the relative URL to the base URL
-    next_dashboard_url = f"{base_url}{next_dashboard_relative_url}"
+    # Construct the absolute URL of the next dashboard
+    next_dashboard_url = urljoin(driver.current_url, next_dashboard_relative_url)
 
     # Open the next dashboard
     driver.get(next_dashboard_url)
@@ -21,26 +16,6 @@ for index, alert_element in enumerate(alert_elements, 1):
     
     # Capture screenshot of the next dashboard
     driver.save_screenshot(f'next_dashboard_{index}.png')
-
-    # Go back to the previous page (the alert details)
-    driver.back()
-
-    # Wait for page to load
-    time.sleep(5)
-
-# Quit the driver
-driver.quit()
----------------------------
-
-
-
-# Iterate through each alert
-for index, alert_element in enumerate(alert_elements, 1):
-    # Get the href attribute value of the anchor element
-    href_value = alert_element.get_attribute('href')
-    
-    # Print the href link
-    print(f"Link for alert {index}: {href_value}")
 
     # Go back to the previous page (the alert details)
     driver.back()
