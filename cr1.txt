@@ -1,4 +1,44 @@
-zoom_level = 0.75
+import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
 
-# Execute JavaScript to set the browser zoom level
-driver.execute_script(f"document.body.style.zoom = '{zoom_level}'")
+# Initialize WebDriver
+driver = webdriver.Chrome()  # Or choose your preferred WebDriver
+
+try:
+    # Find all alert links
+    alert_links = driver.find_elements(By.CLASS_NAME, "fxc-gcflink-link")
+
+    # Iterate through each alert link
+    for index, alert_link in enumerate(alert_links, 1):
+        # Skip odd-indexed links
+        if index % 2 != 0:
+            continue
+
+        # Construct JavaScript to click on the anchor tag
+        js_script = "arguments[0].click();"
+        # Execute JavaScript to click on the anchor tag
+        driver.execute_script(js_script, alert_link)
+
+        # Wait for the next dashboard to load
+        time.sleep(8)
+
+        # Capture screenshot of the next dashboard
+        driver.save_screenshot(f'next_dashboard_{index}.png')
+
+        # Go back to the previous page (the alert details)
+        driver.back()
+
+        # Wait for the page to load
+        time.sleep(5)
+
+except NoSuchElementException as e:
+    print("Element not found:", e)
+
+except Exception as e:
+    print("An error occurred:", e)
+
+finally:
+    # Quit the driver
+    driver.quit()
