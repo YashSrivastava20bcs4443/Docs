@@ -1,5 +1,11 @@
-# Find all alert elements
-alert_elements = driver.find_elements_by_xpath("//div[@data-automation-id='detailsList']/div[contains(@role, 'listitem')]")
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+# Wait for alert elements to be visible
+alert_elements = WebDriverWait(driver, 10).until(
+    EC.visibility_of_all_elements_located((By.XPATH, "//div[@data-automation-id='detailsList']/div[contains(@role, 'listitem')]"))
+)
 
 # Capture screenshots of "Affected Resources" for each alert
 for index, alert_element in enumerate(alert_elements, 1):
@@ -7,10 +13,12 @@ for index, alert_element in enumerate(alert_elements, 1):
     alert_element.click()
 
     # Wait for alert details to load
-    time.sleep(5)
+    time.sleep(5)  # You can replace this with a WebDriverWait if needed
 
     # Find all links within the current alert
-    links = driver.find_elements_by_xpath("//a")
+    links = WebDriverWait(driver, 10).until(
+        EC.presence_of_all_elements_located((By.TAG_NAME, "a"))
+    )
 
     # Iterate through each link and click on the one containing "Affected Resources" text
     for link in links:
@@ -19,7 +27,7 @@ for index, alert_element in enumerate(alert_elements, 1):
             break
 
     # Wait for the page with affected resources to load
-    time.sleep(5)
+    time.sleep(5)  # You can replace this with a WebDriverWait if needed
 
     # Capture screenshot of the page with affected resources
     driver.save_screenshot(f'alert_{index}_affected_resources.png')
@@ -28,7 +36,31 @@ for index, alert_element in enumerate(alert_elements, 1):
     driver.back()
 
     # Wait for page to load
-    time.sleep(5)
+    time.sleep(5)  # You can replace this with a WebDriverWait if needed
+#--------------------------------------------------------#
+from selenium import webdriver
+
+# Initialize Chrome driver
+driver = webdriver.Chrome()
+
+# Maximize the window
+driver.maximize_window()
+
+# Get the screen width and height
+screen_width = driver.execute_script("return window.screen.width;")
+screen_height = driver.execute_script("return window.screen.height;")
+
+# Set the window size to 80% of the screen size
+target_width = int(screen_width * 0.8)
+target_height = int(screen_height * 0.8)
+driver.set_window_size(target_width, target_height)
+
+# Now continue with your code to navigate to the page and perform actions
+
+# For example:
+driver.get("https://example.com")
+
+# After navigating to the page and performing actions, you can capture the screenshot
 
 # Quit the driver
 driver.quit()
