@@ -1,26 +1,21 @@
-from selenium.webdriver.common.by import By
-import time
 
 # Find all alert links by class name
 alert_links = driver.find_elements(By.CLASS_NAME, "fxc-gcflink-link")
 
 # Iterate through each alert link
 for index, alert_link in enumerate(alert_links, 1):
-    # Get the href attribute containing the relative URL of the dashboard
+    # Construct the JavaScript to extract the outerHTML of the anchor tag
+    js_script = "return arguments[0].outerHTML;"
+    
+    # Execute the JavaScript to get the outerHTML
+    anchor_html = driver.execute_script(js_script, alert_link)
+
+    # Extract the URL from the anchor tag HTML
     next_dashboard_relative_url = alert_link.get_attribute('href')
 
-    # Construct the JavaScript to extract the absolute URL of the next dashboard
-    js_script = f'''
-    var element = arguments[0];
-    var href = element.getAttribute('href');
-    return href;
-    '''
-
-    # Execute the JavaScript to get the href attribute value
-    next_dashboard_absolute_url = driver.execute_script(js_script, alert_link)
-
     # Open the next dashboard using the absolute URL
-    if next_dashboard_absolute_url:
+    if next_dashboard_relative_url:
+        next_dashboard_absolute_url = f"https://portal.azure.com/{next_dashboard_relative_url}"
         driver.get(next_dashboard_absolute_url)
         
         # Wait for the next dashboard to load
