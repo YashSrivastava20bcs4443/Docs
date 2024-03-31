@@ -1,10 +1,30 @@
+from selenium import webdriver
+import time
+
+# Replace 'your_url_here' with the URL of your Azure Monitor dashboard
+url = 'your_url_here'
+
+# Initialize the Chrome WebDriver
+driver = webdriver.Chrome()
+
+# Open the URL
+driver.get(url)
+
+# Wait for the page to load
+time.sleep(5)
+
 # Find all rows containing alerts
 alert_rows = driver.find_elements_by_xpath("//div[@class='fxc-gc-row']")
 
 # Iterate through each row containing an alert
 for index, row in enumerate(alert_rows, 1):
-    # Click on the second link in the row
-    second_link = row.find_element_by_xpath(".//a[@class='fxc-gcflink-link']")
+    # Find the second link in the row
+    links = row.find_elements_by_xpath(".//a[@class='fxc-gcflink-link']")
+    if len(links) < 2:
+        continue
+    second_link = links[1]
+    
+    # Click on the second link
     second_link.click()
 
     # Wait for the page to load
