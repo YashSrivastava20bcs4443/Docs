@@ -2,27 +2,21 @@ from selenium.webdriver.common.by import By
 import time
 
 # Find all rows containing alerts
-rows = driver.find_elements(By.XPATH, "//div[@class='fxc-gc-row']")
+rows = driver.find_elements(By.XPATH, "//div[contains(@class, 'fxc-gc-row')]")
 
 # Iterate through each row containing an alert
-for row in rows:
-    # Find the second link in the row
-    second_link = row.find_element(By.XPATH, ".//a[@class='fxc-geflink-link'][2]")
+for index, row in enumerate(rows, 1):
+    try:
+        # Find the elements within the row containing alert details
+        alert_details = row.find_elements(By.XPATH, ".//div[@class='fxc-gc-cell']")
+        
+        # Extract and print each alert detail
+        print(f"Alert {index}:")
+        for detail in alert_details:
+            print(detail.text)
+        
+        print()  # Add a newline between alerts for better readability
     
-    # Get the URL of the second link
-    link_url = second_link.get_attribute("href")
-    
-    # Navigate to the URL of the second link
-    driver.get(link_url)
-    
-    # Wait for the page to load
-    time.sleep(5)  # You might need to adjust the wait time
-    
-    # Take a screenshot of the page
-    driver.save_screenshot("screenshot.png")
-    
-    # Go back to the previous page (the alert details)
-    driver.back()
-    
-    # Wait for the page to load
-    time.sleep(5)  # You might need to adjust the wait time
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        continue
