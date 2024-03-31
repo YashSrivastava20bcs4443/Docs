@@ -1,29 +1,23 @@
-# Find all alert rows
-alert_rows = driver.find_elements(By.CLASS_NAME, "fxc-gc-row")
+# Find all rows containing alerts
+alert_rows = driver.find_elements_by_xpath("//div[@class='fxc-gc-row']")
 
-# Iterate through each alert row
-for index, alert_row in enumerate(alert_rows, 1):
-    try:
-        # Find the second link in the alert row
-        second_link = alert_row.find_element(By.XPATH, ".//div[@class='fxc-gc-cell'][3]/a[@class='fxc-gcflink-link']")
-        
-        # Click on the second link
-        second_link.click()
-        
-        # Wait for the next page to load
-        time.sleep(5)
-        
-        # Capture screenshot of the next dashboard
-        driver.save_screenshot(f'alert_{index}_screenshot.png')
-        
-        # Go back to the previous page (the alert details)
-        driver.back()
-        
-        # Wait for page to load
-        time.sleep(5)
-        
-    except Exception as e:
-        print(f"Error occurred while processing alert {index}: {e}")
+# Iterate through each row containing an alert
+for index, row in enumerate(alert_rows, 1):
+    # Click on the second link in the row
+    second_link = row.find_element_by_xpath(".//a[@class='fxc-gcflink-link']")
+    second_link.click()
+
+    # Wait for the page to load
+    time.sleep(5)
+
+    # Take a screenshot
+    driver.save_screenshot(f'alert_{index}_screenshot.png')
+
+    # Go back to the previous page (the alert details)
+    driver.back()
+
+    # Wait for the page to load
+    time.sleep(5)
 
 # Quit the driver
 driver.quit()
