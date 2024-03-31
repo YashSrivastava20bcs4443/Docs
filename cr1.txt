@@ -1,16 +1,61 @@
+import time
+
 from selenium.webdriver.common.by import By
 
 # Find all rows containing alerts
 rows = driver.find_elements(By.XPATH, "//div[contains(@class, 'fxc-gc-row')]")
 
 # Iterate through each row containing an alert
-for index, row in enumerate(rows, 1):
+for row in rows:
     try:
-        # Get the text content of the row
-        row_text = row.text
+        # Find the third column in the row
+        third_column = row.find_element(By.XPATH, ".//div[@class='fxc-gc-cell fxc-gc-columncell_0_2']")
         
-        # Print the text content of the row
-        print(f"Row {index}: {row_text}")
+        # Click on the third column
+        third_column.click()
+        
+        # Wait for the new page to load
+        time.sleep(5)  # You might need to adjust the wait time
+        
+        # Take a screenshot of the page
+        driver.save_screenshot(f"screenshot_{rows.index(row) + 1}.png")
+        
+        # Go back to the previous page (the alert details)
+        driver.back()
+        
+        # Wait for the page to load
+        time.sleep(5)  # You might need to adjust the wait time
+    
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        continue
+import time
+
+from selenium.webdriver.common.by import By
+
+# Find all rows containing alerts
+rows = driver.find_elements(By.XPATH, "//div[contains(@class, 'fxc-gc-row')]")
+
+# Iterate through each row containing an alert
+for row in rows:
+    try:
+        # Find the third column in the row
+        third_column = row.find_element(By.XPATH, ".//div[@class='fxc-gc-cell fxc-gc-columncell_0_2']")
+        
+        # Click on the third column
+        third_column.click()
+        
+        # Wait for the new page to load
+        time.sleep(5)  # You might need to adjust the wait time
+        
+        # Take a screenshot of the page
+        driver.save_screenshot(f"screenshot_{rows.index(row) + 1}.png")
+        
+        # Go back to the previous page (the alert details)
+        driver.back()
+        
+        # Wait for the page to load
+        time.sleep(5)  # You might need to adjust the wait time
     
     except Exception as e:
         print(f"An error occurred: {str(e)}")
