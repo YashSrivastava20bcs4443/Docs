@@ -11,30 +11,28 @@ driver.get(url)
 # Wait for page to load
 time.sleep(5)
 
-# Find all alert elements
-alert_elements = driver.find_elements_by_xpath("//div[@class='fxc-gc-row fxc-gc-row e azc-br-muted fxs-portal-hover fxs-portal-selected']")
+# Find all rows containing alert information
+rows = driver.find_elements_by_xpath("//div[@class='fxc-gc-rows']")
 
-# Iterate through each alert
-for index, alert_element in enumerate(alert_elements, 1):
-    # Find the second link inside the alert element
-    links = alert_element.find_elements_by_tag_name("a")
-    if len(links) >= 2:
-        second_link = links[1]
-        
-        # Click on the second link
-        second_link.click()
-        
-        # Wait for the page to load
-        time.sleep(5)
-        
-        # Capture screenshot
-        driver.save_screenshot(f'alert_{index}_affected_resource.png')
-        
-        # Go back to the previous page (the alert details)
-        driver.back()
-        
-        # Wait for the page to load
-        time.sleep(5)
+# Iterate through each row
+for index, row in enumerate(rows, 1):
+    # Find the link in the 'Affected resource' column
+    link = row.find_element_by_xpath(".//a[contains(@class, 'fxc-gcflink-link')]")
+    
+    # Click on the 'Affected resource' link
+    link.click()
+    
+    # Wait for the page to load
+    time.sleep(5)
+    
+    # Capture screenshot of the 'Affected resource' page
+    driver.save_screenshot(f'alert_{index}_affected_resource.png')
+    
+    # Go back to the previous page (the alert details)
+    driver.back()
+    
+    # Wait for the page to load
+    time.sleep(5)
 
 # Quit the driver
 driver.quit()
