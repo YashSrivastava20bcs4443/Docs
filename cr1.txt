@@ -1,25 +1,21 @@
 from selenium.webdriver.common.by import By
 import time
 
-# Find all alert links by class name
-alert_links = driver.find_elements(By.CLASS_NAME, "fxc-gcflink-link")
+# Find all alert elements
+alert_elements = driver.find_elements(By.XPATH, "//div[@data-automation-id='detailsList']/div[contains(@role, 'listitem')]")
 
-# Iterate through each alert link
-for index, alert_link in enumerate(alert_links, 1):
-    # Skip opening the link if its index is odd
-    if index % 2 != 0:
-        continue
-
-    # Construct the JavaScript to click on the anchor tag
-    js_script = "arguments[0].click();"
+# Iterate through each alert element
+for index, alert_element in enumerate(alert_elements, 1):
+    # Find the second link in the current alert element
+    second_link = alert_element.find_element(By.XPATH, ".//a[@class='fxc-gcflink-link'][2]")
     
-    # Execute the JavaScript to click on the anchor tag
-    driver.execute_script(js_script, alert_link)
+    # Click on the second link
+    second_link.click()
     
     # Wait for the next dashboard to load
     time.sleep(8)
     
-    # Capture screenshot of the next dashboard
+    # Capture screenshot of the current dashboard
     driver.save_screenshot(f'next_dashboard_{index}.png')
 
     # Go back to the previous page (the alert details)
@@ -27,24 +23,6 @@ for index, alert_link in enumerate(alert_links, 1):
 
     # Wait for page to load
     time.sleep(5)
-
-    # Now switch to the next alert link
-    if index < len(alert_links):
-        next_alert_link = alert_links[index]
-        # Execute the JavaScript to click on the next alert link
-        driver.execute_script(js_script, next_alert_link)
-        
-        # Wait for the next dashboard to load
-        time.sleep(8)
-        
-        # Capture screenshot of the next dashboard
-        driver.save_screenshot(f'next_dashboard_{index + 1}.png')
-
-        # Go back to the previous page (the alert details)
-        driver.back()
-
-        # Wait for page to load
-        time.sleep(5)
 
 # Quit the driver
 driver.quit()
