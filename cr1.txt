@@ -6,8 +6,11 @@ rows = driver.find_elements(By.XPATH, "//div[contains(@class, 'fxc-gc-row')]")
 # Iterate through each row containing an alert
 for index, row in enumerate(rows, 1):
     try:
+        # Get the text content of the row
+        row_text = row.text
+        
         # Print the text content of the row
-        print(f"Row {index}: {row.text}")
+        print(f"Row {index}: {row_text}")
     
     except Exception as e:
         print(f"An error occurred: {str(e)}")
