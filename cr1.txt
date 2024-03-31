@@ -28,5 +28,23 @@ for index, alert_link in enumerate(alert_links, 1):
     # Wait for page to load
     time.sleep(5)
 
+    # Now switch to the next alert link
+    if index < len(alert_links):
+        next_alert_link = alert_links[index]
+        # Execute the JavaScript to click on the next alert link
+        driver.execute_script(js_script, next_alert_link)
+        
+        # Wait for the next dashboard to load
+        time.sleep(8)
+        
+        # Capture screenshot of the next dashboard
+        driver.save_screenshot(f'next_dashboard_{index + 1}.png')
+
+        # Go back to the previous page (the alert details)
+        driver.back()
+
+        # Wait for page to load
+        time.sleep(5)
+
 # Quit the driver
 driver.quit()
