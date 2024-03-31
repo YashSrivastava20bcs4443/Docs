@@ -1,22 +1,19 @@
-from selenium.webdriver.common.by import By
-import time
+alerts = driver.find_elements(By.CLASS_NAME, "alert-class")  # "alert-class" ko aapke HTML ke hisaab se change karna hoga
 
-# Find all rows containing alerts
-rows = driver.find_elements(By.XPATH, "//div[contains(@class, 'fxc-gc-row')]")
+for alert in alerts:
+    # Har ek alert ke andar doosra link retrieve karna
+    alert_links = alert.find_elements(By.CLASS_NAME, "fxc-gcflink-link")  # Yeh selector aapke HTML ke hisaab se change karna hoga
+    if len(alert_links) >= 2:  # Agar do links hain
+        second_link = alert_links[1]  # Second link ko retrieve karna
+        second_link.click()  # Second link par click karna
+        # Wait for next dashboard to load
+        time.sleep(8)
+        # Capture screenshot of the next dashboard
+        driver.save_screenshot(f'next_dashboard_{index}.png')
+        # Go back to the previous page (the alert details)
+        driver.back()
+        # Wait for page to load
+        time.sleep(5)
 
-# Iterate through each row containing an alert
-for index, row in enumerate(rows, 1):
-    try:
-        # Find the elements within the row containing alert details
-        alert_details = row.find_elements(By.XPATH, ".//div[@class='fxc-gc-cell']")
-        
-        # Extract and print each alert detail
-        print(f"Alert {index}:")
-        for detail in alert_details:
-            print(detail.text)
-        
-        print()  # Add a newline between alerts for better readability
-    
-    except Exception as e:
-        print(f"An error occurred: {str(e)}")
-        continue
+# Quit the driver
+driver.quit()
