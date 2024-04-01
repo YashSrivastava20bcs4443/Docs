@@ -28,16 +28,16 @@ def send_email(receiver_email, image_path):
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, receiver_email, message.as_string())
 
-def match_and_send_screenshot(csv_file, screenshot_folder):
+def match_and_send_screenshot(csv_file):
     with open(csv_file, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
             api_name = row["API_Name"]
             email_address = row["Owner_Email"]
-            for filename in os.listdir(screenshot_folder):
+            for filename in os.listdir():
                 if filename.startswith(api_name) and filename.endswith(".png"):
-                    image_path = os.path.join(screenshot_folder, filename)
+                    image_path = os.path.join(os.getcwd(), filename)
                     send_email(email_address, image_path)
 
 if __name__ == "__main__":
-    match_and_send_screenshot("apis.csv", "screenshots")
+    match_and_send_screenshot("apis.csv")
