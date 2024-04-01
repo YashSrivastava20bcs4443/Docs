@@ -44,3 +44,32 @@ def match_and_send_screenshot(csv_file):
 
 if __name__ == "__main__":
     match_and_send_screenshot("apis.csv")
+
+
+
+import csv
+import os
+from win32com.client import Dispatch
+
+def send_email(receiver_email, image_path):
+    outlook = Dispatch("Outlook.Application")
+    mail = outlook.CreateItem(0)
+    mail.To = receiver_email
+    mail.Subject = "Screenshot Matching"
+    mail.Body = "Screenshot matched for API name. Please find the attached screenshot."
+    mail.Attachments.Add(image_path)
+    mail.Send()
+
+def match_and_send_screenshot(csv_file, screenshot_folder):
+    with open(csv_file, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            api_name = row["API_Name"]
+            email_address = row["Owner_Email"]
+            for filename in os.listdir(screenshot_folder):
+                if filename.startswith(api_name) and filename.endswith(".png"):
+                    image_path = os.path.join(screenshot_folder, filename)
+                    send_email(email_address, image_path)
+
+if __name__ == "__main__":
+    match_and_send_screenshot("apis.csv", "screenshots")
