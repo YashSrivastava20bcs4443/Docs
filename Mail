@@ -10,6 +10,7 @@ def send_email(receiver_email, image_path):
     sender_password = "Yas\"h"  # Replace with your email password, escaped double quotes
     smtp_server = "smtp.example.com"  # Replace with your SMTP server IP address
     smtp_port = 587  # Replace with your SMTP server port (typically 587 for TLS)
+    timeout = 30  # Increase connection timeout to 30 seconds
 
     message = MIMEMultipart()
     message["From"] = sender_email
@@ -23,10 +24,12 @@ def send_email(receiver_email, image_path):
         image_mime = MIMEImage(attachment.read())
         message.attach(image_mime)
     
-    with smtplib.SMTP(smtp_server, smtp_port) as server:
-        server.starttls()  # Enable TLS encryption
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, receiver_email, message.as_string())
+    # Set connection timeout
+    server = smtplib.SMTP(smtp_server, smtp_port, timeout=timeout)
+    server.starttls()  # Enable TLS encryption
+    server.login(sender_email, sender_password)
+    server.sendmail(sender_email, receiver_email, message.as_string())
+    server.quit()
 
 def match_and_send_screenshot(csv_file):
     with open(csv_file, newline='') as csvfile:
