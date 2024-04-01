@@ -1,6 +1,5 @@
 import time
 import os
-from urllib.parse import urlparse
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -28,12 +27,11 @@ for index, row in enumerate(rows, 1):
         # Re-find the element to avoid stale element reference
         third_column = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][3]//a[@class='fxc-gcflink-link']")
         
-        # Get the URL from the link
-        link_url = third_column.get_attribute("href")
+        # Get the text of the link
+        link_text = third_column.text
         
-        # Parse the URL to extract the last part
-        parsed_url = urlparse(link_url)
-        filename = os.path.basename(parsed_url.path)
+        # Modify the link text to remove invalid characters for a filename
+        filename = link_text.replace('/', '_').replace(':', '_').replace('?', '_').replace('&', '_')
         
         # Execute JavaScript to click on the third column
         driver.execute_script("arguments[0].click();", third_column)
