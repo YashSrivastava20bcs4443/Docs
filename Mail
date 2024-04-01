@@ -1,8 +1,8 @@
 import imaplib
-import email
+from imapclient import IMAPClient
 from email.header import decode_header
-import time
 from datetime import datetime, timedelta
+import time
 from selenium import webdriver
 
 # Outlook IMAP server details
@@ -10,60 +10,39 @@ imap_server = 'outlook.office365.com'
 username = 'your_email@example.com'
 password = 'your_password'
 
-# Connect to Outlook IMAP server
-imap = imaplib.IMAP4_SSL(imap_server)
+# Connect to Outlook IMAP server using imapclient
+imap = IMAPClient(imap_server, ssl=True)
 imap.login(username, password)
 
 # Select the specific folder
 folder_name = 'Azure'
-status, messages = imap.select(folder_name)
+imap.select_folder(folder_name)
 
-if status == 'OK':
-    # Calculate the timestamp for 30 minutes ago
-    thirty_minutes_ago = datetime.now() - timedelta(minutes=30)
-    timestamp_thirty_minutes_ago = time.mktime(thirty_minutes_ago.timetuple())
+# Calculate the timestamp for 30 minutes ago
+thirty_minutes_ago = datetime.now() - timedelta(minutes=30)
 
-    # Search for emails with subject containing 'Azure: Activated' received in the last 30 minutes
-    status, search_results = imap.search(None, '(SINCE {:%d-%b-%Y %H:%M:%S}) SUBJECT "Azure: Activated"'.format(thirty_minutes_ago))
+# Search for emails with subject containing 'Azure: Activated' received in the last 30 minutes
+search_criteria = ['SUBJECT "Azure: Activated"', 'SINCE {:%d-%b-%Y}'.format(thirty_minutes_ago)]
+messages = imap.search(' '.join(search_criteria))
 
-    if status == 'OK':
-        message_ids = search_results[0].split()
+if messages:
+    # Initialize Selenium WebDriver
+    driver = webdriver.Chrome()
+    
+    for uid, message_data in imap.fetch(messages, ['RFC822']).items():
+        raw_email = message_data[b'RFC822']
+        msg = email.message_from_bytes(raw_email)
         
-        if message_ids:
-            # Initialize Selenium WebDriver
-            driver = webdriver.Chrome()
-
-            for message_id in message_ids:
-                # Get email details
-                status, message_data = imap.fetch(message_id, '(RFC822)')
-                
-                if status == 'OK':
-                    raw_email = message_data[0][1]
-                    msg = email.message_from_bytes(raw_email)
-                    
-                    # Extract email body
-                    if msg.is_multipart():
-                        for part in msg.walk():
-                            if part.get_content_type() == 'text/html':
-                                html_body = part.get_payload(decode=True).decode()
-                                # Extract 'View in Azure' link from the HTML body
-                                view_azure_link = html_body.split('View in Azure')[1].split('href="')[1].split('"')[0]
-                                # Open the link in browser
-                                driver.get(view_azure_link)
-                                # Take screenshot and save
-                                driver.save_screenshot(f'azure_portal_{message_id}.png')
-                                break
-                    else:
-                        print("No HTML body found in the email.")
-        
-    else:
-        print("No emails found with subject 'Azure: Activated' in the last 30 minutes.")
-        
-    # Close the connection
-    imap.close()
-
-else:
-    print("Folder '{}' not found.".format(folder_name))
+        # Extract 'View in Azure' link from the email body
+        for part in msg.walk():
+            if part.get_content_type() == 'text/html':
+                html_body = part.get_payload(decode=True).decode()
+                view_azure_link = html_body.split('View in Azure')[1].split('href="')[1].split('"')[0]
+                # Open the link in browser
+                driver.get(view_azure_link)
+                # Take screenshot and save
+                driver.save_screenshot(f'azure_portal_{uid}.png')
+                break
 
 # Logout from the server
 imap.logout()
