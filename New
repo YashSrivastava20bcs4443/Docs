@@ -1,4 +1,6 @@
 import time
+import os
+from urllib.parse import urlparse
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -29,14 +31,20 @@ for index, row in enumerate(rows, 1):
         # Re-find the element to avoid stale element reference
         third_column = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][3]//a[@class='fxc-gcflink-link']")
         
+        # Get the URL of the link
+        link_url = third_column.get_attribute("href")
+        
+        # Extract the filename from the URL
+        filename = os.path.basename(urlparse(link_url).path)
+        
         # Execute JavaScript to click on the third column
         driver.execute_script("arguments[0].click();", third_column)
         
         # Wait for the new page to load
         time.sleep(5)  # You might need to adjust the wait time
         
-        # Take a screenshot of the page
-        driver.save_screenshot(f"screenshot_{index}.png")
+        # Take a screenshot of the page with the custom filename
+        driver.save_screenshot(f"{filename}_{index}.png")
         
         # Increment the alert count
         alert_count += 1
