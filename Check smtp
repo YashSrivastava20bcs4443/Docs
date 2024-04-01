@@ -1,0 +1,18 @@
+import smtplib
+
+def check_smtp_connection(smtp_host, smtp_port):
+    try:
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.close()
+        return True
+    except Exception as e:
+        return False, str(e)
+
+if __name__ == "__main__":
+    smtp_host = input("Enter SMTP server address: ")
+    smtp_port = int(input("Enter SMTP port number: "))
+    
+    if check_smtp_connection(smtp_host, smtp_port):
+        print("SMTP connection successful.")
+    else:
+        print("SMTP connection failed.")
