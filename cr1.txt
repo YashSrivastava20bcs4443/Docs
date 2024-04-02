@@ -24,9 +24,9 @@ try:
     # Take a screenshot of the page
     driver.save_screenshot(f"{filename}.png")
     
-    # Get the text of the first and second columns
-    first_column_element = driver.find_element(By.XPATH, "//div[contains(@class, 'fxc-gc-cell')][1]//a[@class='fxc-gcflink-link']")
-    second_column_element = driver.find_element(By.XPATH, "//div[contains(@class, 'fxc-gc-cell')][2]//span[@class='ext-severity-text']")
+    # Wait for the first and second column elements to become visible
+    first_column_element = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//div[contains(@class, 'fxc-gc-cell')][1]//a[@class='fxc-gcflink-link']")))
+    second_column_element = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//div[contains(@class, 'fxc-gc-cell')][2]//span[@class='ext-severity-text']")))
     
     # Get the text of the first and second columns
     first_column_text = first_column_element.text
