@@ -1,171 +1,43 @@
-import requests
-from azure.identity import ClientSecretCredential
+import time
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-# Tenant ID, Client ID, and Client Secret
-tenant_id = "YourTenantId"
-client_id = "YourClientId"
-client_secret = "YourClientSecret"
+# Find the first row containing the alert
+row = driver.find_element(By.XPATH, "//div[contains(@class, 'fxc-gc-row')]")
 
-# Azure credentials
-credential = ClientSecretCredential(tenant_id, client_id, client_secret)
+try:
+    # Find the first column in the row
+    first_column = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][1]")
+    # Get the text of the first column
+    first_column_text = first_column.text
 
-# Get access token
-access_token = credential.get_token("https://management.azure.com/.default").token
+    # Find the second column in the row
+    second_column = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][2]")
+    # Get the text of the second column
+    second_column_text = second_column.text
 
-# Headers with access token
-headers = {
-    "Authorization": f"Bearer {access_token}",
-    "Content-Type": "application/json"
-}
+    # Find the third column in the row
+    third_column = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][3]//a[@class='fxc-gcflink-link']")
+    # Get the text of the link
+    link_text = third_column.text
 
-# Azure Monitor API endpoint
-monitor_endpoint = "https://management.azure.com"
+    # Modify the link text to remove invalid characters for a filename
+    filename = link_text.replace('/', '_').replace(':', '_').replace('?', '_').replace('&', '_')
 
-# API version
-api_version = "2018-03-01"
+    # Execute JavaScript to click on the third column
+    driver.execute_script("arguments[0].click();", third_column)
 
-# Resource URI for alerts
-alert_uri = f"{monitor_endpoint}/subscriptions/{{subscription_id}}/providers/microsoft.insights/metricAlerts?api-version={api_version}"
+    # Wait for the new page to load
+    time.sleep(5)  # You might need to adjust the wait time
 
-# Subscription IDs for which you want alerts (replace with your subscription IDs)
-subscription_ids = ["SubscriptionID1", "SubscriptionID2"]
+    # Take a screenshot of the page
+    driver.save_screenshot(f"{filename}.png")
 
-# List to store alerts
-alerts_list = []
+    # Write data from the first two columns to a text file
+    with open(f"{filename}.txt", "w") as file:
+        file.write(f"First Column: {first_column_text}\n")
+        file.write(f"Second Column: {second_column_text}")
 
-# Loop through subscriptions
-for subscription_id in subscription_ids:
-    # Make request to get alerts
-    response = requests.get(alert_uri.format(subscription_id=subscription_id), headers=headers)
-
-    # Check if request was successful
-    if response.status_code == 200:
-        alerts_data = response.json()
-        # Loop through retrieved alerts and filter
-        for alert in alerts_data.get('value', []):
-            # Check if alert name is either "emsalerts" or "operations resource group"
-            if alert.get('name') == 'emsalerts' or alert.get('name') == 'operations resource group':
-                alerts_list.append(alert)
-    else:
-        print(f"Failed to retrieve alerts for subscription {subscription_id}: {response.text}")
-
-# Print each alert data separately
-for alert in alerts_list:
-    print(alert)
-
-
-#----------------------------------------#
-
-import requests
-from azure.identity import ClientSecretCredential
-
-# Tenant ID, Client ID, and Client Secret
-tenant_id = "YourTenantId"
-client_id = "YourClientId"
-client_secret = "YourClientSecret"
-
-# Azure credentials
-credential = ClientSecretCredential(tenant_id, client_id, client_secret)
-
-# Get access token
-access_token = credential.get_token("https://management.azure.com/.default").token
-
-# Headers with access token
-headers = {
-    "Authorization": f"Bearer {access_token}",
-    "Content-Type": "application/json"
-}
-
-# Azure Monitor API endpoint
-monitor_endpoint = "https://management.azure.com"
-
-# API version
-api_version = "2018-03-01"
-
-# Resource URI for alerts
-alert_uri = f"{monitor_endpoint}/subscriptions/{{subscription_id}}/providers/microsoft.insights/metricAlerts?api-version={api_version}"
-
-# Subscription IDs for which you want alerts (replace with your subscription IDs)
-subscription_ids = ["SubscriptionID1", "SubscriptionID2"]
-
-# List to store alerts
-alerts_list = []
-
-# Loop through subscriptions
-for subscription_id in subscription_ids:
-    # Make request to get alerts
-    response = requests.get(alert_uri.format(subscription_id=subscription_id), headers=headers)
-
-    # Check if request was successful
-    if response.status_code == 200:
-        alerts_data = response.json()
-        print(f"Alerts data for subscription {subscription_id}: {alerts_data}")  # Debug statement
-        # Loop through retrieved alerts and filter
-        for alert in alerts_data.get('value', []):
-            # Check if alert name is either "emsalerts" or "operations resource group"
-            if alert.get('name') == 'emsalerts' or alert.get('name') == 'operations resource group':
-                alerts_list.append(alert)
-    else:
-        print(f"Failed to retrieve alerts for subscription {subscription_id}: {response.text}")
-
-# Print each alert data separately
-for alert in alerts_list:
-    print("Alert:")
-    for key, value in alert.items():
-        print(f"{key}: {value}")
-    print()
-#--------------------------------------------------------------#
-import requests
-from azure.identity import ClientSecretCredential
-
-# Tenant ID, Client ID, and Client Secret
-tenant_id = "YourTenantId"
-client_id = "YourClientId"
-client_secret = "YourClientSecret"
-
-# Azure credentials
-credential = ClientSecretCredential(tenant_id, client_id, client_secret)
-
-# Get access token
-access_token = credential.get_token("https://management.azure.com/.default").token
-
-# Headers with access token
-headers = {
-    "Authorization": f"Bearer {access_token}",
-    "Content-Type": "application/json"
-}
-
-# Azure Monitor API endpoint
-monitor_endpoint = "https://management.azure.com"
-
-# API version
-api_version = "2018-03-01"
-
-# Resource URI for alerts
-alert_uri = f"{monitor_endpoint}/subscriptions/{{subscription_id}}/providers/microsoft.insights/metricAlerts?api-version={api_version}"
-
-# Subscription IDs for which you want alerts (replace with your subscription IDs)
-subscription_ids = ["SubscriptionID1", "SubscriptionID2"]
-
-# List to store alerts
-alerts_list = []
-
-# Loop through subscriptions
-for subscription_id in subscription_ids:
-    # Make request to get alerts
-    response = requests.get(alert_uri.format(subscription_id=subscription_id), headers=headers)
-
-    # Check if request was successful
-    if response.status_code == 200:
-        alerts_data = response.json()
-        print("Alerts data for subscription", subscription_id)
-        print(alerts_data)  # Debug statement to print entire alerts data
-        print("\n")
-        # Append retrieved alerts to the list
-        alerts_list.append(alerts_data)
-    else:
-        print(f"Failed to retrieve alerts for subscription {subscription_id}: {response.text}")
-
-# Print alerts list
-print(alerts_list)
-
+except Exception as e:
+    print(f"An error occurred: {str(e)}")
