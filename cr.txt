@@ -48,10 +48,14 @@ EMS Team
     body_with_image = f'<p><img src="cid:screenshot" alt="{os.path.basename(screenshot_path)}"></p>'
     message.attach(MIMEText(body_with_image, "html"))
 
-    with smtplib.SMTP(smtp_server, smtp_port) as server:
-        server.starttls()  # Enable TLS encryption
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, receiver_email, message.as_string())
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()  # Enable TLS encryption
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, message.as_string())
+        print("Email sent successfully!")
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 def match_and_send_screenshot(csv_file, text_file_folder):
     with open(csv_file, newline='') as csvfile:
