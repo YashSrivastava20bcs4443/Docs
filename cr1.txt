@@ -28,8 +28,16 @@ try:
     driver.save_screenshot(f"{filename}.png")
     
     # Get the text of the first and second columns
-    first_column_text = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][1]//a[@class='fxc-gcflink-link']").text
-    second_column_text = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][2]//span[@class='ext-severity-text']").text
+    first_column_element = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][1]//a[@class='fxc-gcflink-link']")
+    second_column_element = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][2]//span[@class='ext-severity-text']")
+    
+    # Wait for the text of the first and second columns to become visible
+    WebDriverWait(driver, 10).until(EC.visibility_of(first_column_element))
+    WebDriverWait(driver, 10).until(EC.visibility_of(second_column_element))
+    
+    # Get the text of the first and second columns
+    first_column_text = first_column_element.text
+    second_column_text = second_column_element.text
     
     # Combine text from both columns
     combined_text = f"Column 1: {first_column_text}\nColumn 2: {second_column_text}"
