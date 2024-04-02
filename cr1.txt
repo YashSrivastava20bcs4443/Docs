@@ -23,13 +23,16 @@ try:
     first_column_text = first_column.text
     second_column_text = second_column.text
     
+    # Modify the link text to remove invalid characters for a filename
+    filename = first_column_text.replace('/', '_').replace(':', '_').replace('?', '_').replace('&', '_')
+    
     # Write the data to a text file
-    with open("alert_data.txt", "w") as file:
+    with open(f"{filename}.txt", "w") as file:
         file.write(f"First Column: {first_column_text}\n")
         file.write(f"Second Column: {second_column_text}\n")
         
     # Take a screenshot of the page
-    driver.save_screenshot(f"screenshot_{index}.png")
+    driver.save_screenshot(f"{filename}_{index}.png")
     
     # Wait for the page to load
     time.sleep(5)  # You might need to adjust the wait time
