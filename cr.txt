@@ -1,43 +1,70 @@
-import time
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+import csv
+import os
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 
-# Find the first row containing the alert
-row = driver.find_element(By.XPATH, "//div[contains(@class, 'fxc-gc-row')]")
+def read_text_file(file_path):
+    with open(file_path, "r") as file:
+        lines = file.readlines()
+        severity = lines[0].strip()  # Severity is on the first line
+        alert_description = lines[1].strip()  # Alert description is on the second line
+    return severity, alert_description
 
-try:
-    # Find the first column in the row
-    first_column = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][1]")
-    # Get the text of the first column
-    first_column_text = first_column.text
+def send_email(receiver_email, screenshot_path, api_name, severity, alert_description):
+    sender_email = "your_email@example.com"  # Replace with your email address
+    sender_password = "your_password"  # Replace with your email password
+    smtp_server = "smtp.example.com"  # Replace with your SMTP server IP address
+    smtp_port = 587  # Replace with your SMTP server port (typically 587 for TLS)
 
-    # Find the second column in the row
-    second_column = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][2]")
-    # Get the text of the second column
-    second_column_text = second_column.text
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = receiver_email
+    message["Subject"] = "Alert from Azure App Insights"
 
-    # Find the third column in the row
-    third_column = row.find_element(By.XPATH, ".//div[contains(@class, 'fxc-gc-cell')][3]//a[@class='fxc-gcflink-link']")
-    # Get the text of the link
-    link_text = third_column.text
+    # Email body
+    body = f"""Hi Team,
 
-    # Modify the link text to remove invalid characters for a filename
-    filename = link_text.replace('/', '_').replace(':', '_').replace('?', '_').replace('&', '_')
+We have received below alert from Azure App Insights. Kindly review the alert and take appropriate action.
 
-    # Execute JavaScript to click on the third column
-    driver.execute_script("arguments[0].click();", third_column)
+Source: {api_name}
+Severity: {severity}
+Alert description: {alert_description}
 
-    # Wait for the new page to load
-    time.sleep(5)  # You might need to adjust the wait time
+Thanks & Regards,
+EMS Team
+"""
+    message.attach(MIMEText(body, "plain"))
 
-    # Take a screenshot of the page
-    driver.save_screenshot(f"{filename}.png")
+    # Attach screenshot as inline image
+    with open(screenshot_path, "rb") as f:
+        screenshot_data = f.read()
+    screenshot_mime = MIMEImage(screenshot_data, name=os.path.basename(screenshot_path))
+    screenshot_mime.add_header("Content-ID", "<screenshot>")
+    message.attach(screenshot_mime)
 
-    # Write data from the first two columns to a text file
-    with open(f"{filename}.txt", "w") as file:
-        file.write(f"First Column: {first_column_text}\n")
-        file.write(f"Second Column: {second_column_text}")
+    # Embed screenshot in email body
+    body_with_image = f'<p><img src="cid:screenshot" alt="{os.path.basename(screenshot_path)}"></p>'
+    message.attach(MIMEText(body_with_image, "html"))
 
-except Exception as e:
-    print(f"An error occurred: {str(e)}")
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()  # Enable TLS encryption
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, receiver_email, message.as_string())
+
+def match_and_send_screenshot(csv_file, text_file_folder):
+    with open(csv_file, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        row = next(reader)  # Read only the first row
+        api_name = row["API_Name"]
+        text_file_path = os.path.join(text_file_folder, f"{api_name}.txt")
+        if not os.path.exists(text_file_path):
+            return  # Skip if text file does not exist
+        severity, alert_description = read_text_file(text_file_path)
+        email_address = row["Owner_Email"]
+        screenshot_path = f"{api_name}.png"
+        send_email(email_address, screenshot_path, api_name, severity, alert_description)
+
+if __name__ == "__main__":
+    match_and_send_screenshot("apis.csv", ".")
