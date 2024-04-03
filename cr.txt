@@ -1,74 +1,43 @@
-import csv
-import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
+import requests
+import json
+from datetime import datetime, timedelta
+from azure.identity import ClientSecretCredential
 
-def read_text_file(file_path):
-    with open(file_path, "r") as file:
-        lines = file.readlines()
-        severity = lines[0].strip()  # Severity is on the first line
-        alert_description = lines[1].strip()  # Alert description is on the second line
-    return severity, alert_description
+def get_alerts():
+    # Azure Active Directory authentication ke liye client credentials ko set karna
+    credentials = ClientSecretCredential(
+        client_id="<Your Client ID>",
+        client_secret="<Your Client Secret>",
+        tenant_id="<Your Tenant ID>"
+    )
 
-def send_email(receiver_email, screenshot_path, api_name, severity, alert_description):
-    sender_email = "your_email@example.com"  # Replace with your email address
-    sender_password = "your_password"  # Replace with your email password
-    smtp_server = "smtp.example.com"  # Replace with your SMTP server IP address
-    smtp_port = 587  # Replace with your SMTP server port (typically 587 for TLS)
+    # Authentication token prapt karna
+    token = credentials.get_token('https://management.azure.com/')
 
-    message = MIMEMultipart()
-    message["From"] = sender_email
-    message["To"] = receiver_email
-    message["Subject"] = "Alert from Azure App Insights"
+    # Last 5 minutes ka start time calculate karna
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(minutes=5)
 
-    # Email body
-    body = f"""Hi Team,
+    # REST API endpoint aur query
+    endpoint = "https://management.azure.com/subscriptions/{subscription_id}/providers/microsoft.insights/metricAlerts?api-version=2018-03-01&$filter=properties/createdTime ge '{start_time}'"
+    subscription_id = "<Your Subscription ID>"
+    url = endpoint.format(subscription_id=subscription_id, start_time=start_time.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
-We have received below alert from Azure App Insights. Kindly review the alert and take appropriate action.
+    headers = {
+        "Authorization": "Bearer " + token.token,
+        "Content-Type": "application/json"
+    }
 
-Source: {api_name}
-Severity: {severity}
-Alert description: {alert_description}
+    # REST API call
+    response = requests.get(url, headers=headers)
 
-Thanks & Regards,
-EMS Team
-"""
-    message.attach(MIMEText(body, "plain"))
-
-    # Attach screenshot as inline image
-    with open(screenshot_path, "rb") as f:
-        screenshot_data = f.read()
-    screenshot_mime = MIMEImage(screenshot_data, name=os.path.basename(screenshot_path))
-    screenshot_mime.add_header("Content-ID", "<screenshot>")
-    message.attach(screenshot_mime)
-
-    # Embed screenshot in email body
-    body_with_image = f'<p><img src="cid:screenshot" alt="{os.path.basename(screenshot_path)}"></p>'
-    message.attach(MIMEText(body_with_image, "html"))
-
-    try:
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()  # Enable TLS encryption
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, message.as_string())
-        print("Email sent successfully!")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-def match_and_send_screenshot(csv_file, text_file_folder):
-    with open(csv_file, newline='') as csvfile:
-        reader = csv.DictReader(csvfile)
-        row = next(reader)  # Read only the first row
-        api_name = row["API_Name"]
-        text_file_path = os.path.join(text_file_folder, f"{api_name}.txt")
-        if not os.path.exists(text_file_path):
-            return  # Skip if text file does not exist
-        severity, alert_description = read_text_file(text_file_path)
-        email_address = row["Owner_Email"]
-        screenshot_path = f"{api_name}.png"
-        send_email(email_address, screenshot_path, api_name, severity, alert_description)
+    # Response parse kar alerts ko extract karna
+    if response.status_code == 200:
+        alerts = json.loads(response.text)
+        return alerts
+    else:
+        print("Failed to fetch alerts. Status code:", response.status_code)
 
 if __name__ == "__main__":
-    match_and_send_screenshot("apis.csv", ".")
+    alerts = get_alerts()
+    print(alerts)
