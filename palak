@@ -1,0 +1,86 @@
+import pandas as pd
+from tkinter import Tk, Label, Entry, Button, messagebox
+from IPython.display import display, Markdown
+import textwrap
+import google.generativeai as genai
+
+# Configure the Gemini API key
+# Replace 'YOUR_API_KEY' with your actual Gemini API key
+genai.configure(api_key='')
+
+# Initialize the Gemini model
+model = genai.GenerativeModel('gemini-pro')
+
+# Define your custom report template
+custom_template = """
+Incident Reference: {Incident Reference}
+Incident Statement: {Incident Statement}
+Incident Priority: {Incident Priority}
+Incident Impact: {Incident Impact}
+Incident Duration: {Incident Duration}
+Incident Start Date & Time: {Incident Start Date & Time}
+Incident End Date & Time: {Incident End Date & Time}
+EMS monitoring detected proactively: {EMS monitoring detected proactively}
+Incident Description & Resolution Step Root Cause Analysis: {Incident Description & Resolution Step Root Cause Analysis}
+Why 1: {Why 1}
+Why 2: {Why 2}
+Why 3: {Why 3}
+Why 4: {Why 4}
+Why 5: {Why 5}
+"""
+
+def generate_report(data):
+    # Replace placeholders in the custom template with actual data
+    report = custom_template.format(**data)
+    
+    # Display the generated content
+    generated_report = textwrap.indent(report, '> ')
+    display(Markdown(generated_report))
+
+    return generated_report
+
+# Function to handle button click event
+def generate_report_for_id():
+    id_to_generate = entry_id.get()
+    
+    if id_to_generate.isdigit():
+        id_to_generate = int(id_to_generate)
+        row = df[df['ID'] == id_to_generate].iloc[0]
+        generated_report = generate_report(row.to_dict())
+        
+        # Save the report to a text file
+        file_name = f"report_for_{id_to_generate}.txt"
+        with open(file_name, 'w') as file:
+            file.write(generated_report)
+        
+        messagebox.showinfo("Report Generated", f"Report for ID {id_to_generate} generated successfully!\nReport saved as {file_name}")
+    else:
+        messagebox.showerror("Error", "Please enter a valid ID!")
+
+# Read data from the uploaded CSV file
+file_path = "palak.csv"
+df = pd.read_csv(file_path)
+
+# Initialize GUI
+root = Tk()
+root.title("Generate Report")
+root.geometry("300x200")
+
+# Add Fareportal header with light green and blue color combination
+label_fareportal = Label(root, text="Fareportal", font=("Arial", 16, "bold"), fg="#2E8B57")
+label_fareportal.pack(pady=10)
+
+label_id = Label(root, text="Enter ID for Report:")
+label_id.pack(pady=5)
+
+entry_id = Entry(root)
+entry_id.pack(pady=5)
+
+button_generate = Button(root, text="Generate Report", command=generate_report_for_id)
+button_generate.pack(pady=5)
+
+# Add "Yash Srivatava" at the bottom left of the GUI
+label_creator = Label(root, text="Created by Yash Srivatava", anchor="w", fg="gray", font=("Arial", 8))
+label_creator.pack(side="bottom", fill="x", padx=2, pady=2, anchor="w")
+
+root.mainloop()
