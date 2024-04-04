@@ -1,6 +1,17 @@
 import requests
+import json
 from datetime import datetime, timedelta
-from azure.identity import ClientSecretCredential
+import csv
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 
 def fetch_alerts(subscription_id):
     # Calculate start and end time for the last 5 minutes in UTC
@@ -30,7 +41,31 @@ def fetch_alerts(subscription_id):
         if response.status_code == 200:
             # Parsing JSON response
             alerts = response.json()
-            return alerts
+            
+            # Filter specific fields and handle missing/null values
+            filtered_alerts = []
+            for alert in alerts.get("value", []):
+                properties = alert.get("properties", {})
+                essentials = properties.get("essentials", {})
+                
+                # Extracting severity
+                severity = essentials.get("severity", None)
+                
+                # Extracting targetResource and targetResourceName
+                target_resource = essentials.get("targetResource", None)
+                target_resource_name = essentials.get("targetResourceName", None)
+                
+                alert_name = alert.get("name")
+                
+                filtered_alert = {
+                    "severity": severity,
+                    "targetResource": target_resource,
+                    "targetResourceName": target_resource_name,
+                    "name": alert_name
+                }
+                filtered_alerts.append(filtered_alert)
+                
+            return filtered_alerts
         else:
             # Printing error message if request fails
             print("Failed to fetch alerts. Status code:", response.status_code)
@@ -41,11 +76,159 @@ def fetch_alerts(subscription_id):
         print("An error occurred:", e)
         return None
 
+def save_to_json(alerts):
+    if alerts:
+        with open("alerts.json", "w") as f:
+            json.dump(alerts, f)
+            print("Filtered alerts saved to 'alerts.json' file.")
+
+def send_email(api_name, owner_email, screenshot_filename, severity, alert_description):
+    # Email configuration
+    smtp_server = "smtp.example.com"
+    smtp_port = 587
+    sender_email = "your_email@example.com"
+    password = "your_password"
+
+    # Create a multipart message
+    msg = MIMEMultipart()
+    msg["From"] = sender_email
+    msg["To"] = owner_email
+    msg["Subject"] = f"Alert for {api_name}"
+
+    # HTML email body
+    body = f"""
+        <html>
+            <body>
+                <p>Hi Team,</p>
+                <p>We have received below alert from Azure App Insights.</p>
+                <p>Kindly review the alert and take appropriate action.</p>
+                <p><b>Source:</b> {api_name}</p>
+                <p><b>Severity:</b> {severity}</p>
+                <p><b>Alert description:</b> {alert_description}</p>
+                <p><img src="cid:screenshot"></p>
+                <p>Thanks & Regards,<br>EMS Team</p>
+            </body>
+        </html>
+    """
+    msg.attach(MIMEText(body, "html"))
+
+    # Attach the screenshot inline
+    with open(screenshot_filename, "rb") as f:
+        img = MIMEImage(f.read())
+        img.add_header("Content-Disposition", "inline", filename=os.path.basename(screenshot_filename))
+        img.add_header("Content-ID", "<screenshot>")
+        msg.attach(img)
+
+    # Send email
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(sender_email, password)
+        server.send_message(msg)
+
+    # Delete the screenshot file
+    os.remove(screenshot_filename)
+
+def sign_in(driver, email, password):
+    # Open sign-in page
+    driver.get("https://login.microsoftonline.com/")
+    
+    # Find email input field and enter email
+    email_field = driver.find_element_by_id("i0116")
+    email_field.send_keys(email)
+    
+    # Click next button
+    next_button = driver.find_element_by_id("idSIButton9")
+    next_button.click()
+    
+    # Wait for password input field to appear
+    password_field = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "i0118")))
+    
+    # Enter password
+    password_field.send_keys(password)
+    
+    # Click sign-in button
+    sign_in_button = driver.find_element_by_id("idSIButton9")
+    sign_in_button.click()
+
+def open_url_in_browser(driver, url):
+    driver.get(url)
+
+def capture_screenshot(driver, filename):
+    driver.save_screenshot(filename)
+
 if __name__ == "__main__":
+    # Base URL
+    base_url = "https://portal.azure.com/#@fareportal.com"
+
+    # Chrome options for headless mode
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--no-sandbox")
+
+    # WebDriver for Chrome
+    driver = webdriver.Chrome(options=chrome_options)
+
+    # Sign in to Microsoft account
+    email = "your_email@example.com"
+    password = "your_password"
+    sign_in(driver, email, password)
+
     # Calling the fetch_alerts function to retrieve alerts
     subscription_id = "<Your Subscription ID>"
     alerts = fetch_alerts(subscription_id)
     
-    # Printing the fetched alerts
-    if alerts:
-        print(alerts)
+    # Saving filtered alerts to JSON file
+    save_to_json(alerts)
+
+    # Read CSV file
+    with open("api_owners.csv", newline="") as csvfile:
+        reader = csv.DictReader(csvfile)
+        api_owners = {row["API_Name"]: row["Owner_Email"] for row in reader}
+
+    # Create a directory to save screenshots if it doesn't exist
+    if not os.path.exists("screenshots"):
+        os.makedirs("screenshots")
+
+    # Iterate over alerts
+    for alert in alerts:
+        # Extract target resource and target resource name
+        target_resource = alert.get("targetResource")
+        target_resource_name = alert.get("targetResourceName")
+        severity = alert.get("severity")
+        alert_description = alert.get("name")
+
+        # Check if target resource name matches any API name in CSV
+        if target_resource_name in api_owners:
+            # Get owner email for the matching API name
+            owner_email = api_owners[target_resource_name]
+
+            # Create URL for the alert
+            full_url = f"{base_url}/resource{target_resource}"
+
+            try:
+                # Open URL in headless browser
+                open_url_in_browser(driver, full_url)
+
+                # Wait for page to load (adjust the timeout as needed)
+                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//body")))
+
+                # Take screenshot
+                screenshot_filename = f"screenshots/{target_resource_name}.png"
+                capture_screenshot(driver, screenshot_filename)
+
+                # Send email with screenshot
+                send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
+
+                print(f"Alert email sent for {target_resource_name}")
+            except TimeoutException:
+                print(f"Timeout occurred while loading {full_url}")
+
+    # Quit WebDriver
+    driver.quit()
+Successfully done Azure automation task .
+Working on testing and taking observation of any limitations.
+Worked on creating admin in fortigate through ansible script.
+Will work on making azure automation script live.
+
+Will work to complete the creating admin script.
