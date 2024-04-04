@@ -1,8 +1,18 @@
 import requests
+from datetime import datetime, timedelta
+from azure.identity import ClientSecretCredential
 
 def fetch_alerts(subscription_id):
+    # Calculate start and end time for the last 5 minutes in UTC
+    end_time_utc = datetime.utcnow()
+    start_time_utc = end_time_utc - timedelta(minutes=5)
+    
+    # Format start and end time as UTC string in ISO 8601 format
+    start_time_str = start_time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_time_str = end_time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    
     # Azure Monitor Alerts Management API endpoint URL
-    url = f"https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.AlertsManagement/alerts?customTimeRange=PT5M&api-version=2023-07-12-preview"
+    url = f"https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.AlertsManagement/alerts?customTimeRange={start_time_str}/{end_time_str}&api-version=2023-07-12-preview"
     
     # Azure AD access token
     access_token = "<Your Access Token>"
