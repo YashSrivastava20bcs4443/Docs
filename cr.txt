@@ -6,14 +6,10 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
+import asyncio
+from pyppeteer import launch
 
-def fetch_alerts(subscription_id):
+async def fetch_alerts(subscription_id):
     # Calculate start and end time for the last 5 minutes in UTC
     end_time_utc = datetime.utcnow()
     start_time_utc = end_time_utc - timedelta(minutes=5)
@@ -128,55 +124,10 @@ def send_email(api_name, owner_email, screenshot_filename, severity, alert_descr
     # Delete the screenshot file
     os.remove(screenshot_filename)
 
-def sign_in(driver, email, password):
-    # Open sign-in page
-    driver.get("https://login.microsoftonline.com/")
-    
-    # Find email input field and enter email
-    email_field = driver.find_element_by_id("i0116")
-    email_field.send_keys(email)
-    
-    # Click next button
-    next_button = driver.find_element_by_id("idSIButton9")
-    next_button.click()
-    
-    # Wait for password input field to appear
-    password_field = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "i0118")))
-    
-    # Enter password
-    password_field.send_keys(password)
-    
-    # Click sign-in button
-    sign_in_button = driver.find_element_by_id("idSIButton9")
-    sign_in_button.click()
-
-def open_url_in_browser(driver, url):
-    driver.get(url)
-
-def capture_screenshot(driver, filename):
-    driver.save_screenshot(filename)
-
-if __name__ == "__main__":
-    # Base URL
-    base_url = "https://portal.azure.com/#@fareportal.com"
-
-    # Chrome options for headless mode
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--no-sandbox")
-
-    # WebDriver for Chrome
-    driver = webdriver.Chrome(options=chrome_options)
-
-    # Sign in to Microsoft account
-    email = "your_email@example.com"
-    password = "your_password"
-    sign_in(driver, email, password)
-
+async def main():
     # Calling the fetch_alerts function to retrieve alerts
     subscription_id = "<Your Subscription ID>"
-    alerts = fetch_alerts(subscription_id)
+    alerts = await fetch_alerts(subscription_id)
     
     # Saving filtered alerts to JSON file
     save_to_json(alerts)
@@ -186,9 +137,9 @@ if __name__ == "__main__":
         reader = csv.DictReader(csvfile)
         api_owners = {row["API_Name"]: row["Owner_Email"] for row in reader}
 
-    # Create a directory to save screenshots if it doesn't exist
-    if not os.path.exists("screenshots"):
-        os.makedirs("screenshots")
+    # Initialize Pyppeteer browser
+    browser = await launch(headless=True)
+    page = await browser.newPage()
 
     # Iterate over alerts
     for alert in alerts:
@@ -204,31 +155,22 @@ if __name__ == "__main__":
             owner_email = api_owners[target_resource_name]
 
             # Create URL for the alert
-            full_url = f"{base_url}/resource{target_resource}"
+            full_url = f"https://portal.azure.com/#@fareportal.com/resource{target_resource}"
 
-            try:
-                # Open URL in headless browser
-                open_url_in_browser(driver, full_url)
+            # Open URL in Pyppeteer browser
+            await page.goto(full_url)
 
-                # Wait for page to load (adjust the timeout as needed)
-                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//body")))
+            # Take screenshot and save with target resource name as filename
+            screenshot_filename = f"{target_resource_name}.png"
+            await page.screenshot({"path": screenshot_filename, "fullPage": True})
 
-                # Take screenshot
-                screenshot_filename = f"screenshots/{target_resource_name}.png"
-                capture_screenshot(driver, screenshot_filename)
+            # Send email with screenshot
+            send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
 
-                # Send email with screenshot
-                send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
+    # Close browser
+    await browser.close()
 
-                print(f"Alert email sent for {target_resource_name}")
-            except TimeoutException:
-                print(f"Timeout occurred while loading {full_url}")
+    print("Alert emails sent to respective owners.")
 
-    # Quit WebDriver
-    driver.quit()
-Successfully done Azure automation task .
-Working on testing and taking observation of any limitations.
-Worked on creating admin in fortigate through ansible script.
-Will work on making azure automation script live.
-
-Will work to complete the creating admin script.
+# Run the main function
+asyncio.get_event_loop().run_until_complete(main())
