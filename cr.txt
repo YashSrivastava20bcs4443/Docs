@@ -1,47 +1,41 @@
 import requests
-from datetime import datetime, timedelta
-from azure.identity import ClientSecretCredential
 
-def get_token():
-    credentials = ClientSecretCredential(
-        client_id="<Your Client ID>",
-        client_secret="<Your Client Secret>",
-        tenant_id="<Your Tenant ID>"
-    )
-    token = credentials.get_token("https://management.azure.com/.default")
-    return token.token
-
-def get_alerts():
-    endpoint = "<Your Endpoint URL>"
+def fetch_alerts(subscription_id):
+    # Azure Monitor Alerts Management API endpoint URL
+    url = f"https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.AlertsManagement/alerts?customTimeRange=PT5M&api-version=2023-07-12-preview"
+    
+    # Azure AD access token
+    access_token = "<Your Access Token>"
+    
+    # Request headers with access token
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
     
     try:
-        token = get_token()
-        headers = {
-            "Authorization": "Bearer " + token
-        }
-
-        # Calculate start and end time for the last 5 minutes
-        end_time = datetime.utcnow()
-        start_time = end_time - timedelta(minutes=5)
-
-        # Include the time filter in the endpoint URL
-        url = f"{endpoint}&start_time={start_time.isoformat()}Z&end_time={end_time.isoformat()}Z"
-
-        # REST API call
+        # Sending HTTP GET request to fetch alerts
         response = requests.get(url, headers=headers)
-
-        # Response parse kar alerts ko extract karna
+        
+        # Checking if request was successful (status code 200)
         if response.status_code == 200:
+            # Parsing JSON response
             alerts = response.json()
             return alerts
         else:
+            # Printing error message if request fails
             print("Failed to fetch alerts. Status code:", response.status_code)
             print("Response:", response.text)
             return None
     except Exception as e:
+        # Printing error message if an exception occurs
         print("An error occurred:", e)
         return None
 
 if __name__ == "__main__":
-    alerts = get_alerts()
-    print(alerts)
+    # Calling the fetch_alerts function to retrieve alerts
+    subscription_id = "<Your Subscription ID>"
+    alerts = fetch_alerts(subscription_id)
+    
+    # Printing the fetched alerts
+    if alerts:
+        print(alerts)
