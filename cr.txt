@@ -136,7 +136,7 @@ async def login_azure(page):
 
 async def main():
     # Initialize Pyppeteer browser
-    browser = await launch(headless=True)
+    browser = await launch(headless=True, executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe')
     page = await browser.newPage()
 
     # Login to Azure portal
@@ -189,5 +189,4 @@ async def main():
     print("Alert emails sent to respective owners.")
 
 # Run the main function
-asyncio.get_event_loop().run_until_complete(main())
-
+asyncio.run(main())
