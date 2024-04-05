@@ -124,7 +124,24 @@ def send_email(api_name, owner_email, screenshot_filename, severity, alert_descr
     # Delete the screenshot file
     os.remove(screenshot_filename)
 
+async def login_azure(page):
+    await page.goto("https://portal.azure.com")
+    await page.waitForSelector("#i0116")  # Wait for the username input field
+    await page.type("#i0116", "your_username")  # Enter your Azure username
+    await page.click("#idSIButton9")  # Click on the next button
+    await page.waitForSelector("#i0118")  # Wait for the password input field
+    await page.type("#i0118", "your_password")  # Enter your Azure password
+    await page.waitForSelector("#idSIButton9")  # Wait for the next button (Stay signed in)
+    await page.click("#idSIButton9")  # Click on the next button (Stay signed in)
+
 async def main():
+    # Initialize Pyppeteer browser
+    browser = await launch(headless=True)
+    page = await browser.newPage()
+
+    # Login to Azure portal
+    await login_azure(page)
+
     # Calling the fetch_alerts function to retrieve alerts
     subscription_id = "<Your Subscription ID>"
     alerts = await fetch_alerts(subscription_id)
@@ -136,10 +153,6 @@ async def main():
     with open("api_owners.csv", newline="") as csvfile:
         reader = csv.DictReader(csvfile)
         api_owners = {row["API_Name"]: row["Owner_Email"] for row in reader}
-
-    # Initialize Pyppeteer browser
-    browser = await launch(headless=True)
-    page = await browser.newPage()
 
     # Iterate over alerts
     for alert in alerts:
@@ -159,6 +172,9 @@ async def main():
 
             # Open URL in Pyppeteer browser
             await page.goto(full_url)
+            
+            # Wait for page to load (adjust the delay as needed)
+            await page.waitFor(5000)
 
             # Take screenshot and save with target resource name as filename
             screenshot_filename = f"{target_resource_name}.png"
@@ -174,3 +190,4 @@ async def main():
 
 # Run the main function
 asyncio.get_event_loop().run_until_complete(main())
+
