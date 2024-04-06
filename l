@@ -1,3 +1,5 @@
+import time
+
 if __name__ == "__main__":
     # Base URL
     base_url = "https://portal.azure.com/#@fareportal.com"
@@ -15,17 +17,6 @@ if __name__ == "__main__":
     driver.maximize_window()
 
     try:
-        # Open URL in headless browser
-        driver.get(base_url)
-
-        # Wait for page to load (adjust the timeout as needed)
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//body")))
-
-        # Sign in to Microsoft account
-        email = "svcems@fareportal.com"
-        password = "Uw60\"1128UW"
-        sign_in(driver, email, password)
-
         # Fetch alerts
         subscription_id = "7f44f77d-2226-45b0-af98-33e1b75c38b7"
         alerts = fetch_alerts(subscription_id)
@@ -64,6 +55,14 @@ if __name__ == "__main__":
 
                     # Wait for page to load (adjust the timeout as needed)
                     WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//body")))
+
+                    # Sign in to Microsoft account
+                    email = "svcems@fareportal.com"
+                    password = "Uw60\"1128UW"
+                    sign_in(driver, email, password)
+
+                    # Add delay before taking screenshot (adjust the delay time as needed)
+                    time.sleep(5)  # Delay of 5 seconds
 
                     # Take screenshot
                     screenshot_filename = f"screenshots/{target_resource_name}.png"
