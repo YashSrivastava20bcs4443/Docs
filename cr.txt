@@ -1,16 +1,9 @@
-async def main():
-    # Initialize Pyppeteer browser
-    browser = await launch(headless=True, executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe')
-    page = await browser.newPage()
-
-    # Login to Azure portal
-    await login_azure(page)
-
-    # Calling the fetch_alerts function to retrieve alerts
+def main():
+    # Fetch alerts
     subscription_id = "<Your Subscription ID>"
-    alerts = await fetch_alerts(subscription_id)
-    
-    # Saving filtered alerts to JSON file
+    alerts = fetch_alerts(subscription_id)
+
+    # Save alerts to JSON file
     save_to_json(alerts)
 
     # Read CSV file
@@ -18,39 +11,37 @@ async def main():
         reader = csv.DictReader(csvfile)
         api_owners = {row["API_Name"]: row["Owner_Email"] for row in reader}
 
+    # Initialize Selenium WebDriver
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")  # Run in headless mode
+    driver = webdriver.Chrome(options=options)
+
     # Iterate over alerts
     for alert in alerts:
-        # Extract target resource and target resource name
-        target_resource = alert.get("targetResource")
-        target_resource_name = alert.get("targetResourceName")
-        severity = alert.get("severity")
-        alert_description = alert.get("name")
-
-        # Check if target resource name matches any API name in CSV
+        target_resource_name = alert["targetResourceName"]
         if target_resource_name in api_owners:
-            # Get owner email for the matching API name
             owner_email = api_owners[target_resource_name]
 
-            # Create URL for the alert
-            full_url = f"https://portal.azure.com/#@fareportal.com/resource{target_resource}"
+            # Open Azure portal and sign in
+            driver.get("https://portal.azure.com")
+            driver.find_element_by_id("i0116").send_keys("your_username")  # Enter your Azure username
+            driver.find_element_by_id("idSIButton9").click()  # Click on the next button
+            driver.find_element_by_id("i0118").send_keys("your_password")  # Enter your Azure password
+            driver.find_element_by_id("idSIButton9").click()  # Click on the next button
+            driver.find_element_by_id("idSIButton9").click()  # Click on the next button (Stay signed in)
 
-            # Open URL in Pyppeteer browser
-            await page.goto(full_url)
-            
-            # Wait for page to load (adjust the delay as needed)
-            await page.waitFor(5000)
+            # Wait for the dashboard to load
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "dashboard")))
 
-            # Take screenshot and save with target resource name as filename
+            # Capture screenshot
             screenshot_filename = f"{target_resource_name}.png"
-            await page.screenshot({"path": screenshot_filename, "fullPage": True})
+            driver.save_screenshot(screenshot_filename)
 
-            # Send email with screenshot
-            send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
+            # Send email
+            send_email(target_resource_name, owner_email, screenshot_filename, alert["severity"], alert["name"])
 
-    # Close browser
-    await browser.close()
+    # Quit WebDriver
+    driver.quit()
 
-    print("Alert emails sent to respective owners.")
-
-# Run the main function
-asyncio.run(main())
+if __name__ == "__main__":
+    main()
