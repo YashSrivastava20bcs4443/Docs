@@ -1,27 +1,17 @@
 async def main():
-    # Initialize Pyppeteer browser
+    # Initialize the event loop
+    loop = asyncio.get_event_loop()
+
+    # Initialize the default browser instance
     browser = await launch(headless=True, executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', args=['--no-sandbox'])
 
-    # Fetching the default browser instance
-    browser_instance = await browser.newPage()
+    async def process_alert(alert):
+        # Fetching the page instance for each task
+        page = await browser.newPage()
 
-    # Login to Azure portal
-    await login_azure(browser_instance)
+        # Login to Azure portal
+        await login_azure(page)
 
-    # Calling the fetch_alerts function to retrieve alerts
-    subscription_id = "<Your Subscription ID>"
-    alerts = await fetch_alerts(subscription_id)
-    
-    # Saving filtered alerts to JSON file
-    save_to_json(alerts)
-
-    # Read CSV file
-    with open("api_owners.csv", newline="") as csvfile:
-        reader = csv.DictReader(csvfile)
-        api_owners = {row["API_Name"]: row["Owner_Email"] for row in reader}
-
-    # Iterate over alerts
-    for alert in alerts:
         # Extract target resource and target resource name
         target_resource = alert.get("targetResource")
         target_resource_name = alert.get("targetResourceName")
@@ -37,17 +27,23 @@ async def main():
             full_url = f"https://portal.azure.com/#@fareportal.com/resource{target_resource}"
 
             # Open URL in Pyppeteer browser
-            await browser_instance.goto(full_url)
+            await page.goto(full_url)
             
             # Wait for page to load (adjust the delay as needed)
-            await browser_instance.waitFor(5000)
+            await page.waitFor(5000)
 
             # Take screenshot and save with target resource name as filename
             screenshot_filename = f"{target_resource_name}.png"
-            await browser_instance.screenshot({"path": screenshot_filename, "fullPage": True})
+            await page.screenshot({"path": screenshot_filename, "fullPage": True})
 
             # Send email with screenshot
             send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
+
+        # Close the page instance
+        await page.close()
+
+    # Process alerts concurrently
+    await asyncio.gather(*[process_alert(alert) for alert in alerts])
 
     # Close browser
     await browser.close()
