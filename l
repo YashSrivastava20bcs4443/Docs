@@ -5,9 +5,7 @@
             "label": "RunScript",
             "type": "shell",
             "command": "python",
-            "args": [
-                "path_to_your_script.py"
-            ],
+            "args": ["D:\\Azure Automation\\main.py"],
             "group": {
                 "kind": "build",
                 "isDefault": true
@@ -16,7 +14,10 @@
                 "reveal": "silent"
             },
             "problemMatcher": [],
-            "schedule": "*/1 * * * *"
+            "schedule": {
+                "interval": "1m",
+                "mode": "interval"
+            }
         }
     ]
 }
