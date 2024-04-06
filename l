@@ -1,2 +1,22 @@
-                    # Wait for body element to be present
-                    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "RunScript",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "path_to_your_script.py"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "silent"
+            },
+            "problemMatcher": [],
+            "schedule": "*/1 * * * *"
+        }
+    ]
+}
