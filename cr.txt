@@ -1,6 +1,22 @@
             # Check if sign-in page appears
             if "signin" in page.url:
-                await login_azure(page)  # Handle sign-in
-                
-                # Wait for navigation after sign-in
+                # Wait for login page to load
+                await page.waitForSelector('#cred_userid_inputtext')
+
+                # Enter username
+                await page.type('#cred_userid_inputtext', 'your_username')
+
+                # Click Next button
+                await page.click('#cred_sign_in_button')
+
+                # Wait for password field to appear
+                await page.waitForSelector('#cred_password_inputtext')
+
+                # Enter password
+                await page.type('#cred_password_inputtext', 'your_password')
+
+                # Click Sign in button
+                await page.click('#cred_sign_in_button')
+
+                # Wait for the Azure dashboard to load
                 await page.waitForNavigation()
