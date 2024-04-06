@@ -1,146 +1,12 @@
-import requests
-import json
-from datetime import datetime, timedelta
-import csv
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
-import asyncio
-from pyppeteer import launch
-
-async def fetch_alerts(subscription_id):
-    # Calculate start and end time for the last 5 minutes in UTC
-    end_time_utc = datetime.utcnow()
-    start_time_utc = end_time_utc - timedelta(minutes=5)
-    
-    # Format start and end time as UTC string in ISO 8601 format
-    start_time_str = start_time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
-    end_time_str = end_time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
-    
-    # Azure Monitor Alerts Management API endpoint URL
-    url = f"https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.AlertsManagement/alerts?customTimeRange={start_time_str}/{end_time_str}&api-version=2023-07-12-preview"
-    
-    # Azure AD access token
-    access_token = "<Your Access Token>"
-    
-    # Request headers with access token
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
-    
-    try:
-        # Sending HTTP GET request to fetch alerts
-        response = requests.get(url, headers=headers)
-        
-        # Checking if request was successful (status code 200)
-        if response.status_code == 200:
-            # Parsing JSON response
-            alerts = response.json()
-            
-            # Filter specific fields and handle missing/null values
-            filtered_alerts = []
-            for alert in alerts.get("value", []):
-                properties = alert.get("properties", {})
-                essentials = properties.get("essentials", {})
-                
-                # Extracting severity
-                severity = essentials.get("severity", None)
-                
-                # Extracting targetResource and targetResourceName
-                target_resource = essentials.get("targetResource", None)
-                target_resource_name = essentials.get("targetResourceName", None)
-                
-                alert_name = alert.get("name")
-                
-                filtered_alert = {
-                    "severity": severity,
-                    "targetResource": target_resource,
-                    "targetResourceName": target_resource_name,
-                    "name": alert_name
-                }
-                filtered_alerts.append(filtered_alert)
-                
-            return filtered_alerts
-        else:
-            # Printing error message if request fails
-            print("Failed to fetch alerts. Status code:", response.status_code)
-            print("Response:", response.text)
-            return None
-    except Exception as e:
-        # Printing error message if an exception occurs
-        print("An error occurred:", e)
-        return None
-
-def save_to_json(alerts):
-    if alerts:
-        with open("alerts.json", "w") as f:
-            json.dump(alerts, f)
-            print("Filtered alerts saved to 'alerts.json' file.")
-
-def send_email(api_name, owner_email, screenshot_filename, severity, alert_description):
-    # Email configuration
-    smtp_server = "smtp.example.com"
-    smtp_port = 587
-    sender_email = "your_email@example.com"
-    password = "your_password"
-
-    # Create a multipart message
-    msg = MIMEMultipart()
-    msg["From"] = sender_email
-    msg["To"] = owner_email
-    msg["Subject"] = f"Alert for {api_name}"
-
-    # HTML email body
-    body = f"""
-        <html>
-            <body>
-                <p>Hi Team,</p>
-                <p>We have received below alert from Azure App Insights.</p>
-                <p>Kindly review the alert and take appropriate action.</p>
-                <p><b>Source:</b> {api_name}</p>
-                <p><b>Severity:</b> {severity}</p>
-                <p><b>Alert description:</b> {alert_description}</p>
-                <p><img src="cid:screenshot"></p>
-                <p>Thanks & Regards,<br>EMS Team</p>
-            </body>
-        </html>
-    """
-    msg.attach(MIMEText(body, "html"))
-
-    # Attach the screenshot inline
-    with open(screenshot_filename, "rb") as f:
-        img = MIMEImage(f.read())
-        img.add_header("Content-Disposition", "inline", filename=os.path.basename(screenshot_filename))
-        img.add_header("Content-ID", "<screenshot>")
-        msg.attach(img)
-
-    # Send email
-    with smtplib.SMTP(smtp_server, smtp_port) as server:
-        server.starttls()
-        server.login(sender_email, password)
-        server.send_message(msg)
-
-    # Delete the screenshot file
-    os.remove(screenshot_filename)
-
-async def login_azure(page):
-    await page.goto("https://portal.azure.com")
-    await page.waitForSelector("#i0116")  # Wait for the username input field
-    await page.type("#i0116", "your_username")  # Enter your Azure username
-    await page.click("#idSIButton9")  # Click on the next button
-    await page.waitForSelector("#i0118")  # Wait for the password input field
-    await page.type("#i0118", "your_password")  # Enter your Azure password
-    await page.waitForSelector("#idSIButton9")  # Wait for the next button (Stay signed in)
-    await page.click("#idSIButton9")  # Click on the next button (Stay signed in)
-
 async def main():
     # Initialize Pyppeteer browser
-    browser = await launch(headless=True, executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe')
-    page = await browser.newPage()
+    browser = await launch(headless=True, executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', args=['--no-sandbox'])
+
+    # Fetching the default browser instance
+    browser_instance = await browser.newPage()
 
     # Login to Azure portal
-    await login_azure(page)
+    await login_azure(browser_instance)
 
     # Calling the fetch_alerts function to retrieve alerts
     subscription_id = "<Your Subscription ID>"
@@ -171,14 +37,14 @@ async def main():
             full_url = f"https://portal.azure.com/#@fareportal.com/resource{target_resource}"
 
             # Open URL in Pyppeteer browser
-            await page.goto(full_url)
+            await browser_instance.goto(full_url)
             
             # Wait for page to load (adjust the delay as needed)
-            await page.waitFor(5000)
+            await browser_instance.waitFor(5000)
 
             # Take screenshot and save with target resource name as filename
             screenshot_filename = f"{target_resource_name}.png"
-            await page.screenshot({"path": screenshot_filename, "fullPage": True})
+            await browser_instance.screenshot({"path": screenshot_filename, "fullPage": True})
 
             # Send email with screenshot
             send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
