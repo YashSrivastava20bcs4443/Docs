@@ -1,17 +1,25 @@
 async def main():
-    # Initialize the event loop
-    loop = asyncio.get_event_loop()
+    # Initialize Pyppeteer browser
+    browser = await launch(headless=True, executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe')
+    page = await browser.newPage()
 
-    # Initialize the default browser instance
-    browser = await launch(headless=True, executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', args=['--no-sandbox'])
+    # Login to Azure portal
+    await login_azure(page)
 
-    async def process_alert(alert):
-        # Fetching the page instance for each task
-        page = await browser.newPage()
+    # Calling the fetch_alerts function to retrieve alerts
+    subscription_id = "<Your Subscription ID>"
+    alerts = await fetch_alerts(subscription_id)
+    
+    # Saving filtered alerts to JSON file
+    save_to_json(alerts)
 
-        # Login to Azure portal
-        await login_azure(page)
+    # Read CSV file
+    with open("api_owners.csv", newline="") as csvfile:
+        reader = csv.DictReader(csvfile)
+        api_owners = {row["API_Name"]: row["Owner_Email"] for row in reader}
 
+    # Iterate over alerts
+    for alert in alerts:
         # Extract target resource and target resource name
         target_resource = alert.get("targetResource")
         target_resource_name = alert.get("targetResourceName")
@@ -38,12 +46,6 @@ async def main():
 
             # Send email with screenshot
             send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
-
-        # Close the page instance
-        await page.close()
-
-    # Process alerts concurrently
-    await asyncio.gather(*[process_alert(alert) for alert in alerts])
 
     # Close browser
     await browser.close()
