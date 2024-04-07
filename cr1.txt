@@ -1,43 +1,76 @@
-import time
-import os
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
+if __name__ == "__main__":
 
-try:
-    # Find the third column in the row
-    third_column = driver.find_element(By.XPATH, "//div[contains(@class, 'fxc-gc-cell')][3]//a[@class='fxc-gcflink-link']")
-    
-    # Get the text of the link
-    link_text = third_column.text
-    
-    # Modify the link text to remove invalid characters for a filename
-    filename = link_text.replace('/', '_').replace(':', '_').replace('?', '_').replace('&', '_')
-    
-    # Execute JavaScript to click on the third column
-    driver.execute_script("arguments[0].click();", third_column)
-    
-    # Wait for the new page to load
-    time.sleep(5)  # You might need to adjust the wait time
-    
-    # Take a screenshot of the page
-    driver.save_screenshot(f"{filename}.png")
-    
-    # Wait for the first and second column elements to become visible
-    first_column_element = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//div[contains(@class, 'fxc-gc-cell')][1]//a[@class='fxc-gcflink-link']")))
-    second_column_element = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((By.XPATH, "//div[contains(@class, 'fxc-gc-cell')][2]//span[@class='ext-severity-text']")))
-    
-    # Get the text of the first and second columns
-    first_column_text = first_column_element.text
-    second_column_text = second_column_element.text
-    
-    # Combine text from both columns
-    combined_text = f"Column 1: {first_column_text}\nColumn 2: {second_column_text}"
-    
-    # Save the combined text to a text file
-    with open(f"{filename}.txt", "w") as file:
-        file.write(combined_text)
+    # Base URL
+    base_url = "https://portal.azure.com/#@fareportal.com"
 
-except Exception as e:
-    print(f"An error occurred: {str(e)}")
+    # WebDriver for Chrome
+    service = webdriver.chrome.service.Service(executable_path='./chromedriver.exe')
+    options = webdriver.ChromeOptions()
+    #options.add_argument("--headless")
+    driver = webdriver.Chrome(service=service, options=options)
+    driver.maximize_window()
+
+    try:
+        # Fetch alerts
+        subscription_id = config.SUBSCRIPTION_ID
+        alerts = fetch_alerts(subscription_id)
+        # Saving filtered alerts to JSON file
+        save_to_json(alerts)
+
+        # Read CSV file
+        with open("api.csv", newline="") as csvfile:
+            reader = csv.DictReader(csvfile)
+            api_owners = {row["API Name"]: row["Owner_Email"] for row in reader}
+
+        # Create a directory to save screenshots if it doesn't exist
+        if not os.path.exists("screenshots"):
+            os.makedirs("screenshots")
+
+        for alert in alerts:
+            # Extract target resource and target resource name
+            target_resource = alert.get("targetResource")
+            target_resource_name = alert.get("targetResourceName")
+            severity = alert.get("severity")
+            alert_description = alert.get("name")
+
+            # Check if target resource name matches any API name in CSV
+            if target_resource_name in api_owners:
+                # Get owner email for the matching API name
+                owner_email = api_owners[target_resource_name]
+
+                # Create URL for the alert
+                full_url = f"{base_url}/resource{target_resource}"
+
+                try:
+                    # Open URL in headless browser
+                    driver.get(full_url)
+
+                    # Wait for page to load (adjust the timeout as needed)
+                    WebDriverWait(driver, 50).until(EC.presence_of_element_located((By.XPATH, "//body")))
+
+                    # Sign in to Microsoft account
+                    email = "svc_ems@fareportal.com"
+                    password = "UM601128UN"
+                    sign_in(driver, email, password)
+
+                    driver.execute_script("document.body.style.zoom=75%")
+
+                    # Delay of 5 seconds
+                    time.sleep(5)
+
+                    # Take screenshot
+                    screenshot_filename = f"screenshots/{target_resource_name}.png"
+                    capture_screenshot(driver, screenshot_filename)
+
+                    # Send email with screenshot
+                    send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
+                    print(f"Alert email sent for {target_resource_name}")
+
+                except TimeoutException:
+                    print(f"Timeout occurred while loading {full_url}")
+
+            # Quit WebDriver after processing each alert
+            driver.quit()
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
