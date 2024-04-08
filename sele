@@ -1,12 +1,10 @@
-                    screenshot_filename = f"screenshots/{target_resource_name}.png"
-                    driver.save_screenshot(screenshot_filename)
-
                     # Send email with screenshot
                     send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
                     print(f"Alert email sent for {target_resource_name}")
 
-                except TimeoutException as te:
-                    print(f"Timeout occurred while loading {full_url}: {te}")
+                except TimeoutException:
+                    print(f"Timeout occurred while loading {full_url}. Proceeding to the next alert.")
+
                 except Exception as e:
                     print(f"An error occurred: {str(e)}")
 
