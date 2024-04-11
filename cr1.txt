@@ -1,30 +1,30 @@
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-import time
-import pyautogui
+import requests
 
-# Set up the WebDriver
-driver = webdriver.Chrome()
-driver.get("http://example.com")  # Replace "example.com" with the URL of the website you want to capture
-time.sleep(2)  # Wait for the page to fully load
+# Your Azure AD credentials
+CLIENT_ID = 'your_client_id'
+TENANT_ID = 'your_tenant_id'
+CLIENT_SECRET = 'your_client_secret'
 
-# Take a screenshot of the website
-driver.save_screenshot("website_screenshot.png")
+# Microsoft Graph API endpoint for retrieving joined teams
+teams_url = f'https://graph.microsoft.com/v1.0/me/joinedTeams'
 
-# Minimize the WebDriver window
-driver.minimize_window()
+# Get OAuth 2.0 access token
+token_url = f'https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token'
+token_data = {
+    'grant_type': 'client_credentials',
+    'client_id': CLIENT_ID,
+    'client_secret': CLIENT_SECRET,
+    'scope': 'https://graph.microsoft.com/.default'
+}
+response = requests.post(token_url, data=token_data)
+access_token = response.json().get('access_token')
 
-# Open Microsoft Teams
-pyautogui.hotkey('win', 's')  # Press Win+S to open Windows search
-time.sleep(1)  # Wait for the search box to open
-pyautogui.write("Microsoft Teams")  # Type "Microsoft Teams" in the search box
-time.sleep(1)  # Wait for the search results to appear
-pyautogui.press('enter')  # Press Enter to open Microsoft Teams
-time.sleep(10)  # Wait for Microsoft Teams to fully open (adjust this time as needed)
+# Get list of joined teams
+headers = {'Authorization': 'Bearer ' + access_token}
+teams_response = requests.get(teams_url, headers=headers)
+teams_data = teams_response.json().get('value')
 
-# Paste the screenshot into the Microsoft Teams group chat
-pyautogui.hotkey('ctrl', 'v')  # Press Ctrl+V to paste
-pyautogui.press('enter')  # Press Enter to send the message
-
-# Close the WebDriver
-driver.quit()
+# Print list of joined teams
+print("List of joined teams:")
+for team in teams_data:
+    print("- ", team['displayName'], "(Group ID:", team['id'], ")")
