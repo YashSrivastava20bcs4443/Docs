@@ -15,6 +15,100 @@ def process_alert(alert, api_owners, owner_email):
     severity = alert.get("severity")
     alert_description = alert.get("name")
     
+    # Create URL for the alert
+    full_url = f"{base_url}/resource{target_resource}"
+
+    try:
+        # Open URL in browser
+        driver.get(full_url)
+        # Wait for page to load (adjust the timeout as needed)
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//body")))
+        # Sign in to Microsoft account
+        email = config.SENDER_EMAIL
+        password = config.SENDER_PASSWORD
+        sign_in(driver, email, password)
+        
+        # Click on the specific chart element based on alert description
+        if "failed" in alert_description.lower():
+            try:
+                # Click on the failed requests chart element
+                WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, "ext-ai-overview-chart-div"))).click()
+            except TimeoutException:
+                print("Failed requests chart element not found.")
+        
+        elif "server" in alert_description.lower():
+            try:
+                # Click on the server chart element
+                WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, "server-chart-class"))).click()
+            except TimeoutException:
+                print("Server chart element not found.")
+        
+        # Adjust zoom level
+        driver.execute_script("document.body.style.zoom='70%'")
+        
+        # Delay for page to fully load
+        time.sleep(8)
+        
+        # Take screenshot
+        screenshot_filename = f"screenshots/{target_resource_name}.png"
+        capture_screenshot(driver, screenshot_filename)
+        
+        # Send email with screenshot
+        send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
+        print(f"Alert email sent for {target_resource_name}")
+    
+    except TimeoutException:
+        print(f"Timeout occurred while loading {full_url}")
+    
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+    
+    finally:
+        # Quit WebDriver after processing each alert
+        driver.quit()
+
+if __name__ == "__main__":
+    try:
+        # Fetch alerts
+        subscription_id = config.SUBSCRIPTION_ID
+        alerts = fetch_alerts(subscription_id)
+        
+        # Saving filtered alerts to JSON file
+        save_to_json(alerts)
+        
+        # Read CSV file
+        with open("api.csv", newline="") as csvfile:
+            reader = csv.DictReader(csvfile)
+            api_owners = {row["API_Name"]: row["Owner_Email"] for row in reader}
+        
+        # Create a directory to save screenshots if it doesn't exist
+        if not os.path.exists("screenshots"):
+            os.makedirs("screenshots")
+        
+        # Process each alert
+        for alert in alerts:
+            owner_email = api_owners.get(alert.get("targetResourceName"))
+            process_alert(alert, api_owners, owner_email)
+    
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+def process_alert(alert, api_owners, owner_email):
+    # Base URL
+    base_url = "https://portal.azure.com/#@fareportal.com"
+    
+    # WebDriver for Chrome
+    service = webdriver.chrome.service.Service(executable_path='./chromedriver.exe')
+    options = webdriver.ChromeOptions()
+    # options.add_argument("--headless")
+    driver = webdriver.Chrome(service=service, options=options)
+    driver.maximize_window()
+    
+    # Extract target resource and target resource name
+    target_resource = alert.get("targetResource")
+    target_resource_name = alert.get("targetResourceName")
+    severity = alert.get("severity")
+    alert_description = alert.get("name")
+    
     # Check if "failed" exists in alert description
     if "failed" in alert_description.lower():
         # Scenario 1: Alert description contains "failed"
