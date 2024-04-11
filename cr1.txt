@@ -1,30 +1,240 @@
 import requests
+import config
+import json
+import time
+from datetime import datetime, timedelta, timezone
+from azure.identity import ClientSecretCredential
+import csv
+import os
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 
-# Your Azure AD credentials
-CLIENT_ID = 'your_client_id'
-TENANT_ID = 'your_tenant_id'
-CLIENT_SECRET = 'your_client_secret'
+# Tenant ID, Client ID, and Client Secret
+tenant_id = config.TENANT_ID
+client_id = config.CLIENT_ID
+client_secret = config.CLIENT_SECRET
 
-# Microsoft Graph API endpoint for retrieving joined teams
-teams_url = f'https://graph.microsoft.com/v1.0/me/joinedTeams'
+# Azure credentials
+credential = ClientSecretCredential(tenant_id, client_id, client_secret)
 
-# Get OAuth 2.0 access token
-token_url = f'https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token'
-token_data = {
-    'grant_type': 'client_credentials',
-    'client_id': CLIENT_ID,
-    'client_secret': CLIENT_SECRET,
-    'scope': 'https://graph.microsoft.com/.default'
-}
-response = requests.post(token_url, data=token_data)
-access_token = response.json().get('access_token')
+# Get access token
+access_token = credential.get_token("https://management.azure.com/.default").token
 
-# Get list of joined teams
-headers = {'Authorization': 'Bearer ' + access_token}
-teams_response = requests.get(teams_url, headers=headers)
-teams_data = teams_response.json().get('value')
+def fetch_alerts(subscription_id):
+    # Calculate start and end time for the last 10 minutes in UTC
+    end_time_utc = datetime.now(timezone.utc)
+    start_time_utc = end_time_utc - timedelta(minutes=10)
 
-# Print list of joined teams
-print("List of joined teams:")
-for team in teams_data:
-    print("- ", team['displayName'], "(Group ID:", team['id'], ")")
+    # Format start and end time as UTC string in ISO 8601 format
+    start_time_str = start_time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_time_str = end_time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Azure Monitor Alerts Management API endpoint URL
+    url = f"https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.AlertsManagement/alerts?customTimeRange={start_time_str}/{end_time_str}&api-version=2019-05-05-preview"
+
+    # Request headers with access token
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    try:
+        # Sending HTTP GET request to fetch alerts
+        requests.packages.urllib3.disable_warnings()
+        response = requests.get(url, headers=headers, verify=False)
+
+        # Checking if request was successful (status code 200)
+        if response.status_code == 200:
+            # Parsing JSON response
+            alerts = response.json()
+
+            # Filter specific fields and handle missing/null values
+            filtered_alerts = []
+            for alert in alerts.get("value", []):
+                properties = alert.get("properties", {})
+                essentials = properties.get("essentials", {})
+                # Extracting severity
+                severity = essentials.get("severity", None)
+                # Extracting targetResource and targetResourceName
+                target_resource = essentials.get("targetResource", None)
+                target_resource_name = essentials.get("targetResourceName", None)
+                alert_name = alert.get("name")
+                filtered_alert = {
+                    "severity": severity,
+                    "targetResource": target_resource,
+                    "targetResourceName": target_resource_name,
+                    "name": alert_name
+                }
+                filtered_alerts.append(filtered_alert)
+            return filtered_alerts
+        else:
+            # Printing error message if request fails
+            print("Failed to fetch alerts. Status code:", response.status_code)
+            print("Response:", response.text)
+            return None
+    except Exception as e:
+        # Printing error message if an exception occurs
+        print("An error occurred:", e)
+        return None
+
+def save_to_json(alerts):
+    if alerts:
+        with open("alerts.json", "w") as f:
+            json.dump(alerts, f)
+        print("Filtered alerts saved to 'alerts.json' file.")
+
+def send_email(api_name, owner_email, screenshot_filename, severity, alert_description):
+    # Email configuration
+    smtp_server = config.SMTP_SERVER
+    smtp_port = config.SMTP_PORT
+    sender_email = config.SENDER_EMAIL
+    password = config.SENDER_PASSWORD
+
+    # Create a multipart message
+    msg = MIMEMultipart()
+    msg["From"] = sender_email
+    msg["To"] = owner_email
+    msg["Subject"] = f"Alert for {api_name}"
+
+    # HTML email body
+    body = f"""
+    <html>
+    <body>
+    <p>Hi Team,</p>
+    <p>We have received below alert from Azure App Insights.</p>
+    <p>Kindly review the alert and take appropriate action.</p>
+    <p><b>Source:</b> {api_name}</p>
+    <p><b>Severity:</b> {severity}</p>
+    <p><b>Alert description:</b> {alert_description}</p>
+    <p><img src="cid:screenshot"></p>
+    <p>Thanks & Regards,<br>EMS Team</p>
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(body, "html"))
+
+    # Attach the screenshot inline
+    with open(screenshot_filename, "rb") as f:
+        img = MIMEImage(f.read())
+        img.add_header("Content-Disposition", "inline", filename=os.path.basename(screenshot_filename))
+        img.add_header("Content-ID", "<screenshot>")
+        msg.attach(img)
+
+    # Send email
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(sender_email, password)
+        server.send_message(msg)
+
+    # Delete the screenshot file
+    os.remove(screenshot_filename)
+
+def sign_in(driver, email, password):
+    EMAILFIELD = (By.ID, "i0116")
+    PASSWORDFIELD = (By.ID, "i0118")
+    NEXTBUTTON = (By.ID, "idSIButton9")
+    
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EMAILFIELD)).send_keys(config.SENDER_EMAIL)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(PASSWORDFIELD)).send_keys(config.SENDER_PASSWORD)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+
+    stay_signed_in_popup = driver.find_element(By.XPATH,"//div[contains(text(),'Stay signed in?')]")
+    if stay_signed_in_popup:
+        no_button = driver.find_element(By.XPATH,"//input[@value='No']")
+        no_button.click()
+    return driver
+
+def open_url_in_browser(driver, url):
+    driver.get(url)
+
+def capture_screenshot(driver, filename):
+    driver.save_screenshot(filename)
+
+def process_alert(alert, api_owners):
+    # Base URL
+    base_url = "https://portal.azure.com/#@fareportal.com"
+    
+    # WebDriver for Chrome
+    service = webdriver.chrome.service.Service(executable_path='./chromedriver.exe')
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")
+    driver = webdriver.Chrome(service=service, options=options)
+    driver.maximize_window()
+
+    # Extract target resource and target resource name
+    target_resource = alert.get("targetResource")
+    target_resource_name = alert.get("targetResourceName")
+    severity = alert.get("severity")
+    alert_description = alert.get("name")
+
+    # Check if target resource name matches any API name in CSV
+    if target_resource_name in api_owners:
+        # Get owner email for the matching API name
+        owner_email = api_owners[target_resource_name]
+
+        # Create URL for the alert
+        full_url = f"{base_url}/resource{target_resource}"
+        
+        try:
+            # Open URL in browser
+            driver.get(full_url)
+
+            # Wait for page to load (adjust the timeout as needed)
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//body")))
+
+            # Sign in to Microsoft account
+            email = config.SENDER_EMAIL
+            password = config.SENDER_PASSWORD
+            sign_in(driver, email, password)
+            driver.execute_script("document.body.style.zoom='75%'")
+            
+            # Delay for page to fully load
+            time.sleep(8)
+
+            # Take screenshot
+            screenshot_filename = f"screenshots/{target_resource_name}.png"
+            capture_screenshot(driver, screenshot_filename)
+
+            # Send email with screenshot
+            send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
+            print(f"Alert email sent for {target_resource_name}")
+
+        except TimeoutException:
+            print(f"Timeout occurred while loading {full_url}")
+
+        finally:
+            # Quit WebDriver after processing each alert
+            driver.quit()
+
+if __name__ == "__main__":
+    try:
+        # Fetch alerts
+        subscription_id = config.SUBSCRIPTION_ID
+        alerts = fetch_alerts(subscription_id)
+
+        # Saving filtered alerts to JSON file
+        save_to_json(alerts)
+
+        # Read CSV file
+        with open("api.csv", newline="") as csvfile:
+            reader = csv.DictReader(csvfile)
+            api_owners = {row["API_Name"]: row["Owner_Email"] for row in reader}
+
+        # Create a directory to save screenshots if it doesn't exist
+        if not os.path.exists("screenshots"):
+            os.makedirs("screenshots")
+
+        # Process each alert
+        for alert in alerts:
+            process_alert(alert, api_owners)
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
