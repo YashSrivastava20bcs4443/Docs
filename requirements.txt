@@ -1,0 +1,7 @@
+azure-core
+azure-identity
+requests
+selenium
+smtplib
+email
+
