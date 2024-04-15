@@ -1,3 +1,8 @@
+trigger:
+- main  # Or specify the branch you want to trigger the pipeline
+
+pool:
+  vmImage: 'ubuntu-latest'  # Use an appropriate VM image based on your requirements
 
 steps:
 - task: UsePythonVersion@0
@@ -5,7 +10,7 @@ steps:
     versionSpec: '3.x'  # Specify the Python version you want to use
 
 - script: |
-    pip install requests azure-identity selenium  # Install required Python packages
+    pip install -r requirements.txt  # Install Python dependencies from requirements.txt
   displayName: 'Install Python dependencies'
 
 - script: |
