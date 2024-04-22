@@ -6,15 +6,22 @@ def encode_image(image_path):
         encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
     return encoded_string
 
-def send_message_to_teams(webhook_url, encoded_image):
+def send_message_to_teams(webhook_url, message):
     data = {
-        "text": encoded_image
+        "text": message
     }
     response = requests.post(webhook_url, json=data)
     if response.status_code == 200:
         print("Message sent successfully!")
     else:
         print("Failed to send message:", response.text)
+
+def send_screenshot_in_chunks(webhook_url, encoded_image):
+    chunk_size = 2000  # Set the chunk size as per your requirement
+    chunks = [encoded_image[i:i+chunk_size] for i in range(0, len(encoded_image), chunk_size)]
+    for i, chunk in enumerate(chunks):
+        message = f"Chunk {i+1}:\n{chunk}"
+        send_message_to_teams(webhook_url, message)
 
 # Main function
 def main():
@@ -27,8 +34,8 @@ def main():
     # Your Teams incoming webhook URL
     webhook_url = "YOUR_WEBHOOK_URL"
 
-    # Send message to Teams with encoded image
-    send_message_to_teams(webhook_url, encoded_image)
+    # Send screenshot in chunks to Teams
+    send_screenshot_in_chunks(webhook_url, encoded_image)
 
 if __name__ == "__main__":
     main()
