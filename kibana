@@ -2,7 +2,7 @@ import webbrowser
 
 def apply_filter(url):
     # Filter query to be appended to the Kibana URL
-    filter_query = "?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_a=(description:'',filters:!(('$state':(store:appState),meta:(alias:!n,disabled:!f,index:'your_index_name',key:Eventstatus,negate:!f,params:('%2Bactive'),type:phrase,value:('%2Bactive'))),fullScreenMode:!f,options:(darkTheme:!f,hidePanelTitles:!f,useMargins:!t),panels:!((embeddableConfig:(vis:(legendOpen:!t)),gridData:(h:12,i:'1',w:24,x:0,y:0),panelIndex:'1',title:'',type:visualization,version:'6.2.0')),query:(language:lucene,query:''),timeRestore:!f,title:'My%20dashboard',viewMode:view)"
+    filter_query = "?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_a=(description:'',filters:!(('$state':(store:appState),meta:(alias:!n,disabled:!f,index:'common-events',key:Eventstatus,negate:!f,params:('%2Bactive'),type:phrase,value:('%2Bactive'))),fullScreenMode:!f,options:(darkTheme:!f,hidePanelTitles:!f,useMargins:!t),panels:!((embeddableConfig:(vis:(legendOpen:!t)),gridData:(h:12,i:'1',w:24,x:0,y:0),panelIndex:'1',title:'',type:visualization,version:'6.2.0')),query:(language:lucene,query:''),timeRestore:!f,title:'My%20dashboard',viewMode:view)"
     
     # Append filter query to the URL
     full_url = url + filter_query
