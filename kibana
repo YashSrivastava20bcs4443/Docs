@@ -1,25 +1,19 @@
-import requests
+import webbrowser
 
-def apply_filter(url, filter_value):
+def apply_filter(url):
     # Filter query to be appended to the Kibana URL
-    filter_query = f"?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_a=(description:'',filters:!(('$state':(store:appState),meta:(alias:!n,disabled:!f,index:'your_index_name',key:Eventstatus,negate:!f,params:({filter_value}),type:phrase,value:({filter_value})),query:(match_all:())),fullScreenMode:!f,options:(darkTheme:!f,hidePanelTitles:!f,useMargins:!t),panels:!((embeddableConfig:(vis:(legendOpen:!t)),gridData:(h:12,i:'1',w:24,x:0,y:0),panelIndex:'1',title:'',type:visualization,version:'6.2.0')),query:(language:lucene,query:''),timeRestore:!f,title:'My%20dashboard',viewMode:view)"
+    filter_query = "?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_a=(description:'',filters:!(('$state':(store:appState),meta:(alias:!n,disabled:!f,index:'your_index_name',key:Eventstatus,negate:!f,params:('%2Bactive'),type:phrase,value:('%2Bactive'))),fullScreenMode:!f,options:(darkTheme:!f,hidePanelTitles:!f,useMargins:!t),panels:!((embeddableConfig:(vis:(legendOpen:!t)),gridData:(h:12,i:'1',w:24,x:0,y:0),panelIndex:'1',title:'',type:visualization,version:'6.2.0')),query:(language:lucene,query:''),timeRestore:!f,title:'My%20dashboard',viewMode:view)"
     
     # Append filter query to the URL
     full_url = url + filter_query
     
     try:
-        # Make a GET request to open the Kibana dashboard with applied filter
-        response = requests.get(full_url)
-        
-        # Check if request was successful (status code 200)
-        if response.status_code == 200:
-            print("Kibana dashboard opened successfully with filter applied.")
-        else:
-            print(f"Failed to open Kibana dashboard. Status code: {response.status_code}")
+        # Open Kibana dashboard URL in default web browser
+        webbrowser.open(full_url)
+        print("Kibana dashboard will open in your default web browser.")
     except Exception as e:
         print(f"An error occurred: {str(e)}")
 
 # Example usage
 url = "your_kibana_dashboard_url_here"
-filter_value = "active"
-apply_filter(url, filter_value)
+apply_filter(url)
