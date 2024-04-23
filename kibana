@@ -1,1 +1,1 @@
-https://kibana2.fareportal.com/app/dashboards#/view/44568010-3408-11ed-ae10-bd8e7e2b04cb?_g=(filters:!('%2BEventstatus:active'),refreshInterval:(pause:!t,value:0),time:(from:now-1h,to:now))
+https://kibana2.fareportal.com/app/dashboards#/view/44568010-3408-11ed-ae10-bd8e7e2b04cb?_g=(filters:!((%27%2BEventstatus:%22active%22)),refreshInterval:(pause:!t,value:0),time:(from:now-1h,to:now))
