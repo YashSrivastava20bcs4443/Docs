@@ -1,15 +1,21 @@
-                    # Send email with screenshot
-                    send_email(target_resource_name, owner_email, screenshot_filename, severity, alert_description)
-                    print(f"Alert email sent for {target_resource_name}")
+import pymsteams
+import os
 
-                except TimeoutException:
-                    print(f"Timeout occurred while loading {full_url}. Proceeding to the next alert.")
+# Set the webhook URL and team/group ID
+webhook_url = os.environ["MS_TEAMS_WEBHOOK_URL"]
+team_id = "your_team_id"
+channel_id = "your_channel_id"
 
-                except Exception as e:
-                    print(f"An error occurred: {str(e)}")
+# Create a connector card
+card = pymsteams.connectorcard(webhook_url)
 
-        # Quit WebDriver after processing all alerts
-        driver.quit()
+# Set the title and text of the card
+card.title("Image Upload")
+card.text("Uploading an image to the channel...")
 
-    except Exception as e:
-        print(f"An error occurred: {str(e)}")
+# Upload the image
+image_path = "path/to/your/image.jpg"
+card.addImage(image_path, "Image Description")
+
+# Send the card to the team/group
+card.send_to_team(team_id, channel_id)
