@@ -1,0 +1,152 @@
+--- 
+- name: Configure FortiGate firewall
+  hosts: localhost
+  gather_facts: no
+  vars_files:
+    - fortigate_credentials.yml
+  vars:
+    interfaces:
+      - name: "port3"
+        ip_address: "10.120.1.1/24"
+        allowed_services: ["ping", "ssh", "https"]
+      - name: "port4"
+        ip_address: "192.168.1.1/24"
+        allowed_services: ["ping", "http", "dns"]
+    address_details:
+      - name: "only1add_subnet"
+        type: "subnet"
+        subnet: "1.1.3.7/32"
+      - name: "Fqdn_demo"
+        type: "fqdn"
+        fqdn: "google.com"
+    routes:
+      - destination: "Fqdn_demo"
+        gateway: "1.1.3.7/32"
+        device: "port3"
+      - destination: "10.10.10.0/24"
+        gateway: "192.168.1.2"
+        device: "port4"
+    policies:
+      - name: "LAN_to_WAN"
+        srcintf: "port4"
+        dstintf: "port3"
+        srcaddr: ["only1add_subnet"]
+        dstaddr: ["Fqdn_demo"]
+        action: "accept"
+        schedule: "always"
+        service: "ALL"
+        nat: "enable"
+        comment: "Cr123456"
+      - name: "WAN_to_LAN"
+        srcintf: "port3"
+        dstintf: "port4"
+        srcaddr: ["only1add_subnet"]
+        dstaddr: ["Fqdn_demo"]
+        action: "accept"
+        schedule: "always"
+        service: "http"
+        nat: "enable"
+        comment: "Cr78910"
+
+  tasks:
+    - name: Ping the Device to check reachability
+      command: ping -c 4 {{ fortigate_ip }}
+      ignore_errors: yes
+      register: ping_result
+      changed_when: false
+
+    - name: Debug whether the host is up or down
+      debug: 
+        msg: "Host is up, good to go"
+      when: ping_result.rc == 0
+
+    - name: Debug whether the host is up or down
+      debug: 
+        msg: "Host is down"
+      when: ping_result.rc != 0
+
+    - name: SSH to FortiGate and configure interfaces
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config vdom edit root
+            {% for interface in interfaces %}
+            config system interface
+            edit {{ interface.name }}
+            set ip {{ interface.ip_address }}
+            set allowaccess "{{ interface.allowed_services | join('" "') }}"
+            next
+            {% endfor %}
+            end
+            exit
+      when: ping_result.rc == 0
+
+    - name: SSH to FortiGate and configure addresses
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config vdom edit root
+            config firewall address
+            {% for detail in address_details %}
+            edit {{ detail.name }}
+            set type {{ detail.type }}
+            {% if detail.subnet is defined %}
+            set subnet {{ detail.subnet }}
+            {% endif %}
+            {% if detail.fqdn is defined %}
+            set fqdn "{{ detail.fqdn }}"
+            {% endif %}
+            next
+            {% endfor %}
+            end
+            exit
+      when: ping_result.rc == 0
+
+    - name: SSH to FortiGate and configure static routes
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config vdom edit root
+            {% for route in routes %}
+            config router static
+            edit 1
+            set dstaddr {{ route.destination }}
+            set gateway {{ route.gateway }}
+            set device {{ route.device }}
+            next
+            {% endfor %}
+            end
+            exit
+      when: ping_result.rc == 0
+
+    - name: SSH to FortiGate and create new policies
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config vdom edit root
+            config firewall policy
+            {% for policy in policies %}
+            edit 0
+            set name "{{ policy.name }}"
+            set srcintf "{{ policy.srcintf }}"
+            set dstintf "{{ policy.dstintf }}"
+            set srcaddr "{{ policy.srcaddr | join('" "') }}"
+            set dstaddr "{{ policy.dstaddr | join('" "') }}"
+            set action "{{ policy.action }}"
+            set schedule "{{ policy.schedule }}"
+            set service "{{ policy.service }}"
+            set nat "{{ policy.nat }}"
+            set comments "{{ policy.comment }}"
+            next
+            {% endfor %}
+            end
+            exit
+      when: ping_result.rc == 0
