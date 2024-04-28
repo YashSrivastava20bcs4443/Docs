@@ -1,0 +1,417 @@
+---
+- name: Configure FortiGate Firewall
+  hosts: localhost
+  gather_facts: no
+  vars:
+    fortigate_credentials_file: "fortigate_credentials.yml"
+    system_settings:
+      - name: "YourHostname"
+        timezone: "YourTimezone"
+    admin_settings:
+      - username: "admin"
+        password: "2002"
+    firewall_addresses:
+      - name: "Internal_Server"
+        subnet: "192.168.1.20/32"
+      - name: "External_Client"
+        subnet: "203.0.113.50/32"
+      - name: "My_FQDN_Address"
+        type: "fqdn"
+        fqdn: "example.com"
+    interface_settings:
+      - name: "wan"
+        vdom: "root"
+        ip_address: "203.0.113.1/24"
+        allow_access: "ping https ssh"
+        role: "wan"
+      - name: "lan"
+        vdom: "root"
+        role: "lan"
+        alias: "LAN_Interface"
+        ip_address: "192.168.1.1/24"
+      - name: "dmz"
+        vdom: "root"
+        role: "dmz"
+        alias: "DMZ_Interface"
+        ip_address: "172.16.1.1/24"
+      - name: "vlan100"
+        vdom: "root"
+        type: "vlan"
+        vlanid: 100
+        interface: "lan"
+        alias: "VLAN100_Interface"
+        ip_address: "192.168.100.1/24"
+      - name: "vlan200"
+        vdom: "root"
+        type: "vlan"
+        vlanid: 200
+        interface: "lan"
+        alias: "VLAN200_Interface"
+        ip_address: "192.168.200.1/24"
+    security_policies:
+      - name: "LAN-WAN"
+        srcintf: "lan"
+        dstintf: "wan"
+        srcaddr: "Internal_Server"
+        dstaddr: "My_FQDN_Address"
+        action: "accept"
+        schedule: "always"
+        service: "ALL"
+      - name: "WAN-LAN"
+        srcintf: "wan"
+        dstintf: "lan"
+        srcaddr: "External_Client"
+        dstaddr: "Internal_Server"
+        action: "accept"
+        schedule: "always"
+        service: "ALL"
+      - name: "DMZ-WAN"
+        srcintf: "dmz"
+        dstintf: "wan"
+        srcaddr: "all"
+        dstaddr: "all"
+        action: "accept"
+        schedule: "always"
+        service: "HTTP HTTPS DNS"
+      - name: "VLAN100-WAN"
+        srcintf: "vlan100"
+        dstintf: "wan"
+        srcaddr: "all"
+        dstaddr: "all"
+        action: "accept"
+        schedule: "always"
+        service: "ALL"
+      - name: "WAN-VLAN100"
+        srcintf: "wan"
+        dstintf: "vlan100"
+        srcaddr: "all"
+        dstaddr: "all"
+        action: "accept"
+        schedule: "always"
+        service: "ALL"
+      - name: "VLAN200-WAN"
+        srcintf: "vlan200"
+        dstintf: "wan"
+        srcaddr: "all"
+        dstaddr: "all"
+        action: "accept"
+        schedule: "always"
+        service: "ALL"
+      - name: "WAN-VLAN200"
+        srcintf: "wan"
+        dstintf: "vlan200"
+        srcaddr: "all"
+        dstaddr: "all"
+        action: "accept"
+        schedule: "always"
+        service: "ALL"
+    nat_settings:
+      ippools:
+        - name: "Pool_WAN"
+          start_ip: "203.0.113.100"
+          end_ip: "203.0.113.200"
+          netmask: "255.255.255.0"
+      vips:
+        - name: "VIP_Public"
+          extip: "198.51.100.10"
+          extintf: "wan"
+          mappedip: "192.168.1.10"
+    vpn_settings:
+      phase1_interfaces:
+        - name: "VPN_Phase1"
+          interface: "wan"
+          proposal: "aes128-sha1"
+          dhgrp: 2
+          keylife: 28800
+          remote_gw: "203.0.113.254"
+      phase2_interfaces:
+        - name: "VPN_Phase2"
+          phase1name: "VPN_Phase1"
+          proposal: "aes128-sha1"
+          dhgrp: 2
+          keylifeseconds: 3600
+    logging_settings:
+      status: "enable"
+      local_archive: "enable"
+      local_archive_quota: 5000
+      fortianalyzer_status: "enable"
+    ips_settings:
+      mode: "detect"
+    webfilter_settings:
+      profile_name: "WebFilter_Profile"
+      filter_options: "default"
+    static_routes:
+      - dst: "10.0.0.0 255.0.0.0"
+        device: "lan"
+      - dst: "192.168.100.0 255.255.255.0"
+        device: "vlan100"
+      - dst: "192.168.200.0 255.255.255.0"
+        device: "vlan200"
+    ha_settings:
+      group_id: "HA_Group_ID"
+      mode: "a-p"
+      password: "HA_Password"
+      hbdev: "port1"
+      session_pickup: "enable"
+
+  tasks:
+    - name: Include FortiGate credentials
+      include_vars:
+        file: "{{ fortigate_credentials_file }}"
+
+    - name: Configure system settings
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config system global
+            {% for setting in system_settings %}
+            set hostname "{{ setting.name }}"
+            set timezone "{{ setting.timezone }}"
+            {% endfor %}
+            end
+            exit
+
+    - name: Configure administrative access
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config system admin
+            {% for admin_setting in admin_settings %}
+            edit "{{ admin_setting.username }}"
+            set password "{{ admin_setting.password }}"
+            set ssh-access enable
+            set https-admin enable
+            next
+            {% endfor %}
+            end
+            exit
+
+    - name: Configure firewall addresses
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config firewall address
+            {% for address in firewall_addresses %}
+            edit "{{ address.name }}"
+            set subnet "{{ address.subnet }}"
+            {% if address.type is defined %}
+            set type {{ address.type }}
+            {% endif %}
+            {% if address.fqdn is defined %}
+            set fqdn "{{ address.fqdn }}"
+            {% endif %}
+            next
+            {% endfor %}
+            end
+            exit
+
+    - name: Configure interfaces with aliases
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config system interface
+            {% for interface in interface_settings %}
+            edit "{{ interface.name }}"
+            set vdom "{{ interface.vdom }}"
+            set ip {{ interface.ip_address }}
+            set allowaccess "{{ interface.allow_access }}"
+            set role {{ interface.role }}
+            {% if interface.alias is defined %}
+            set alias "{{ interface.alias }}"
+            {% endif %}
+            next
+            {% endfor %}
+            end
+            exit
+
+    - name: Configure security policies
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config firewall policy
+            {% for policy in security_policies %}
+            edit {{ loop.index }}
+            set name "{{ policy.name }}"
+            set srcintf "{{ policy.srcintf }}"
+            set dstintf "{{ policy.dstintf }}"
+            set srcaddr "{{ policy.srcaddr }}"
+            set dstaddr "{{ policy.dstaddr }}"
+            set action "{{ policy.action }}"
+            set schedule "{{ policy.schedule }}"
+            set service "{{ policy.service }}"
+            next
+            {% endfor %}
+            end
+            exit
+
+    - name: Configure NAT (IPPools)
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config firewall ippool
+            {% for pool in nat_settings.ippools %}
+            edit "{{ pool.name }}"
+            set start-ip "{{ pool.start_ip }}"
+            set end-ip "{{ pool.end_ip }}"
+            set netmask "{{ pool.netmask }}"
+            next
+            {% endfor %}
+            end
+            exit
+
+    - name: Configure NAT (VIPs)
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config firewall vip
+            {% for vip in nat_settings.vips %}
+            edit "{{ vip.name }}"
+            set extip "{{ vip.extip }}"
+            set extintf "{{ vip.extintf }}"
+            set mappedip "{{ vip.mappedip }}"
+            next
+            {% endfor %}
+            end
+            exit
+
+    - name: Configure additional security policy
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config firewall policy
+            {% for policy in additional_security_policies %}
+            edit {{ loop.index }}
+            set srcintf "{{ policy.srcintf }}"
+            set dstintf "{{ policy.dstintf }}"
+            set srcaddr "{{ policy.srcaddr }}"
+            set dstaddr "{{ policy.dstaddr }}"
+            set action "{{ policy.action }}"
+            set schedule "{{ policy.schedule }}"
+            set service "{{ policy.service }}"
+            next
+            {% endfor %}
+            end
+            exit
+
+    - name: Configure VPN (Phase1 interfaces)
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config vpn ipsec phase1-interface
+            {% for phase1 in vpn_settings.phase1_interfaces %}
+            edit "{{ phase1.name }}"
+            set interface "{{ phase1.interface }}"
+            set proposal "{{ phase1.proposal }}"
+            set dhgrp "{{ phase1.dhgrp }}"
+            set keylife "{{ phase1.keylife }}"
+            set remote-gw "{{ phase1.remote_gw }}"
+            next
+            {% endfor %}
+            end
+            exit
+
+    - name: Configure VPN (Phase2 interfaces)
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config vpn ipsec phase2-interface
+            {% for phase2 in vpn_settings.phase2_interfaces %}
+            edit "{{ phase2.name }}"
+            set phase1name "{{ phase2.phase1name }}"
+            set proposal "{{ phase2.proposal }}"
+            set dhgrp "{{ phase2.dhgrp }}"
+            set keylifeseconds "{{ phase2.keylifeseconds }}"
+            next
+            {% endfor %}
+            end
+            exit
+
+    - name: Configure logging and monitoring
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config log setting
+            set status "{{ logging_settings.status }}"
+            set local-archive "{{ logging_settings.local_archive }}"
+            set local-archive-quota "{{ logging_settings.local_archive_quota }}"
+            set fortianalyzer-status "{{ logging_settings.fortianalyzer_status }}"
+            end
+            exit
+
+    - name: Configure antivirus and intrusion prevention
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config ips global
+            set mode "{{ ips_settings.mode }}"
+            end
+            exit
+
+    - name: Configure web filtering and application control
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config webfilter profile
+            edit "{{ webfilter_settings.profile_name }}"
+            config ftgd-wf
+            set filter-options "{{ webfilter_settings.filter_options }}"
+            end
+            end
+            exit
+
+    - name: Configure static routing
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config router static
+            {% for route in static_routes %}
+            edit {{ loop.index }}
+            set dst "{{ route.dst }}"
+            set device "{{ route.device }}"
+            next
+            {% endfor %}
+            end
+            exit
+
+    - name: Configure high availability (optional)
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config system ha
+            set group-id "{{ ha_settings.group_id }}"
+            set mode "{{ ha_settings.mode }}"
+            set password "{{ ha_settings.password }}"
+            set hbdev "{{ ha_settings.hbdev }}"
+            set session-pickup "{{ ha_settings.session_pickup }}"
+            end
+            exit
