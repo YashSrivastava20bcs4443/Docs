@@ -1,0 +1,155 @@
+---
+- name: Configure FortiGate firewall
+  hosts: fortigate
+  gather_facts: no
+  vars:
+    fortigate_user: "your_username"
+    fortigate_ip: "your_fortigate_ip"
+    fortigate_password: "your_password"
+    ipsec_phase1_interface:
+      name: "Netskope POP1"
+      interface: "CROWN_INTERNET(CROWNCASTLE_ISP)"
+      peertype: "any"
+      net_device: "disable"
+      proposal: ["aes128-sha256", "aes256-sha256", "aes128-sha1", "aes256-sha1"]
+      localid: "FareportalLI"
+      dpd: "on-idle"
+      dhgrp: 2
+      keylife: 86400
+      remote_gw: "115.113.51.138"
+      psksecret: "##@#d4m@##@#d4m@"
+    ipsec_phase2_interface:
+      name: "Netskope POP1"
+      phaselname: "Netskope POP1"
+      proposal: ["aes128-shat", "aes256-sha1", "aes128gcm", "aes256gcm"]
+      dhgrp: 2
+      keylifeseconds: 43200
+      auto_negotiate: "enable"
+      src_subnet: "0.0.0.0/0"
+      dst_subnet: "0.0.0.0/0"
+    firewall_address:
+      name: "LI-Local-Subnet"
+      subnet: "10.14.0.0/16"
+    firewall_policies:
+      - id: 2
+        secintf: "lan"
+        chitintf: "Netskope POPT"
+        action: "accept"
+        srcaddr: "LU-Local Subnet"
+        dstaddr: "all"
+        schedule: "always"
+        service: "ALL"
+      - id: 3
+        input_device: "LAN"
+        srcaddr: "U-Local-Subnet"
+        dstaddr: "all"
+        protocol: 6
+        start_port: 443
+        end_port: 443
+        output_device: "Netskope POPT"
+    router_policies:
+      - id: 4
+        input_device: "LAN"
+        srcaddr: "LI-Local-Subnet"
+        dstaddr: "all"
+        protocol: 6
+        start_port: 80
+        end_port: 80
+        output_device: "Netskope_POP1"
+
+  tasks:
+    - name: SSH to FortiGate and configure IPsec phase1 interface
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config vpn ipsec phase1-interface
+            edit "{{ ipsec_phase1_interface.name }}"
+            set interface "{{ ipsec_phase1_interface.interface }}"
+            set peertype "{{ ipsec_phase1_interface.peertype }}"
+            set net-device "{{ ipsec_phase1_interface.net_device }}"
+            set proposal "{{ ipsec_phase1_interface.proposal | join(' ') }}"
+            set localid "{{ ipsec_phase1_interface.localid }}"
+            set dpd "{{ ipsec_phase1_interface.dpd }}"
+            set dhgrp "{{ ipsec_phase1_interface.dhgrp }}"
+            set keylife "{{ ipsec_phase1_interface.keylife }}"
+            set remote-gw "{{ ipsec_phase1_interface.remote_gw }}"
+            set psksecret "{{ ipsec_phase1_interface.psksecret }}"
+            next
+            end
+            exit
+
+    - name: SSH to FortiGate and configure IPsec phase2 interface
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config vpn ipsec phase2-interface
+            edit "{{ ipsec_phase2_interface.name }}"
+            set phaselname "{{ ipsec_phase2_interface.phaselname }}"
+            set proposal "{{ ipsec_phase2_interface.proposal | join(' ') }}"
+            set dhgrp "{{ ipsec_phase2_interface.dhgrp }}"
+            set keylifeseconds "{{ ipsec_phase2_interface.keylifeseconds }}"
+            set auto-negotiate "{{ ipsec_phase2_interface.auto_negotiate }}"
+            set src-subnet "{{ ipsec_phase2_interface.src_subnet }}"
+            set dst-subnet "{{ ipsec_phase2_interface.dst_subnet }}"
+            next
+            end
+            exit
+
+    - name: SSH to FortiGate and configure firewall address
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config firewall address
+            edit "{{ firewall_address.name }}"
+            set subnet "{{ firewall_address.subnet }}"
+            next
+            end
+            exit
+
+    - name: SSH to FortiGate and configure firewall policies
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config firewall policy
+            {% for policy in firewall_policies %}
+            edit "{{ policy.id }}"
+            set secintf "{{ policy.secintf }}"
+            set chitintf "{{ policy.chitintf }}"
+            set action "{{ policy.action }}"
+            set srcaddr "{{ policy.srcaddr }}"
+            set dstaddr "{{ policy.dstaddr }}"
+            set schedule "{{ policy.schedule }}"
+            set service "{{ policy.service }}"
+            next
+            {% endfor %}
+            end
+            exit
+
+    - name: SSH to FortiGate and configure router policies
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config router policy
+            {% for policy in router_policies %}
+            edit "{{ policy.id }}"
+            set input-device "{{ policy.input_device }}"
+            set srcaddr "{{ policy.srcaddr }}"
+            set dstaddr "{{ policy.dstaddr }}"
+            set protocol "{{ policy.protocol }}"
+            set start-port "{{ policy.start_port }}"
+            set end-port "{{ policy.end_port }}"
+            set output-device "{{ policy.output_device }}"
+            next
+            {% endfor %}
+            end
+            exit
