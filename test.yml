@@ -1,1 +1,62 @@
-test
+---
+- name: Configure FortiGate firewall
+  hosts: fortigate
+  gather_facts: no
+  vars:
+    
+    ipsec_phase2_interfaces:
+        subnets:
+          src_subnet:
+            - "0.0.0.0/0"
+            - "192.168.1.0/24"
+            - "10.0.0.0/8"
+          dst_subnet:
+            - "0.0.0.0/0"
+            - "172.16.0.0/16"
+            - "192.168.2.0/24"
+
+  tasks:
+    - name: SSH to FortiGate and configure IPsec phase1 interface
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config vpn ipsec phase1-interface
+            edit "{{ ipsec_phase1_interface.name }}"
+            set interface "{{ ipsec_phase1_interface.interface }}"
+            set peertype "{{ ipsec_phase1_interface.peertype }}"
+            set net-device "{{ ipsec_phase1_interface.net_device }}"
+            set proposal "{{ ipsec_phase1_interface.proposal | join(' ') }}"
+            set localid "{{ ipsec_phase1_interface.localid }}"
+            set dpd "{{ ipsec_phase1_interface.dpd }}"
+            set dhgrp "{{ ipsec_phase1_interface.dhgrp }}"
+            set keylife "{{ ipsec_phase1_interface.keylife }}"
+            set remote-gw "{{ ipsec_phase1_interface.remote_gw }}"
+            set psksecret "{{ ipsec_phase1_interface.psksecret }}"
+            next
+            end
+            exit
+
+    - name: SSH to FortiGate and configure IPsec phase2 interfaces
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            {% for interface in ipsec_phase2_interfaces %}
+            {% for src_subnet, dst_subnet in zip(interface.subnets.src_subnet, interface.subnets.dst_subnet) %}
+            config vpn ipsec phase2-interface
+            edit "{{ interface.name }} - {{ src_subnet }}"
+            set phaselname "{{ interface.name }}"
+            set proposal "{{ interface.proposal | join(' ') }}"
+            set dhgrp "{{ interface.dhgrp }}"
+            set keylifeseconds "{{ interface.keylifeseconds }}"
+            set auto-negotiate "{{ interface.auto_negotiate }}"
+            set src-subnet "{{ src_subnet }}"
+            set dst-subnet "{{ dst_subnet }}"
+            next
+            {% endfor %}
+            {% endfor %}
+            end
+            exit
