@@ -1,5 +1,5 @@
 ---
-- name: Configure FortiGate SD-WAN
+- name: Configure FortiGate SD-WAN Zones
   hosts: localhost
   gather_facts: no
   vars:
@@ -8,6 +8,32 @@
     fortigate_ip: "fortigate_ip_address"
     sdwan_zones:
       - name: "INTERNET_SDWAN"
+
+  tasks:
+    - name: SSH to FortiGate and configure SD-WAN zones
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            {% for zone in sdwan_zones %}
+            config vdom
+            edit "root"
+            config system sdwan
+            config zone
+            edit "{{ zone.name }}"
+            next
+            end
+            end
+            exit
+
+- name: Configure FortiGate SD-WAN Members
+  hosts: localhost
+  gather_facts: no
+  vars:
+    fortigate_user: "your_username"
+    fortigate_password: "your_password"
+    fortigate_ip: "fortigate_ip_address"
     sdwan_members:
       - id: 2
         interface: "CROWNCASTLE_ISP"
@@ -19,20 +45,15 @@
         gateway: "38.88.186.89"
 
   tasks:
-    - name: SSH to FortiGate and configure SD-WAN zones and members
+    - name: SSH to FortiGate and configure SD-WAN members
       expect:
         command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
         responses:
           (?i)password: "{{ fortigate_password }}"
           ".*#": |
-            {% for zone in sdwan_zones %}
-            config system sdwan
-            config zone
-            edit "{{ zone.name }}"
-            next
-            {% endfor %}
-            end
             {% for member in sdwan_members %}
+            config vdom
+            edit "root"
             config system sdwan
             config members
             edit "{{ member.id }}"
@@ -40,6 +61,6 @@
             set zone "{{ member.zone }}"
             set gateway "{{ member.gateway }}"
             next
-            {% endfor %}
+            end
             end
             exit
