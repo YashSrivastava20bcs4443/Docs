@@ -1,1 +1,24 @@
 ansible-playbook your_playbook.yml --vault-id "key=key_encryption_key" --vault-password-file <(echo "W8IN3BHnFzn5AuPPblSS1D3TjxT")
+
+- name: SSH to FortiGate and configure IPsec phase2 interfaces
+  expect:
+    command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+    responses:
+      (?i)password: "{{ fortigate_password }}"
+      ".*#": |
+        {% for interface in ipsec_phase2_interfaces %}
+        {% for index in range(0, interface.src_subnet | length) %}
+        config vpn ipsec phase2-interface
+        edit "{{ interface.name }}"
+        set phaselname "{{ interface.name }}"
+        set proposal "{{ interface.proposal | join(' ') }}"
+        set dhgrp "{{ interface.dhgrp }}"
+        set keylifeseconds "{{ interface.keylifeseconds }}"
+        set auto-negotiate "{{ interface.auto_negotiate }}"
+        set src-subnet "{{ interface.src_subnet[index] }}"
+        set dst-subnet "{{ interface.dst_subnet[min(index, interface.dst_subnet | length - 1)] }}"
+        next
+        {% endfor %}
+        {% endfor %}
+        end
+        exit
