@@ -1,5 +1,5 @@
 ---
-- name: Configure FortiGate SD-WAN Zones
+- name: Configure FortiGate SD-WAN Zones and Members
   hosts: localhost
   gather_facts: no
   vars:
@@ -7,7 +7,17 @@
     fortigate_password: "your_password"
     fortigate_ip: "fortigate_ip_address"
     sdwan_zones:
-      - name: "INTERNET_SDWAN"
+      - name: "INTERNET_SDWAN_Test"
+    
+    sdwan_members:
+      - id: 2
+        interface: ""
+        zone: "INTERNET_SDWAN_Test"
+        gateway: "209.148.55.49"
+      - id: 3
+        interface: ""
+        zone: "INTERNET_SDWAN_Test"
+        gateway: "38.88.186.89"
 
   tasks:
     - name: SSH to FortiGate and configure SD-WAN zones
@@ -27,24 +37,6 @@
             end
             exit
 
-- name: Configure FortiGate SD-WAN Members
-  hosts: localhost
-  gather_facts: no
-  vars:
-    fortigate_user: "your_username"
-    fortigate_password: "your_password"
-    fortigate_ip: "fortigate_ip_address"
-    sdwan_members:
-      - id: 2
-        interface: "CROWNCASTLE_ISP"
-        zone: "INTERNET_SDWAN"
-        gateway: "209.148.55.49"
-      - id: 3
-        interface: "COGENT_ISP"
-        zone: "INTERNET_SDWAN"
-        gateway: "38.88.186.89"
-
-  tasks:
     - name: SSH to FortiGate and configure SD-WAN members
       expect:
         command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
