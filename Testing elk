@@ -8,15 +8,18 @@ pings = []
 
 # Function to ping and capture data
 def ping_and_capture():
-    # Execute ping command
-    ping_output = subprocess.run(['ping', '-n', '2', '8.8.8.8'], capture_output=True, text=True)
-    
-    # Extract ping time from output
-    ping_time = ping_output.stdout.split("\n")[1].split()[6][5:]
-    
-    # Record timestamp and ping time
-    timestamps.append(datetime.now())
-    pings.append(float(ping_time))
+    try:
+        # Execute ping command
+        ping_output = subprocess.run(['ping', '-n', '2', '8.8.8.8'], capture_output=True, text=True, timeout=5)
+        
+        # Extract ping time from output
+        ping_time = ping_output.stdout.split("\n")[1].split()[6][5:]
+        
+        # Record timestamp and ping time
+        timestamps.append(datetime.now())
+        pings.append(float(ping_time))
+    except Exception as e:
+        print("Error occurred:", e)
 
 # Continuously ping and capture data
 while True:
