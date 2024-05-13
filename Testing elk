@@ -15,6 +15,9 @@ def ping_and_update_queue():
             # Execute ping command
             ping_output = subprocess.run(['ping', '-n', '2', '8.8.8.8'], capture_output=True, text=True, timeout=5)
             
+            # Print entire ping output
+            print("Ping output:", ping_output.stdout)
+            
             # Extract ping time from output
             ping_time_str = ping_output.stdout.split("\n")[1].split()[6][5:]
             print("Ping time:", ping_time_str)
