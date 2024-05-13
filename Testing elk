@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from threading import Thread
 from queue import Queue
+import re
 import time
 
 # Initialize queue to store data
@@ -15,11 +16,8 @@ def ping_and_update_queue():
             # Execute ping command
             ping_output = subprocess.run(['ping', '-n', '2', '8.8.8.8'], capture_output=True, text=True, timeout=5)
             
-            # Print entire ping output
-            print("Ping output:", ping_output.stdout)
-            
             # Extract ping time from output
-            ping_time_str = ping_output.stdout.split("\n")[1].split()[6][5:]
+            ping_time_str = re.search(r'time=(\d+)ms', ping_output.stdout).group(1)
             print("Ping time:", ping_time_str)
             
             # Convert ping time string to float
