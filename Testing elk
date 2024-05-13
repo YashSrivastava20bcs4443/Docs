@@ -16,15 +16,26 @@ def ping_and_update_queue():
             # Execute ping command
             ping_output = subprocess.run(['ping', '-n', '2', '8.8.8.8'], capture_output=True, text=True, timeout=5)
             
-            # Extract ping time from output
-            ping_time_str = re.search(r'time=(\d+)ms', ping_output.stdout).group(1)
-            print("Ping time:", ping_time_str)
+            # Extract ping times from output
+            ping_times = re.findall(r'time=(\d+)ms', ping_output.stdout)
+            print("Ping times:", ping_times)
             
-            # Convert ping time string to float
-            ping_time = float(ping_time_str)
+            # Convert ping times strings to floats
+            ping_times = [float(time_str) for time_str in ping_times]
             
-            # Record timestamp and ping time
-            data_queue.put((datetime.now(), ping_time))
+            # Record timestamp and ping times
+            timestamp = datetime.now()
+            for ping_time in ping_times:
+                data_queue.put((timestamp, ping_time))
+                
+            # Extract statistics
+            statistics = re.search(r'Minimum (\d+)ms, Maximum (\d+)ms, Average (\d+)ms', ping_output.stdout)
+            minimum_ping = int(statistics.group(1))
+            maximum_ping = int(statistics.group(2))
+            average_ping = int(statistics.group(3))
+            print("Minimum:", minimum_ping, "ms")
+            print("Maximum:", maximum_ping, "ms")
+            print("Average:", average_ping, "ms")
         except Exception as e:
             print("Error occurred:", e)
         time.sleep(1)  # Sleep for 1 second before pinging again
@@ -46,11 +57,16 @@ while True:
         pings.append(ping)
 
     # Plot data
-    plt.plot(timestamps, pings, marker='o', linestyle='-')
+    plt.plot(timestamps, pings, marker='o', linestyle='-', label='Ping Time')
     plt.title('Ping Time Over Time')
     plt.xlabel('Timestamp')
     plt.ylabel('Ping Time (ms)')
     plt.xticks(rotation=45)
+    
+    # Display statistics
+    plt.text(0.1, 0.9, f'Minimum: {minimum_ping}ms\nMaximum: {maximum_ping}ms\nAverage: {average_ping}ms', transform=plt.gca().transAxes)
+    
     plt.tight_layout()
+    plt.legend()
     plt.pause(5)  # Update plot every 5 seconds
     plt.clf()  # Clear plot for the next iteration
