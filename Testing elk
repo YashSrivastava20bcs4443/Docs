@@ -11,6 +11,13 @@ data_queue = Queue()
 
 # Function to continuously ping and update queue
 def ping_and_update_queue():
+    # Initialize lists to store data
+    timestamps = []
+    pings = []
+    minimum_ping = None
+    maximum_ping = None
+    average_ping = None
+    
     while True:
         try:
             # Execute ping command
@@ -26,7 +33,8 @@ def ping_and_update_queue():
             # Record timestamp and ping times
             timestamp = datetime.now()
             for ping_time in ping_times:
-                data_queue.put((timestamp, ping_time))
+                timestamps.append(timestamp)
+                pings.append(ping_time)
                 
             # Extract statistics
             statistics = re.search(r'Minimum (\d+)ms, Maximum (\d+)ms, Average (\d+)ms', ping_output.stdout)
@@ -36,6 +44,22 @@ def ping_and_update_queue():
             print("Minimum:", minimum_ping, "ms")
             print("Maximum:", maximum_ping, "ms")
             print("Average:", average_ping, "ms")
+            
+            # Plot data
+            plt.plot(timestamps, pings, marker='o', linestyle='-', label='Ping Time')
+            plt.title('Ping Time Over Time')
+            plt.xlabel('Timestamp')
+            plt.ylabel('Ping Time (ms)')
+            plt.xticks(rotation=45)
+            
+            # Display statistics
+            plt.text(0.1, 0.9, f'Minimum: {minimum_ping}ms\nMaximum: {maximum_ping}ms\nAverage: {average_ping}ms', transform=plt.gca().transAxes)
+            
+            plt.tight_layout()
+            plt.legend()
+            plt.pause(5)  # Update plot every 5 seconds
+            plt.clf()  # Clear plot for the next iteration
+            
         except Exception as e:
             print("Error occurred:", e)
         time.sleep(1)  # Sleep for 1 second before pinging again
@@ -44,29 +68,3 @@ def ping_and_update_queue():
 ping_thread = Thread(target=ping_and_update_queue)
 ping_thread.daemon = True  # Daemonize thread to stop when main program ends
 ping_thread.start()
-
-# Initialize lists to store data
-timestamps = []
-pings = []
-
-# Continuously plot data from queue
-while True:
-    while not data_queue.empty():
-        timestamp, ping = data_queue.get()
-        timestamps.append(timestamp)
-        pings.append(ping)
-
-    # Plot data
-    plt.plot(timestamps, pings, marker='o', linestyle='-', label='Ping Time')
-    plt.title('Ping Time Over Time')
-    plt.xlabel('Timestamp')
-    plt.ylabel('Ping Time (ms)')
-    plt.xticks(rotation=45)
-    
-    # Display statistics
-    plt.text(0.1, 0.9, f'Minimum: {minimum_ping}ms\nMaximum: {maximum_ping}ms\nAverage: {average_ping}ms', transform=plt.gca().transAxes)
-    
-    plt.tight_layout()
-    plt.legend()
-    plt.pause(5)  # Update plot every 5 seconds
-    plt.clf()  # Clear plot for the next iteration
