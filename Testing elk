@@ -16,10 +16,14 @@ def ping_and_update_queue():
             ping_output = subprocess.run(['ping', '-n', '2', '8.8.8.8'], capture_output=True, text=True, timeout=5)
             
             # Extract ping time from output
-            ping_time = ping_output.stdout.split("\n")[1].split()[6][5:]
+            ping_time_str = ping_output.stdout.split("\n")[1].split()[6][5:]
+            print("Ping time:", ping_time_str)
+            
+            # Convert ping time string to float
+            ping_time = float(ping_time_str)
             
             # Record timestamp and ping time
-            data_queue.put((datetime.now(), float(ping_time)))
+            data_queue.put((datetime.now(), ping_time))
         except Exception as e:
             print("Error occurred:", e)
         time.sleep(1)  # Sleep for 1 second before pinging again
