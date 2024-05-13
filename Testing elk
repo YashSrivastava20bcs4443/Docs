@@ -1,6 +1,7 @@
 import subprocess
 import matplotlib.pyplot as plt
 from datetime import datetime
+import time
 
 # Initialize lists to store data
 timestamps = []
