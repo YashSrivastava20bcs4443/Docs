@@ -1,0 +1,33 @@
+import subprocess
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+# Initialize lists to store data
+timestamps = []
+pings = []
+
+# Function to ping and capture data
+def ping_and_capture():
+    # Execute ping command
+    ping_output = subprocess.run(['ping', '-n', '2', '8.8.8.8'], capture_output=True, text=True)
+    
+    # Extract ping time from output
+    ping_time = ping_output.stdout.split("\n")[1].split()[6][5:]
+    
+    # Record timestamp and ping time
+    timestamps.append(datetime.now())
+    pings.append(float(ping_time))
+
+# Continuously ping and capture data
+while True:
+    ping_and_capture()
+
+    # Plot data
+    plt.plot(timestamps, pings, marker='o', linestyle='-')
+    plt.title('Ping Time Over Time')
+    plt.xlabel('Timestamp')
+    plt.ylabel('Ping Time (ms)')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.pause(5)  # Update plot every 5 seconds
+    plt.clf()  # Clear plot for the next iteration
