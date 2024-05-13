@@ -1,30 +1,44 @@
 import subprocess
 import matplotlib.pyplot as plt
 from datetime import datetime
+from threading import Thread
+from queue import Queue
 import time
+
+# Initialize queue to store data
+data_queue = Queue()
+
+# Function to continuously ping and update queue
+def ping_and_update_queue():
+    while True:
+        try:
+            # Execute ping command
+            ping_output = subprocess.run(['ping', '-n', '2', '8.8.8.8'], capture_output=True, text=True, timeout=5)
+            
+            # Extract ping time from output
+            ping_time = ping_output.stdout.split("\n")[1].split()[6][5:]
+            
+            # Record timestamp and ping time
+            data_queue.put((datetime.now(), float(ping_time)))
+        except Exception as e:
+            print("Error occurred:", e)
+        time.sleep(1)  # Sleep for 1 second before pinging again
+
+# Start thread to continuously ping and update queue
+ping_thread = Thread(target=ping_and_update_queue)
+ping_thread.daemon = True  # Daemonize thread to stop when main program ends
+ping_thread.start()
 
 # Initialize lists to store data
 timestamps = []
 pings = []
 
-# Function to ping and capture data
-def ping_and_capture():
-    try:
-        # Execute ping command
-        ping_output = subprocess.run(['ping', '-n', '2', '8.8.8.8'], capture_output=True, text=True, timeout=5)
-        
-        # Extract ping time from output
-        ping_time = ping_output.stdout.split("\n")[1].split()[6][5:]
-        
-        # Record timestamp and ping time
-        timestamps.append(datetime.now())
-        pings.append(float(ping_time))
-    except Exception as e:
-        print("Error occurred:", e)
-
-# Continuously ping and capture data
+# Continuously plot data from queue
 while True:
-    ping_and_capture()
+    while not data_queue.empty():
+        timestamp, ping = data_queue.get()
+        timestamps.append(timestamp)
+        pings.append(ping)
 
     # Plot data
     plt.plot(timestamps, pings, marker='o', linestyle='-')
