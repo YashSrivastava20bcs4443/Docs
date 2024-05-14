@@ -1,25 +1,30 @@
-Key Components:
 
-Administrative Settings:
-Description: Configures administrative settings for the firewall, such as usernames, passwords, and access control.
-Role: Provides initial access and control over the firewall device.
-Global Settings:
-Description: Sets up global settings for the firewall, including system-wide parameters and defaults.
-Role: Establishes baseline configurations for consistent behavior across the firewall.
-Interface Configurations:
-Description: Configures physical and virtual interfaces on the firewall, including IP addresses, VLANs, and routing options.
-Role: Defines connectivity and network boundaries for traffic management.
-Zone Setups:
-Description: Sets up firewall zones to logically group interfaces and enforce security policies.
-Role: Facilitates traffic segmentation and policy enforcement based on network zones.
-SD-WAN Configurations:
-Description: Configures SD-WAN parameters for optimizing traffic flow across multiple WAN links.
-Role: Enhances network performance and reliability by intelligently routing traffic.
-Static Routing:
-Description: Configures static routes to define how traffic is forwarded between different network segments.
-Role: Establishes network reachability and connectivity between disparate networks.
-Firewall Policies:
-Description: Defines firewall policies to control traffic flow based on predefined rules and criteria.
-Role: Enforces security policies to protect the network from unauthorized access and threats.
-Version Control and Collaboration:
-All configurations, including the Ansible playbook and custom templates, are stored in Azure DevOps repositories. This setup ensures version control, collaborative development, and streamlined deployment pipelines. It enables teams to work together efficiently, track changes, and manage configuration updates effectively.
+    sdwan_service:
+      - name: "INTERNET SDWAN"
+        dst: "all"
+        src: "LI SUPERNET 10.14.0.0/16"
+        priority_members: "2 3"
+        priority_zone: "INTERNET_SDWAN"
+
+  
+
+    - name: SSH to FortiGate and configure SD-WAN service
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
+        responses:
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            config vdom
+            edit "root"
+            config firewall service custom
+            {% for service in sdwan_service %}
+            edit "{{ loop.index }}"
+            set name "{{ service.name }}"
+            set dst "{{ service.dst }}"
+            set src "{{ service.src }}"
+            set priority-members "{{ service.priority_members }}"
+            set priority-zone "{{ service.priority_zone }}"
+            next
+            {% endfor %}
+            end
+            exit
