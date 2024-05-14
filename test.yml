@@ -1,13 +1,19 @@
-
+---
+- name: Configure FortiGate SD-WAN Service
+  hosts: localhost
+  gather_facts: no
+  vars:
+    fortigate_user: "your_username"
+    fortigate_password: "your_password"
+    fortigate_ip: "fortigate_ip_address"
     sdwan_service:
       - name: "INTERNET SDWAN"
         dst: "all"
         src: "LI SUPERNET 10.14.0.0/16"
-        priority_members: "2 3"
+        priority_members: ["2", "3"]
         priority_zone: "INTERNET_SDWAN"
 
-  
-
+  tasks:
     - name: SSH to FortiGate and configure SD-WAN service
       expect:
         command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
@@ -22,7 +28,7 @@
             set name "{{ service.name }}"
             set dst "{{ service.dst }}"
             set src "{{ service.src }}"
-            set priority-members "{{ service.priority_members }}"
+            set priority-members "{{ service.priority_members | join(' "') }}"
             set priority-zone "{{ service.priority_zone }}"
             next
             {% endfor %}
