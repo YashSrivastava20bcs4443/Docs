@@ -1,4 +1,5 @@
 from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
 
 # WebDriver ka instance create karo
 driver = webdriver.Chrome()
@@ -6,8 +7,10 @@ driver = webdriver.Chrome()
 # Webpage ko open karo
 driver.get("https://www.example.com")
 
-# JavaScript execute karke Inspect mode ko open karo
-driver.execute_script("document.addEventListener('contextmenu', function(e){e.preventDefault();}, false);")
+# Keyboard shortcut ka use karke Inspect mode ko open karo
+body = driver.find_element_by_tag_name("body")
+body.send_keys(Keys.CONTROL + Keys.SHIFT + 'i')  # Windows/Linux ke liye
+# body.send_keys(Keys.COMMAND + Keys.OPTION + 'i')  # Mac ke liye
 
 # Selenium ko terminate karo
 driver.quit()
