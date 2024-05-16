@@ -1,0 +1,13 @@
+from selenium import webdriver
+
+# WebDriver ka instance create karo
+driver = webdriver.Chrome()
+
+# Webpage ko open karo
+driver.get("https://www.example.com")
+
+# JavaScript execute karke Inspect mode ko open karo
+driver.execute_script("document.addEventListener('contextmenu', function(e){e.preventDefault();}, false);")
+
+# Selenium ko terminate karo
+driver.quit()
