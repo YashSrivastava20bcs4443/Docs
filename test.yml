@@ -1,36 +1,11 @@
----
-- name: Configure FortiGate SD-WAN Service
-  hosts: localhost
-  gather_facts: no
-  vars:
-    fortigate_user: "your_username"
-    fortigate_password: "your_password"
-    fortigate_ip: "fortigate_ip_address"
-    sdwan_service:
-      - name: "INTERNET SDWAN"
-        dst: "all"
-        src: "LI SUPERNET 10.14.0.0/16"
-        priority_members: ["2", "3"]
-        priority_zone: "INTERNET_SDWAN"
+Subject: Request for Azure ADO Project Access
 
-  tasks:
-    - name: SSH to FortiGate and configure SD-WAN service
-      expect:
-        command: ssh "{{ fortigate_user }}@{{ fortigate_ip }}"
-        responses:
-          (?i)password: "{{ fortigate_password }}"
-          ".*#": |
-            config vdom
-            edit "root"
-            config firewall service custom
-            {% for service in sdwan_service %}
-            edit "{{ loop.index }}"
-            set name "{{ service.name }}"
-            set dst "{{ service.dst }}"
-            set src "{{ service.src }}"
-            set priority-members "{{ service.priority_members | join(' "') }}"
-            set priority-zone "{{ service.priority_zone }}"
-            next
-            {% endfor %}
-            end
-            exit
+Dear [Recipient's Name],
+
+I hope this email finds you well.
+
+I am writing to request access to the Azure ADO project that Pradeep Kumar from System Engineering is currently working on. Specifically, I need access to the Network Automation Repository and the associated pipeline.
+
+This access is essential for me to contribute effectively to our ongoing project and ensure seamless collaboration with the team.
+
+Thank you for your assistance in this matter.
