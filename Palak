@@ -1,0 +1,111 @@
+import time  # to simulate a real-time data, time loop
+import numpy as np  # np mean, np random
+import pandas as pd  # read csv, df manipulation
+import plotly.express as px  # interactive charts
+import streamlit as st  # 🎈 data web app development
+
+st.set_page_config(
+    page_title="Real-Time Data Science Dashboard",
+    page_icon="✅",
+    layout="wide",
+)
+
+# Function to parse the text file and convert it into a DataFrame
+def parse_text_file(file_path) -> pd.DataFrame:
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    records = []
+    for line in lines:
+        if line.strip() and line.startswith("date"):
+            record = {}
+            parts = line.split()
+            for part in parts:
+                key_value = part.split("=")
+                if len(key_value) == 2:
+                    key, value = key_value
+                    record[key] = value.strip('"')
+            records.append(record)
+
+    df = pd.DataFrame(records)
+    return df
+
+# Path to the local text file
+local_file_path = "console-output-CLI-Console-(1).txt"
+
+# Read and parse the text file
+df = parse_text_file(local_file_path)
+
+# Convert numeric fields to appropriate data types
+df['sentbyte'] = pd.to_numeric(df['sentbyte'])
+df['rcvdbyte'] = pd.to_numeric(df['rcvdbyte'])
+
+# Dashboard title
+st.title("Real-Time / Live Data Science Dashboard")
+
+# Top-level filters
+src_ip_filter = st.selectbox("Select the Source IP", pd.unique(df["srcip"]))
+
+# Creating a single-element container
+placeholder = st.empty()
+
+# DataFrame filter
+df = df[df["srcip"] == src_ip_filter]
+
+# Near real-time / live feed simulation
+for seconds in range(200):
+
+    df["sentbyte_new"] = df["sentbyte"] * np.random.choice(range(1, 5))
+    df["rcvdbyte_new"] = df["rcvdbyte"] * np.random.choice(range(1, 5))
+
+    # Creating KPIs
+    avg_sentbyte = np.mean(df["sentbyte_new"])
+
+    count_sessions = int(
+        df["sessionid"].count()
+        + np.random.choice(range(1, 30))
+    )
+
+    avg_rcvdbyte = np.mean(df["rcvdbyte_new"])
+
+    with placeholder.container():
+
+        # Create three columns
+        kpi1, kpi2, kpi3 = st.columns(3)
+
+        # Fill in those three columns with respective metrics or KPIs
+        kpi1.metric(
+            label="Avg Sent Bytes ⏳",
+            value=round(avg_sentbyte),
+            delta=round(avg_sentbyte) - 10,
+        )
+        
+        kpi2.metric(
+            label="Session Count 💻",
+            value=int(count_sessions),
+            delta=-10 + count_sessions,
+        )
+        
+        kpi3.metric(
+            label="Avg Received Bytes ⏳",
+            value=f"{round(avg_rcvdbyte, 2)}",
+            delta=-round(avg_rcvdbyte / count_sessions) * 100,
+        )
+
+        # Create two columns for charts
+        fig_col1, fig_col2 = st.columns(2)
+        with fig_col1:
+            st.markdown("### First Chart")
+            fig = px.density_heatmap(
+                data_frame=df, y="sentbyte_new", x="dstip"
+            )
+            st.write(fig)
+            
+        with fig_col2:
+            st.markdown("### Second Chart")
+            fig2 = px.histogram(data_frame=df, x="rcvdbyte_new")
+            st.write(fig2)
+
+        st.markdown("### Detailed Data View")
+        st.dataframe(df)
+        time.sleep(1)
