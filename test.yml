@@ -1,7 +1,26 @@
-[firewalls]
-forti1 ansible_host=192.168.1.10
-forti2 ansible_host=192.168.1.11
+---
+- name: Backup FortiGate Firewalls
+  hosts: firewalls
+  gather_facts: no
+  vars:
+    backup_base_dir: /home/kushal/Backup/SCP_Backup/
 
-[firewalls:vars]
-ansible_user=admin
-ansible_ssh_pass=2002
+  tasks:
+
+    - name: Get current datetime
+      set_fact:
+        current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
+
+    - name: Create backup directory for each firewall
+      file:
+        path: "{{ backup_base_dir }}/{{ inventory_hostname }}"
+        state: directory
+        mode: '0755'
+
+    - name: Backup FortiGate configuration
+      expect:
+        command: "scp {{ ansible_user }}@{{ ansible_host }}:sys_config {{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}.conf"
+        responses:
+          "assword:": "{{ ansible_ssh_pass }}"
+        timeout: 60
+      delegate_to: localhost
