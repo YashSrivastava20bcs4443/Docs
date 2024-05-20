@@ -1,24 +1,7 @@
-Subject: Request for Server/User Creation and Software Installation for Network Device Backups
+[firewalls]
+forti1 ansible_host=192.168.1.10
+forti2 ansible_host=192.168.1.11
 
-Dear [Recipient's Name],
-
-I hope this email finds you well.
-
-I am writing to request the creation of a new server or a user account on an existing server to facilitate the backup of our network devices. This server will be dedicated to securely storing backups and managing configuration scripts.
-
-To ensure seamless integration and operation, I kindly ask for the following requirements to be met:
-
-Server/User Creation:
-
-Please create a new server or a user account on an existing server with adequate storage capacity. Each backup file is approximately 3 to 4 KB in size, and we need to take backups for 14 firewalls daily. Kindly ensure that the main disk size is sufficient to accommodate these daily backups over an extended period.
-Software Installation:
-
-Install Ansible to automate the backup process and manage network device configurations.
-Install the Expect module to handle automated interactions with the network devices during the backup process.
-These tools are essential for the efficient and automated management of our network devices, ensuring that backups are conducted regularly and without manual intervention.
-
-Please let me know if you need any additional information or if there are any formal procedures I need to follow to expedite this request.
-
-Thank you for your attention to this matter. I look forward to your prompt response.
-
-Best regards,
+[firewalls:vars]
+ansible_user=admin
+ansible_ssh_pass=2002
