@@ -3,20 +3,14 @@
   hosts: firewalls
   gather_facts: no
   vars:
-    backup_base_dir: /home/kushal/Backup/SCP_Backup/
-    ansible_python_interpreter: /usr/bin/python  # Explicitly define the Python interpreter
-
+    backup_base_dir: /home/kushal/Backup/SCP_Backup
   tasks:
-
     - name: Get current datetime
       set_fact:
         current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
 
-    - name: Create backup directory for each firewall
-      file:
-        path: "{{ backup_base_dir }}/{{ inventory_hostname }}"
-        state: directory
-        mode: '0755'
+    - name: Create backup directory for each firewall if it doesn't exist
+      command: "mkdir -p {{ backup_base_dir }}/{{ inventory_hostname }}"
       delegate_to: localhost
 
     - name: Backup FortiGate configuration
@@ -26,8 +20,3 @@
           "assword:": "{{ ansible_ssh_pass }}"
         timeout: 60
       delegate_to: localhost
-      register: result
-
-    - name: Debug backup result
-      debug:
-        var: result
