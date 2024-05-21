@@ -1,44 +1,35 @@
 ---
-- name: Configure FortiGate Interface
-  hosts: fortigate
+- name: Backup FortiGate Firewalls
+  hosts: firewalls
   gather_facts: no
+  vars:
+    ansible_python_interpreter: /usr/bin/python3  # Adjust this path based on your environment
+    ftp_server: ftp.fareportal.com.local
+    ftp_user: fwbackup
+    ftp_pass: D7&oVz2zf0a$1BF
+
   tasks:
-    - name: Configure MERAKI_UPLINK01
-      fortinet.fortios.fortios_system_interface:
-        vdom: "root"
-        name: "MERAKI_UPLINK01"
-        ip: "10.14.253.1/24"
-        allowaccess: "ping,https,ssh,fabric"
-        type: "switch"
-        device_identification: "enable"
-        lldp_transmission: "enable"
-        role: "lan"
-        state: present
-        access_token: "Gdhfjgwcq9hwrcrmHx0r4jhxxNyHkx"
+    - name: Get current datetime
+      set_fact:
+        current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
 
+    - name: SSH to FortiGate and take backup
+      expect:
+        command: ssh "{{ ansible_user }}@{{ ansible_host }}"
+        responses:
+          (?i)password: "{{ ansible_ssh_pass }}"
+          ".*#": |
+            config global
+            execute backup full-config ftp {{ inventory_hostname }}_{{ current_datetime }}.conf {{ ftp_server }}:21 {{ ftp_user }} {{ ftp_pass }}
+            end
+            exit
+      register: backup_output
 
+    - name: Print backup output
+      debug:
+        var: backup_output
 
-[fortigate]
-fortigate01 ansible_host=192.168.1.11 ansible_user=admin ansible_password=2002  ansible_network_os=fortinet.fortios.fortios ansible_python_interpreter=/usr/bin/python3
-
-
----
-- name: Create Firewall Policy on FortiGate
-  hosts: fortigate
-  gather_facts: no
-  tasks:
-    - name: Create a new firewall policy
-      fortinet.fortios.fortios_firewall_policy:
-        vdom: "root"
-        name: "MyNewPolicy"
-        srcintf: "internal"
-        dstintf: "external"
-        srcaddr: "all"
-        dstaddr: "all"
-        action: "accept"
-        schedule: "always"
-        service: "ALL"
-        logtraffic: "all"
-        comment: "Example policy created by Ansible"
-        state: present
-        access_token: "<your_own_value>"
+    - name: Check for backup success
+      fail:
+        msg: "Backup failed: {{ backup_output.stdout }}"
+      when: '"Command fail" in backup_output.stdout'
