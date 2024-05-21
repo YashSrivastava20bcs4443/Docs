@@ -1,35 +1,32 @@
 ---
-- name: Backup FortiGate Firewalls
-  hosts: firewalls
+- name: Backup FortiGate configurations using FTP
+  hosts: fortigates
   gather_facts: no
   vars:
-    ftp_server: ftp.fareportal.com.local
-    ftp_user: fwbackup
-    ftp_pass: D7&oVz2zf0a$1BF
+    fortigate_user: "your_username"
+    fortigate_password: "your_password"
+    ftp_server: "ftp_server_ip"
+    ftp_user: "ftp_username"
+    ftp_password: "ftp_password"
+    backup_path: "/path/to/backups"
 
   tasks:
-    - name: Get current datetime
-      set_fact:
-        current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
-
-    - name: SSH to FortiGate and execute commands
-      community.general.expect:
-        command: ssh -o StrictHostKeyChecking=no "{{ ansible_user }}@{{ ansible_host }}"
+    - name: Backup FortiGate configuration to FTP
+      expect:
+        command: ssh "{{ fortigate_user }}@{{ inventory_hostname }}"
         responses:
-          (?i)password: "{{ ansible_ssh_pass }}"
-          ".*#":
-            - send: "config global\n"
-            - send: "execute backup full-config ftp {{ inventory_hostname }}_{{ current_datetime }}.conf {{ ftp_server }}:21 {{ ftp_user }} {{ ftp_pass }}\n"
-            - send: "end\n"
-            - send: "exit\n"
-      register: backup_output
-      ignore_errors: yes
+          (?i)password: "{{ fortigate_password }}"
+          ".*#": |
+            execute backup config ftp {{ inventory_hostname }}_backup.conf {{ ftp_server }} {{ ftp_user }} {{ ftp_password }}
+            exit
+      register: backup_result
 
-    - name: Print backup output
+    - name: Print backup result
       debug:
-        var: backup_output
+        var: backup_result
 
-    - name: Fail if backup failed
-      fail:
-        msg: "Backup failed: {{ backup_output.stdout }}"
-      when: '"Command fail" in backup_output.stdout'
+# Inventory file (hosts)
+# [fortigates]
+# fortigate1 ansible_host=fortigate1_ip
+# fortigate2 ansible_host=fortigate2_ip
+# ...
