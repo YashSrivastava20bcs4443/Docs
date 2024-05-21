@@ -20,16 +20,17 @@
           (?i)password: "{{ ansible_ssh_pass }}"
           ".*#": |
             config global
-            execute backup full-config ftp {{ inventory_hostname }}_{{ current_datetime }}.conf {{ ftp_server }}:21 {{ ftp_user }} {{ ftp_pass }}
+            execute backup full-config ftp {{ inventory_hostname }}_{{ current_datetime }}.conf {{ ftp_server }} {{ ftp_user }} {{ ftp_pass }}
             end
             exit
       register: backup_output
+      ignore_errors: yes
 
     - name: Print backup output
       debug:
         var: backup_output
 
-    - name: Check for backup success
+    - name: Fail if backup failed
       fail:
         msg: "Backup failed: {{ backup_output.stdout }}"
       when: '"Command fail" in backup_output.stdout'
