@@ -1,1 +1,35 @@
-temp
+---
+- name: Backup FortiGate Firewalls
+  hosts: firewalls
+  gather_facts: no
+  vars:
+    ftp_server: ftp.fareportal.com.local
+    ftp_user: fwbackup
+    ftp_pass: D7&oVz2zf0a$1BF
+
+  tasks:
+    - name: Get current datetime
+      set_fact:
+        current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
+
+    - name: SSH to FortiGate and execute commands
+      community.general.expect:
+        command: ssh -o StrictHostKeyChecking=no "{{ ansible_user }}@{{ ansible_host }}"
+        responses:
+          (?i)password: "{{ ansible_ssh_pass }}"
+          ".*#":
+            - send: "config global\n"
+            - send: "execute backup full-config ftp {{ inventory_hostname }}_{{ current_datetime }}.conf {{ ftp_server }}:21 {{ ftp_user }} {{ ftp_pass }}\n"
+            - send: "end\n"
+            - send: "exit\n"
+      register: backup_output
+      ignore_errors: yes
+
+    - name: Print backup output
+      debug:
+        var: backup_output
+
+    - name: Fail if backup failed
+      fail:
+        msg: "Backup failed: {{ backup_output.stdout }}"
+      when: '"Command fail" in backup_output.stdout'
