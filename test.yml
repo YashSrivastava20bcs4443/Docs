@@ -1,22 +1,40 @@
 ---
-- name: Backup FortiGate Firewalls
+- name: Backup FortiGate Configuration
   hosts: firewalls
   gather_facts: no
   vars:
-    backup_base_dir: /home/kushal/Backup/SCP_Backup
+    sftp_host: "172.23.1.102"
+    sftp_user: "fwbackup"
+    sftp_password: "2002"
+    backup_base_path: "/upload"
+
   tasks:
     - name: Get current datetime
       set_fact:
         current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
 
-    - name: Create backup directory for each firewall if it doesn't exist
-      command: "mkdir -p {{ backup_base_dir }}/{{ inventory_hostname }}"
-      delegate_to: localhost
-
-    - name: Backup FortiGate configuration
+    - name: Create backup directory if it doesn't exist
       expect:
-        command: "scp {{ ansible_user }}@{{ ansible_host }}:sys_config {{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}.conf"
+        command: sftp {{ sftp_user }}@{{ sftp_host }}
         responses:
-          "assword:": "{{ ansible_ssh_pass }}"
-        timeout: 60
-      delegate_to: localhost
+          'password:': "{{ sftp_password }}"
+          'sftp>': "mkdir {{ backup_base_path }}/{{ inventory_hostname }}"
+      ignore_errors: yes
+
+    - name: Execute backup command via SSH
+      expect:
+        command: ssh {{ ansible_user }}@{{ ansible_host }}
+        responses:
+          "password:": "{{ ansible_ssh_pass }}"
+          ".*#": "execute backup full-config sftp {{ backup_base_path }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}.conf 172.23.1.102:22 fwbackup 2002 "
+      register: backup_result
+
+    - name: Verify backup completion
+      debug:
+        msg: "Backup completed successfully for {{ inventory_hostname }}"
+      when: backup_result.rc == 0
+
+    - name: Debug backup failure
+      debug:
+        msg: "Backup failed for {{ inventory_hostname }}"
+      when: backup_result.rc != 0
