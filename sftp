@@ -1,0 +1,50 @@
+---
+- name: Backup FortiGate Firewalls
+  hosts: firewalls
+  gather_facts: no
+  vars:
+    backup_base_dir: /home/yash/MB
+    sftp_server: 172.23.1.107
+    sftp_user: fwbackup
+    sftp_password: 2002
+  tasks:
+    - name: Get current datetime
+      set_fact:
+        current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
+
+    - name: Create backup directory for each firewall if it doesn't exist
+      command: "mkdir -p {{ backup_base_dir }}/{{ inventory_hostname }}"
+      delegate_to: localhost
+
+    - name: Backup FortiGate configuration locally
+      expect:
+        command: "scp {{ ansible_user }}@{{ ansible_host }}:sys_config {{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}.conf"
+        responses:
+          "assword:": "{{ ansible_ssh_pass }}"
+        timeout: 60
+      delegate_to: localhost
+
+    - name: Create corresponding directory on SFTP server
+      expect:
+        command: "sftp {{ sftp_user }}@{{ sftp_server }}"
+        responses:
+          "(?i)password:": "{{ sftp_password }}"
+          "sftp> ": "mkdir {{ inventory_hostname }}\nbye"
+        timeout: 60
+      delegate_to: localhost
+
+    - name: Transfer backups to SFTP server
+      expect:
+        command: "sftp {{ sftp_user }}@{{ sftp_server }}"
+        responses:
+          "(?i)password:": "{{ sftp_password }}"
+          "sftp> ": "lcd {{ backup_base_dir }}/{{ inventory_hostname }}\ncd {{ inventory_hostname }}\nput *.conf\nbye"
+        timeout: 60
+      delegate_to: localhost
+
+    - name: Delete local backups
+      file:
+        path: "{{ backup_base_dir }}/{{ inventory_hostname }}"
+        state: absent
+      delegate_to: localhost
+
