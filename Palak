@@ -1,34 +1,37 @@
-import pandas as pd
-import streamlit as st
+import socket
+import csv
+import os
+from datetime import datetime
 
-st.set_page_config(
-    page_title="Log File Data",
-    page_icon="✅",
-    layout="wide",
-)
+def start_syslog_server(host='0.0.0.0', port=514, csv_file='syslog_messages.csv'):
+    # Create a UDP socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((host, port))
 
-# Function to read and parse the log file
-@st.experimental_memo
-def load_data() -> pd.DataFrame:
-    with open('/mnt/data/console-output-CLI-Console-(1).txt', 'r') as file:
-        logs = file.readlines()
-    
-    # Extract fields from log entries
-    data = []
-    for log in logs:
-        fields = {}
-        parts = log.split()
-        for part in parts:
-            if "=" in part:
-                key, value = part.split("=", 1)
-                fields[key] = value.strip('"')
-        data.append(fields)
-    
-    return pd.DataFrame(data)
+    print(f"Listening for syslog messages on {host}:{port}")
 
-# Load the data
-df = load_data()
+    # Check if the CSV file exists
+    file_exists = os.path.isfile(csv_file)
 
-# Display the DataFrame
-st.title("Log File Data")
-st.write(df)
+    try:
+        with open(csv_file, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            # Write the header if the file is new
+            if not file_exists:
+                writer.writerow(['Timestamp', 'Source', 'Message'])
+
+            while True:
+                data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
+                message = data.decode('utf-8')
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                source = addr[0]
+                print(f"Received message from {source}: {message}")
+                writer.writerow([timestamp, source, message])
+                file.flush()  # Ensure data is written to the file
+    except KeyboardInterrupt:
+        print("Syslog server stopped")
+    finally:
+        sock.close()
+
+if __name__ == "__main__":
+    start_syslog_server()
