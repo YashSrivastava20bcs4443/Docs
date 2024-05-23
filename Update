@@ -6,7 +6,7 @@
     backup_base_dir: /home/yash/MB
     sftp_server: 172.23.1.107
     sftp_user: fwbackup
-    sftp_password: 2002
+    sftp_password: 
     sftp_base_dir: Network_devices_Backup
   tasks:
     - name: Get current datetime
