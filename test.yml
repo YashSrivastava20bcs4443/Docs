@@ -1,40 +1,11 @@
----
-- name: Backup FortiGate Configuration
-  hosts: firewalls
-  gather_facts: no
-  vars:
-    sftp_host: "172.23.1.102"
-    sftp_user: "fwbackup"
-    sftp_password: "2002"
-    backup_base_path: "/upload"
+Subject: Request for Remote Access to Linux System for Network Automation Testing
 
-  tasks:
-    - name: Get current datetime
-      set_fact:
-        current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
+Dear [Recipient's Name],
 
-    - name: Create backup directory if it doesn't exist
-      expect:
-        command: sftp {{ sftp_user }}@{{ sftp_host }}
-        responses:
-          'password:': "{{ sftp_password }}"
-          'sftp>': "mkdir {{ backup_base_path }}/{{ inventory_hostname }}"
-      ignore_errors: yes
+I hope this message finds you well.
 
-    - name: Execute backup command via SSH
-      expect:
-        command: ssh {{ ansible_user }}@{{ ansible_host }}
-        responses:
-          "password:": "{{ ansible_ssh_pass }}"
-          ".*#": "execute backup full-config sftp {{ backup_base_path }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}.conf 172.23.1.102:22 fwbackup 2002 "
-      register: backup_result
+I am writing to request remote access to our Linux system. I need to test and run a network automation Ansible script. Unfortunately, after leaving the office network, I am unable to connect to the Linux server from my laptop.
 
-    - name: Verify backup completion
-      debug:
-        msg: "Backup completed successfully for {{ inventory_hostname }}"
-      when: backup_result.rc == 0
+Could you please assist in setting up remote access or provide an alternative solution so that I can continue my work from outside the office?
 
-    - name: Debug backup failure
-      debug:
-        msg: "Backup failed for {{ inventory_hostname }}"
-      when: backup_result.rc != 0
+Thank you for your assistance.
