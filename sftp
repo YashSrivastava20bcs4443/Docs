@@ -3,10 +3,11 @@
   hosts: firewalls
   gather_facts: no
   vars:
-    backup_base_dir: /home/yash/MB
-    sftp_server: 172.23.1.107
-    sftp_user: fwbackup
-    sftp_password: 2002
+    backup_base_dir: /home/kushal/Backup/SCP_Backup
+    ftp_server: 192.1.2.10
+    ftp_user: yash
+    ftp_password: 2002
+    ftp_base_dir: Network_devices_Backup
   tasks:
     - name: Get current datetime
       set_fact:
@@ -24,21 +25,33 @@
         timeout: 60
       delegate_to: localhost
 
-    - name: Create corresponding directory on SFTP server
+    - name: Ensure base directory exists on ftp server
       expect:
-        command: "sftp {{ sftp_user }}@{{ sftp_server }}"
+        command: "ftp {{ ftp_server }}"
         responses:
-          "(?i)password:": "{{ sftp_password }}"
-          "sftp> ": "mkdir {{ inventory_hostname }}\nbye"
+          "Name.*: ": "{{ ftp_user }}"
+          "Password:": "{{ ftp_password }}"
+          "ftp> ": "cd {{ ftp_base_dir }}\nbye"
         timeout: 60
       delegate_to: localhost
 
-    - name: Transfer backups to SFTP server
+    - name: Create corresponding directory for the firewall on ftp server
       expect:
-        command: "sftp {{ sftp_user }}@{{ sftp_server }}"
+        command: "ftp {{ ftp_server }}"
         responses:
-          "(?i)password:": "{{ sftp_password }}"
-          "sftp> ": "lcd {{ backup_base_dir }}/{{ inventory_hostname }}\ncd {{ inventory_hostname }}\nput *.conf\nbye"
+          "Name.*: ": "{{ ftp_user }}"
+          "Password:": "{{ ftp_password }}"
+          "ftp> ": "mkdir {{ ftp_base_dir }}/{{ inventory_hostname }}\nbye"
+        timeout: 60
+      delegate_to: localhost
+
+    - name: Transfer backups to ftp server
+      expect:
+        command: "ftp {{ ftp_server }}"
+        responses:
+          "Name.*: ": "{{ ftp_user }}"
+          "Password:": "{{ ftp_password }}"
+          "ftp> ": "lcd {{ backup_base_dir }}/{{ inventory_hostname }}\ncd {{ ftp_base_dir }}/{{ inventory_hostname }}\nput *.conf\nbye"
         timeout: 60
       delegate_to: localhost
 
@@ -47,4 +60,3 @@
         path: "{{ backup_base_dir }}/{{ inventory_hostname }}"
         state: absent
       delegate_to: localhost
-
