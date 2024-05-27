@@ -1,18 +1,1 @@
-all:
-  children:
-    fortigates:
-      hosts:
-        fgt1.local:
-          ansible_host: 192.168.1.11
-        fgt2.local:
-          ansible_host: 192.168.1.12
-        fgt3.local:
-          ansible_host: 192.168.1.13
-    
-  vars:
-    backup_dir: /home/sysadmin/fgt-restore-config
-    uname: "svc_IAC"
-    password1: "{{lookup('file', './svcIAC.txt') }}"
-    ansible_user: "sysadmin"
-    ansible_password: "{{lookup('file', './sysadmin.txt') }}"
-    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
