@@ -1,1 +1,9 @@
-Subject: Request to Implement Backup Directory and SFTP Password ManagementHi Team,I hope this message finds you well.We need to implement the following tasks on the sysadmin Linux server:Directory Creation:Create a directory named Local_backup.SFTP Password Management:Store the SFTP password in the Azure Vault.Configure the pipeline for this password as it was set up for svcIAC and sysadmin passwords.Remote Access Setup:Ensure a Linux server is available and configured for remote access.Please proceed with these tasks at your earliest convenience and confirm once completed.
+all:
+  hosts:
+    fgt1.local:
+      ansible_host: 192.168.1.11
+    fgt2.local:
+      ansible_host: 192.168.1.12
+    fgt3.local:
+      ansible_host: 192.168.1.13
+
