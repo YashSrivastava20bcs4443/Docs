@@ -1,9 +1,1 @@
-all:
-  hosts:
-    fgt1.local:
-      ansible_host: 192.168.1.11
-    fgt2.local:
-      ansible_host: 192.168.1.12
-    fgt3.local:
-      ansible_host: 192.168.1.13
-
+"Are you sure you want to continue connecting (yes/no/[fingerprint])?": "yes\n"
