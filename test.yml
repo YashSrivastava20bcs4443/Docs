@@ -1,3 +1,4 @@
+
 ---
 - name: Check reachability of devices using ping
   hosts: all
@@ -5,7 +6,7 @@
 
   tasks:
     - name: Ping the device to check reachability
-      ping:
+      ansible.builtin.ping:
       ignore_errors: yes
       register: ping_result
 
