@@ -1,1 +1,20 @@
-"Are you sure you want to continue connecting (yes/no/[fingerprint])?": "yes\n"
+---
+- name: Check reachability of devices using ping
+  hosts: all
+  gather_facts: no
+
+  tasks:
+    - name: Ping the device to check reachability
+      ping:
+      ignore_errors: yes
+      register: ping_result
+
+    - name: Debug whether the device is reachable via ping
+      debug:
+        msg: "Host {{ inventory_hostname }} is reachable via ping."
+      when: ping_result.ping == "pong"
+
+    - name: Debug device is not reachable via ping
+      debug:
+        msg: "Host {{ inventory_hostname }} is not reachable via ping."
+      when: ping_result.ping != "pong"
