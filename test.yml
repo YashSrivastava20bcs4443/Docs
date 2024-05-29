@@ -1,21 +1,20 @@
-
 ---
-- name: Check reachability of devices using ping
+- name: Check reachability of devices using system ping
   hosts: all
   gather_facts: no
 
   tasks:
     - name: Ping the device to check reachability
-      ansible.builtin.ping:
+      command: ping -c 1 {{ ansible_host }}
       ignore_errors: yes
       register: ping_result
 
     - name: Debug whether the device is reachable via ping
       debug:
         msg: "Host {{ inventory_hostname }} is reachable via ping."
-      when: ping_result.ping == "pong"
+      when: ping_result.rc == 0
 
     - name: Debug device is not reachable via ping
       debug:
         msg: "Host {{ inventory_hostname }} is not reachable via ping."
-      when: ping_result.ping != "pong"
+      when: ping_result.rc != 0
