@@ -1,37 +1,131 @@
-import socket
-import csv
-import os
-from datetime import datetime
+import time
+import pandas as pd
+import streamlit as st
+import numpy as np
+import plotly.express as px
 
-def start_syslog_server(host='0.0.0.0', port=514, csv_file='syslog_messages.csv'):
-    # Create a UDP socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((host, port))
+st.set_page_config(
+    page_title="Log File Data",
+    page_icon="✅",
+    layout="wide",
+)
 
-    print(f"Listening for syslog messages on {host}:{port}")
+st.markdown(
+    """
+    <style>
+    body{ background-color:black; color:white; }
+    .stApp{ background-color:black; }
+    .css-1d391kg p,.css-1offfwp, .css-1iukzno, .css-1kyxreq,.css-1v3fvcr, .css-1cpxqw2, .css-1aumxhk, .css-1inwz65, .css-1k0ckh2, .css-1v3fvcr, .css-1d2lz6h{ color:white !important; }
+    .css-10trblm{ color:white !important }
+    .css-145kmo2, .css-8yuyfy, .css-2trqyj, .css-12ttj6m, .css-1rwmvkb{ color:white !important; }
+    h1, h2, h3, h4, h5, h6{ color:white !important; }
+    .stTextInput label{ color:white !important; }
+    .stDateInput label{ color:white !important; }
+    .stTimeInput label{ color:white !important; }
+    .stSelectbox label{ color:white !important; }
+    .kpi{ display: flex; flex-direction: column; align-items: center; justify-content: center; color: white !important; }
+    .kpi-value{ font-size: 2.5em; font-weight: bold; }
+    .kpi-delta{ font-size: 1em; }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-    # Check if the CSV file exists
-    file_exists = os.path.isfile(csv_file)
+# Function to read and parse the log file
+@st.cache_data
+def load_data() -> pd.DataFrame:
+    with open('C:\\Users\\P.V.ra22\\Desktop\\Dashboard\\disk-event-system-2024-05-21_0519.log', 'r') as file:
+        logs = file.readlines()
+    # Extract fields from log entries
+    data = []
+    for log in logs:
+        fields = {}
+        parts = log.split()
+        for part in parts:
+            if "=" in part:
+                key, value = part.split("=", 1)
+                fields[key] = value.strip('"')
+        data.append(fields)
+    return pd.DataFrame(data)
 
-    try:
-        with open(csv_file, mode='a', newline='') as file:
-            writer = csv.writer(file)
-            # Write the header if the file is new
-            if not file_exists:
-                writer.writerow(['Timestamp', 'Source', 'Message'])
+# Load the data
+df = load_data()
 
-            while True:
-                data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
-                message = data.decode('utf-8')
-                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                source = addr[0]
-                print(f"Received message from {source}: {message}")
-                writer.writerow([timestamp, source, message])
-                file.flush()  # Ensure data is written to the file
-    except KeyboardInterrupt:
-        print("Syslog server stopped")
-    finally:
-        sock.close()
+# Display the DataFrame
+st.title("Live Log Analysis")
 
-if __name__ == "__main__":
-    start_syslog_server()
+unique_levels = pd.unique(df["level"])
+level_filter = st.selectbox("select the level", unique_levels)
+
+col1, col2 = st.columns(2)
+with col1:
+    start_date_filter = st.date_input("Start Date")
+with col2:
+    start_time_filter = st.time_input("Start Time")
+
+col3, col4 = st.columns(2)
+with col3:
+    end_date_filter = st.date_input("End Date")
+with col4:
+    end_time_filter = st.time_input("End Time")
+
+placeholder = st.empty()
+
+# Convert the datetime filters to datetime objects
+start_datetime = pd.to_datetime(f"{start_date_filter} {start_time_filter}")
+end_datetime = pd.to_datetime(f"{end_date_filter} {end_time_filter}")
+
+# Filter the DataFrame based on the selected level and datetime range
+df_filtered = df[(df["level"] == level_filter) & (pd.to_datetime(df["eventtime"]) >= start_datetime) & (pd.to_datetime(df["eventtime"]) <= end_datetime)]
+
+for seconds in range(200):
+    df_filtered["tz_new"] = df_filtered["tz"].astype(int)
+    df_filtered["logid_new"] = df_filtered["logid"].astype(int)
+    
+    avg_tz = np.mean(df_filtered["tz_new"])
+    count_DHCP_statistics = int(df_filtered[df_filtered["logdesc"] == "DHCP statistics"]["logdesc"].count() + np.random.choice(range(1, 30)))
+    
+    with placeholder.container():
+        kpi1, kpi2 = st.columns(2)
+        
+        kpi1.markdown(f"""
+        <div class="kpi">
+            <div class="kpi-label">tz</div>
+            <div class="kpi-value">{round(avg_tz)}</div>
+            <div class="kpi-delta">{round(avg_tz) - 10}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        kpi2.markdown(f"""
+        <div class="kpi">
+            <div class="kpi-label">DHCP count</div>
+            <div class="kpi-value">{int(count_DHCP_statistics)}</div>
+            <div class="kpi-delta">{-10 + count_DHCP_statistics}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        fig_col1, fig_col2, fig_col3 = st.columns(3)
+        with fig_col1:
+            st.markdown("### First Chart")
+            fig = px.density_heatmap(data_frame=df_filtered, y="tz_new", x="logdesc")
+            fig.update_layout(plot_bgcolor="black", paper_bgcolor="black", font=dict(color="white"))
+            st.write(fig)
+        
+        with fig_col3:
+            st.markdown("### Third Chart")
+            fig3 = px.histogram(data_frame=df_filtered, x="tz_new")
+            fig3.update_layout(plot_bgcolor="black", paper_bgcolor="black", font=dict(color="white"))
+            st.write(fig3)
+        
+        with fig_col2:
+            st.markdown("### Second Chart")
+            pie_chart_data = df_filtered['logdesc'].value_counts().reset_index()
+            pie_chart_data.columns = ['logdesc', 'count']
+            fig2 = px.pie(pie_chart_data, values='count', names='logdesc')
+            fig2.update_layout(plot_bgcolor="black", paper_bgcolor="black", font=dict(color="white"))
+            st.write(fig2)
+        
+        st.markdown("<h3 style='color: white;'>Detailed Data View</h3>", unsafe_allow_html=True)
+        st.dataframe(df_filtered)
+
+    time.sleep(1)
