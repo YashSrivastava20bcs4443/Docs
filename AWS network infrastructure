@@ -1,0 +1,139 @@
+provider "aws" {
+  region = "us-west-2"
+}
+
+# Create VPC
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+
+  tags = {
+    Name = "main-vpc"
+  }
+}
+
+# Create Public Subnet
+resource "aws_subnet" "public" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = "us-west-2a"
+
+  tags = {
+    Name = "public-subnet"
+  }
+}
+
+# Create Private Subnet
+resource "aws_subnet" "private" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = "us-west-2a"
+
+  tags = {
+    Name = "private-subnet"
+  }
+}
+
+# Create Internet Gateway
+resource "aws_internet_gateway" "gw" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "main-igw"
+  }
+}
+
+# Create Route Table for Public Subnet
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.gw.id
+  }
+
+  tags = {
+    Name = "public-rt"
+  }
+}
+
+# Associate Route Table with Public Subnet
+resource "aws_route_table_association" "public_association" {
+  subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.public.id
+}
+
+# Create Security Group
+resource "aws_security_group" "allow_ssh_http" {
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "allow_ssh_http"
+  }
+}
+
+# Create NAT Gateway for Private Subnet (Optional)
+resource "aws_eip" "nat_eip" {
+  vpc = true
+}
+
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.nat_eip.id
+  subnet_id     = aws_subnet.public.id
+
+  tags = {
+    Name = "main-nat-gw"
+  }
+}
+
+# Create Route Table for Private Subnet
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat.id
+  }
+
+  tags = {
+    Name = "private-rt"
+  }
+}
+
+# Associate Route Table with Private Subnet
+resource "aws_route_table_association" "private_association" {
+  subnet_id      = aws_subnet.private.id
+  route_table_id = aws_route_table.private.id
+}
+
+
+#Configuration Explanation
+
+    Provider Configuration: Specifies the AWS provider and the region.
+    VPC: Creates a Virtual Private Cloud with a CIDR block of 10.0.0.0/16.
+    Subnets: Creates a public subnet (10.0.1.0/24) and a private subnet (10.0.2.0/24).
+    Internet Gateway: Creates an Internet Gateway and attaches it to the VPC.
+    Route Table for Public Subnet: Creates a route table with a route to the Internet Gateway and associates it with the public subnet.
+    Security Group: Creates a security group that allows SSH (port 22) and HTTP (port 80) traffic.
+    NAT Gateway (Optional): Creates a NAT Gateway for the private subnet to allow outbound internet access.
+    Route Table for Private Subnet: Creates a route table with a route to the NAT Gateway and associates it with the private subnet.
