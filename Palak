@@ -76,22 +76,26 @@ start_datetime = pd.to_datetime(f"{start_date} {start_time}")
 end_datetime = pd.to_datetime(f"{end_date} {end_time}")
 
 # Function to update the log file with the current time every 5 seconds
-def update_log_file(log_file_path: str):
+def update_log_file(log_file_path: str, first_entry: dict):
     while True:
         current_time = time.strftime('%Y-%m-%d %H:%M:%S')
-        log_entry = f'date={current_time.split()[0]} time={current_time.split()[1]} level=info logdesc="Current Time" msg="Current time entry"\n'
+        date, current_time = current_time.split()
+        log_entry = f'date={date} time={current_time} ' + ' '.join([f'{k}={v}' for k, v in first_entry.items() if k not in ['date', 'time']]) + '\n'
         with open(log_file_path, 'a') as file:
             file.write(log_entry)
         time.sleep(5)
 
+# Extract the first entry's fields (excluding 'date' and 'time')
+first_entry = df.iloc[0].to_dict()
+
 # Run the log file update in a separate thread
-thread = threading.Thread(target=update_log_file, args=(log_file_path,))
+thread = threading.Thread(target=update_log_file, args=(log_file_path, first_entry))
 thread.start()
 
 # Placeholder for dynamic content
 placeholder = st.empty()
 
-for seconds in range(200):
+for _ in range(200):
     df = load_data(log_file_path)  # Reload data to include the latest log entries
     df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['time'])
 
