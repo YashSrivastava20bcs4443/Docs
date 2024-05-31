@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 import numpy as np
 import plotly.express as px
+from streamlit.components.v1 import html
 
 st.set_page_config(
     page_title="Log File Data",
@@ -13,19 +14,16 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    body{ background-color:black; color:white; }
-    .stApp{ background-color:black; }
-    .css-1d391kg p,.css-1offfwp, .css-1iukzno, .css-1kyxreq,.css-1v3fvcr, .css-1cpxqw2, .css-1aumxhk, .css-1inwz65, .css-1k0ckh2, .css-1v3fvcr, .css-1d2lz6h{ color:white !important; }
-    .css-10trblm{ color:white !important }
-    .css-145kmo2, .css-8yuyfy, .css-2trqyj, .css-12ttj6m, .css-1rwmvkb{ color:white !important; }
-    h1, h2, h3, h4, h5, h6{ color:white !important; }
-    .stTextInput label{ color:white !important; }
-    .stDateInput label{ color:white !important; }
-    .stTimeInput label{ color:white !important; }
-    .stSelectbox label{ color:white !important; }
-    .kpi{ display: flex; flex-direction: column; align-items: center; justify-content: center; color: white !important; }
-    .kpi-value{ font-size: 2.5em; font-weight: bold; }
-    .kpi-delta{ font-size: 1em; }
+        body { background-color: black; color: white; }
+        .stApp { background-color: black; }
+        .css-1d391kg p, .css-1offfwp, .css-1iukzno, .css-1kyxreq, .css-1v3fvcr, .css-1cpxqw2, .css-1aumxhk, .css-1inwz65, .css-1k0ckh2, .css-1v3fvcr, .css-1d2lz6h { color: white !important; }
+        .css-10trblm { color: white !important; }
+        .css-145kmo2, .css-8yuyfy, .css-2trqyj, .css-12ttj6m, .css-1rwmvkb { color: white !important; }
+        h1, h2, h3, h4, h5, h6 { color: white !important; }
+        .stTextInput label, .stDateInput label, .stTimeInput label, .stSelectbox label { color: white !important; }
+        .kpi { display: flex; flex-direction: column; align-items: center; justify-content: center; color: white !important; }
+        .kpi-value { font-size: 2.5em; font-weight: bold; }
+        .kpi-delta { font-size: 1em; }
     </style>
     """,
     unsafe_allow_html=True
@@ -36,6 +34,7 @@ st.markdown(
 def load_data() -> pd.DataFrame:
     with open('C:\\Users\\P.V.ra22\\Desktop\\Dashboard\\disk-event-system-2024-05-21_0519.log', 'r') as file:
         logs = file.readlines()
+    
     # Extract fields from log entries
     data = []
     for log in logs:
@@ -51,32 +50,32 @@ def load_data() -> pd.DataFrame:
 # Load the data
 df = load_data()
 
+# Convert 'date' and 'time' to a datetime column for filtering
+df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['time'])
+
 # Display the DataFrame
 st.title("Live Log Analysis")
-
 unique_levels = pd.unique(df["level"])
-level_filter = st.selectbox("select the level", unique_levels)
+level_filter = st.selectbox("Select the level", unique_levels)
 
+# Date and time inputs for filtering
 col1, col2 = st.columns(2)
 with col1:
-    start_date_filter = st.date_input("Start Date")
+    start_date = st.date_input("Start Date", value=pd.to_datetime(df['datetime']).min().date())
+    start_time = st.time_input("Start Time", value=pd.to_datetime(df['datetime']).min().time())
 with col2:
-    start_time_filter = st.time_input("Start Time")
+    end_date = st.date_input("End Date", value=pd.to_datetime(df['datetime']).max().date())
+    end_time = st.time_input("End Time", value=pd.to_datetime(df['datetime']).max().time())
 
-col3, col4 = st.columns(2)
-with col3:
-    end_date_filter = st.date_input("End Date")
-with col4:
-    end_time_filter = st.time_input("End Time")
+# Combine date and time inputs into datetime
+start_datetime = pd.to_datetime(f"{start_date} {start_time}")
+end_datetime = pd.to_datetime(f"{end_date} {end_time}")
 
+# Filter the DataFrame based on the selected level and date-time range
+df_filtered = df[(df["level"] == level_filter) & (df["datetime"] >= start_datetime) & (df["datetime"] <= end_datetime)]
+
+# Placeholder for dynamic content
 placeholder = st.empty()
-
-# Convert the datetime filters to datetime objects
-start_datetime = pd.to_datetime(f"{start_date_filter} {start_time_filter}")
-end_datetime = pd.to_datetime(f"{end_date_filter} {end_time_filter}")
-
-# Filter the DataFrame based on the selected level and datetime range
-df_filtered = df[(df["level"] == level_filter) & (pd.to_datetime(df["eventtime"]) >= start_datetime) & (pd.to_datetime(df["eventtime"]) <= end_datetime)]
 
 for seconds in range(200):
     df_filtered["tz_new"] = df_filtered["tz"].astype(int)
@@ -88,23 +87,30 @@ for seconds in range(200):
     with placeholder.container():
         kpi1, kpi2 = st.columns(2)
         
-        kpi1.markdown(f"""
-        <div class="kpi">
-            <div class="kpi-label">tz</div>
-            <div class="kpi-value">{round(avg_tz)}</div>
-            <div class="kpi-delta">{round(avg_tz) - 10}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        kpi1.markdown(
+            f"""
+            <div class="kpi">
+                <div class="kpi-label">tz</div>
+                <div class="kpi-value">{round(avg_tz)}</div>
+                <div class="kpi-delta">{round(avg_tz) - 10}</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
         
-        kpi2.markdown(f"""
-        <div class="kpi">
-            <div class="kpi-label">DHCP count</div>
-            <div class="kpi-value">{int(count_DHCP_statistics)}</div>
-            <div class="kpi-delta">{-10 + count_DHCP_statistics}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        kpi2.markdown(
+            f"""
+            <div class="kpi">
+                <div class="kpi-label">DHCP count</div>
+                <div class="kpi-value">{int(count_DHCP_statistics)}</div>
+                <div class="kpi-delta">{-10 + count_DHCP_statistics}</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
         
         fig_col1, fig_col2, fig_col3 = st.columns(3)
+        
         with fig_col1:
             st.markdown("### First Chart")
             fig = px.density_heatmap(data_frame=df_filtered, y="tz_new", x="logdesc")
@@ -127,5 +133,5 @@ for seconds in range(200):
         
         st.markdown("<h3 style='color: white;'>Detailed Data View</h3>", unsafe_allow_html=True)
         st.dataframe(df_filtered)
-
-    time.sleep(1)
+        
+        time.sleep(1)
