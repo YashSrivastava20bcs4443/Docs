@@ -3,14 +3,16 @@ import pandas as pd
 import streamlit as st
 import numpy as np
 import plotly.express as px
-from streamlit.components.v1 import html
+import threading
 
+# Set Streamlit page config
 st.set_page_config(
     page_title="Log File Data",
     page_icon="✅",
     layout="wide",
 )
 
+# Streamlit styles
 st.markdown(
     """
     <style>
@@ -31,8 +33,8 @@ st.markdown(
 
 # Function to read and parse the log file
 @st.cache_data
-def load_data() -> pd.DataFrame:
-    with open('C:\\Users\\P.V.ra22\\Desktop\\Dashboard\\disk-event-system-2024-05-21_0519.log', 'r') as file:
+def load_data(log_file_path: str) -> pd.DataFrame:
+    with open(log_file_path, 'r') as file:
         logs = file.readlines()
     
     # Extract fields from log entries
@@ -47,8 +49,10 @@ def load_data() -> pd.DataFrame:
         data.append(fields)
     return pd.DataFrame(data)
 
+log_file_path = '/mnt/data/disk-event-system-2024_05_30.txt'
+
 # Load the data
-df = load_data()
+df = load_data(log_file_path)
 
 # Convert 'date' and 'time' to a datetime column for filtering
 df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['time'])
@@ -71,13 +75,29 @@ with col2:
 start_datetime = pd.to_datetime(f"{start_date} {start_time}")
 end_datetime = pd.to_datetime(f"{end_date} {end_time}")
 
-# Filter the DataFrame based on the selected level and date-time range
-df_filtered = df[(df["level"] == level_filter) & (df["datetime"] >= start_datetime) & (df["datetime"] <= end_datetime)]
+# Function to update the log file with the current time every 5 seconds
+def update_log_file(log_file_path: str):
+    while True:
+        current_time = time.strftime('%Y-%m-%d %H:%M:%S')
+        log_entry = f'date={current_time.split()[0]} time={current_time.split()[1]} level=info logdesc="Current Time" msg="Current time entry"\n'
+        with open(log_file_path, 'a') as file:
+            file.write(log_entry)
+        time.sleep(5)
+
+# Run the log file update in a separate thread
+thread = threading.Thread(target=update_log_file, args=(log_file_path,))
+thread.start()
 
 # Placeholder for dynamic content
 placeholder = st.empty()
 
 for seconds in range(200):
+    df = load_data(log_file_path)  # Reload data to include the latest log entries
+    df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['time'])
+
+    # Filter the DataFrame based on the selected level and date-time range
+    df_filtered = df[(df["level"] == level_filter) & (df["datetime"] >= start_datetime) & (df["datetime"] <= end_datetime)]
+
     df_filtered["tz_new"] = df_filtered["tz"].astype(int)
     df_filtered["logid_new"] = df_filtered["logid"].astype(int)
     
