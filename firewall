@@ -1,0 +1,40 @@
+import requests
+import json
+
+def fetch_fortigate_policies(base_url, api_token):
+    try:
+        # Set the headers for the API request
+        headers = {
+            'Authorization': f'Bearer {api_token}'
+        }
+
+        # Define the endpoint URL for fetching firewall policies
+        endpoint = f'{base_url}/api/v2/cmdb/firewall/policy/'
+
+        # Send the GET request to the FortiGate API
+        response = requests.get(endpoint, headers=headers, verify=False)
+
+        # Check if the request was successful
+        if response.status_code == 200:
+            policies = response.json()
+            return policies
+        else:
+            print(f"Failed to fetch policies: {response.status_code} - {response.text}")
+            return None
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+# Replace the following variables with your FortiGate firewall details
+base_url = 'https://your_fortigate_ip'
+api_token = 'your_api_token'
+
+policies = fetch_fortigate_policies(base_url, api_token)
+
+if policies:
+    with open('fortigate_policies.json', 'w') as file:
+        json.dump(policies, file, indent=4)
+    print("Policies have been successfully fetched and saved to 'fortigate_policies.json'")
+else:
+    print("Failed to fetch policies.")
