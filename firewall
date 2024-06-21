@@ -10,10 +10,10 @@ import shutil
 
 # Configure WebDriver options
 download_directory = os.path.join(os.getcwd(), "downloads")
-temp_directory = os.path.join(download_directory, "temp")
+temp_directory = os.path.join(os.getcwd(), "temp")  # Set a separate temp directory
 chrome_options = webdriver.ChromeOptions()
 chrome_options.add_experimental_option("prefs", {
-    "download.default_directory": temp_directory,  # Set download directory to a 'temp' folder
+    "download.default_directory": temp_directory,  # Set download directory to the 'temp' folder
     "download.prompt_for_download": False,
     "safebrowsing.enabled": True
 })
@@ -55,16 +55,14 @@ def sign_in(driver, email, password):
         pass
 
 # Function to wait for file to be fully downloaded
-def wait_for_download_and_rename(temp_dir, download_dir, new_name, timeout=30):
+def wait_for_download_and_rename(temp_dir, new_name, timeout=30):
     start_time = time.time()
-    print(f"Waiting for the file to download and be renamed to {new_name}")
     while True:
         for filename in os.listdir(temp_dir):
             if filename.endswith(".csv") and not filename.endswith(".crdownload"):
                 full_path = os.path.join(temp_dir, filename)
-                new_path = os.path.join(download_dir, new_name)
-                print(f"Moving and renaming file from {full_path} to {new_path}")
-                shutil.move(full_path, new_path)  # Move and rename the file to the final download directory
+                new_path = os.path.join(temp_dir, new_name)
+                shutil.move(full_path, new_path)  # Move and rename within the temp directory
                 print(f"File renamed to {new_path}")
                 return
         if time.time() - start_time > timeout:
@@ -129,8 +127,8 @@ def export_policies(ip):
         # Define the new filename based on IP
         new_filename = f'firewall_policies_{ip}.csv'
         
-        # Wait for the file to be fully downloaded, rename it, and move it to the main download directory
-        wait_for_download_and_rename(temp_directory, download_directory, new_filename)
+        # Wait for the file to be fully downloaded and rename it within the temp directory
+        wait_for_download_and_rename(temp_directory, new_filename)
         
     except Exception as e:
         print(f"An error occurred while exporting policies for {ip}: {e}")
@@ -145,6 +143,10 @@ os.makedirs(temp_directory, exist_ok=True)
 # Iterate over each firewall IP and export policies
 for ip in firewall_ips:
     export_policies(ip)
+
+# Move files from temp directory to download directory and then delete the temp directory
+for filename in os.listdir(temp_directory):
+    shutil.move(os.path.join(temp_directory, filename), os.path.join(download_directory, filename))
 
 # Clean up the temp directory after all processes are completed
 shutil.rmtree(temp_directory)
