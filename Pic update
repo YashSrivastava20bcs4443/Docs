@@ -1,0 +1,192 @@
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
+import os
+import shutil
+
+# Configure WebDriver options
+download_directory = os.path.join(os.getcwd(), "downloads")
+temp_directory = os.path.join(os.getcwd(), "temp")
+
+chrome_options = webdriver.ChromeOptions()
+chrome_options.add_experimental_option("prefs", {
+    "download.default_directory": temp_directory,
+    "download.prompt_for_download": False,
+    "safebrowsing.enabled": True
+})
+
+# Path to the ChromeDriver executable
+driver_path = 'C:\\Users\\Y.S.va22\\Downloads\\PIC\\chromedriver.exe'
+
+# List of FortiGate firewall IPs
+firewall_ips = [
+    '10.255.255.65',
+    '10.255.255.66',
+]
+
+# Shared FortiGate credentials
+username_str = 'NetOps'
+password_str = 'Lima@12345'
+
+# Microsoft credentials
+microsoft_email = 'yash.srivastava@fareportal.com'
+microsoft_password = 'Zxcv@1234'
+
+# Function to sign in to Microsoft
+def sign_in(driver, email, password):
+    EMAILFIELD = (By.ID, "i0116")
+    PASSWORDFIELD = (By.ID, "i0118")
+    NEXTBUTTON = (By.ID, "idSIButton9")
+    
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EMAILFIELD)).send_keys(email)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(PASSWORDFIELD)).send_keys(password)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+    
+    try:
+        stay_signed_in_popup = driver.find_element(By.XPATH, "//div[contains(text(), 'Stay signed in?')]")
+        if stay_signed_in_popup:
+            no_button = driver.find_element(By.XPATH, "//input[@value='No']")
+            no_button.click()
+    except:
+        pass
+
+# Function to wait for file to be fully downloaded
+def wait_for_download_and_rename(temp_dir, new_name, timeout=30):
+    start_time = time.time()
+    while True:
+        for filename in os.listdir(temp_dir):
+            if filename.endswith(".csv") and not filename.endswith(".crdownload"):
+                full_path = os.path.join(temp_dir, filename)
+                new_path = os.path.join(temp_dir, new_name)
+                shutil.move(full_path, new_path)
+                print(f"File renamed to {new_path}")
+                return
+        if time.time() - start_time > timeout:
+            raise Exception(f"File download timed out after {timeout} seconds.")
+        time.sleep(1)
+
+# Function to export firewall policies
+def export_policies(ip):
+    service = Service(driver_path)
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    
+    try:
+        # Open Microsoft sign-in page
+        driver.get('https://login.microsoftonline.com/')
+        sign_in(driver, microsoft_email, microsoft_password)
+        
+        # Open FortiGate login page
+        driver.get(f'http://{ip}')
+        
+        # Handle "Advanced" and "Proceed (unsafe)" if they appear
+        try:
+            advanced_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "details-button")))
+            advanced_button.click()
+            proceed_link = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "proceed-link")))
+            proceed_link.click()
+        except Exception as e:
+            print(f"No advanced option found or proceed (unsafe) link: {e}")
+        
+        # Log in to FortiGate
+        time.sleep(3) # Adjust sleep time if needed to wait for the page to load
+        username = driver.find_element(By.ID, 'username')
+        password = driver.find_element(By.ID, 'secretkey')
+        login_button = driver.find_element(By.ID, 'login_button')
+        username.send_keys(username_str)
+        password.send_keys(password_str)
+        login_button.click()
+        
+        time.sleep(5) # Adjust sleep time if needed to wait for login to complete
+        
+        # Navigate to Firewall Policy page
+        driver.get(f'http://{ip}/ng/firewall/policy/policy/standard?vdom=root')
+        time.sleep(20) # Adjust sleep time if needed to wait for the page to load
+        
+        # Step 1: Click configure table
+        configure_table_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//button[@class="button table-settings"]'))
+        )
+        driver.execute_script("arguments[0].click();", configure_table_button)
+        
+        # Step 2: Select specific options
+        options = [
+            "From", "To", "Destination Address", "First Used", 
+            "Hit Count", "ID", "IPS", "Last Used", 
+            "Packets", "Source Address", "Status"
+        ]
+        for option in options:
+            button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, f'//button[contains(., "{option}")]'))
+            )
+            driver.execute_script("arguments[0].click();", button)
+        
+        # Step 3: Click Apply
+        apply_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//button[contains(@class, "standard-button primary") and text()="Apply"]'))
+        )
+        driver.execute_script("arguments[0].click();", apply_button)
+        
+        # Locate and click the Export button using JavaScript to avoid interception
+        export_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//span[@class="ng-binding ng-scope" and text()="Export"]'))
+        )
+        driver.execute_script("arguments[0].click();", export_button)
+        time.sleep(2) # Wait for the dropdown to appear
+        
+        # Select CSV from the dropdown using JavaScript
+        export_csv_option = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//span[@class="ng-scope" and text()="CSV"]'))
+        )
+        driver.execute_script("arguments[0].click();", export_csv_option)
+        
+        # Define the new filename based on IP
+        new_filename = f'firewall_policies_{ip}.csv'
+        time.sleep(5) # Wait for the file to be fully downloaded and rename it within the temp directory
+        wait_for_download_and_rename(temp_directory, new_filename)
+    
+    except Exception as e:
+        print(f"An error occurred while exporting policies for {ip}: {e}")
+    finally:
+        driver.quit()
+
+# Ensure download and temp directories exist
+os.makedirs(download_directory, exist_ok=True)
+os.makedirs(temp_directory, exist_ok=True)
+
+# Iterate over each firewall IP and export policies
+for ip in firewall_ips:
+    export_policies(ip)
+
+# Move files from temp directory to download directory and then delete the temp directory
+for filename in os.listdir(temp_directory):
+    shutil.move(os.path.join(temp_directory, filename), os.path.join(download_directory, filename))
+
+# Clean up the temp directory after all processes are completed
+shutil.rmtree(temp_directory)
+
+# Merge all CSV files in the download directory into one
+def merge_csv_files(directory, output_file):
+    all_files = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith('.csv')]
+    df_list = []
+    for file in all_files:
+        try:
+            df_list.append(pd.read_csv(file))
+        except Exception as e:
+            print(f"Error reading {file}: {e}")
+    if df_list:
+        combined_df = pd.concat(df_list, ignore_index=True)
+        combined_df.to_csv(output_file, index=False)
+        print(f"Merged CSV saved as {output_file}")
+    else:
+        print("No CSV files found to merge.")
+
+# Path to the final merged CSV file
+merged_csv_path = os.path.join(download_directory, 'merged_firewall_policies.csv')
+
+# Merge all downloaded CSV files
+merge_csv_files(download_directory, merged_csv_path)
