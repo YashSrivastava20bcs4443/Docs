@@ -84,6 +84,19 @@ def export_policies(ip):
         # Open FortiGate login page
         driver.get(f'http://{ip}')
         
+        # Handle "Advanced" and "Proceed (unsafe)" if they appear
+        try:
+            advanced_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "details-button"))
+            )
+            advanced_button.click()
+            proceed_link = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "proceed-link"))
+            )
+            proceed_link.click()
+        except Exception as e:
+            print(f"No advanced option found or proceed (unsafe) link: {e}")
+        
         # Log in to FortiGate
         time.sleep(3)  # Adjust sleep time if needed to wait for the page to load
         username = driver.find_element(By.ID, 'username')
