@@ -1,5 +1,6 @@
 import pandas as pd
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -70,7 +71,8 @@ def wait_for_download_and_rename(temp_dir, download_dir, new_name, timeout=30):
 
 # Function to export firewall policies
 def export_policies(ip):
-    driver = webdriver.Chrome(executable_path=driver_path, options=chrome_options)
+    service = Service(driver_path)
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     
     try:
         # Open Microsoft sign-in page
