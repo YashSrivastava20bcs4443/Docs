@@ -9,6 +9,7 @@ import os
 import shutil
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Font, Border, Side
+from openpyxl.utils import get_column_letter
 import smtplib
 from email.message import EmailMessage
 
@@ -187,28 +188,56 @@ def export_policies(ip):
 os.makedirs(download_directory, exist_ok=True)
 os.makedirs(temp_directory, exist_ok=True)
 
+# Function to apply styles to the sheets
+def apply_styles(sheet):
+    # Apply styles to header row
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    for cell in sheet[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin_border
+    
+    # Apply border to all cells and auto-size columns
+    for row in sheet.iter_rows():
+        for cell in row:
+            cell.border = thin_border
+    for col in sheet.columns:
+        max_length = 0
+        column = col[0].column_letter  # Get the column name
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(cell.value)
+            except:
+                pass
+        adjusted_width = (max_length + 2)
+        sheet.column_dimensions[column].width = adjusted_width
+
 # Function to create an Excel file with filtered sheets
 def create_filtered_excel(input_csv, output_excel):
     df = pd.read_csv(input_csv)
     
-    # Filter DataFrame for 'Disable' policies
-    disable_df = df[df['Status'] == 'Disable'][['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status']]
+    active_policies_df = df[df['Status'] == 'Active']
+    blocked_policies_df = df[df['Status'] == 'Blocked']
+    unused_policies_df = df[df['Hit Count'] == 0]
+    last_used_monthwise_df = df[df['Last Used'].notnull()]
     
-    # Filter DataFrame for '0 Hit Count' policies
-    zero_hit_count_df = df[df['Hit Count'] == 0][['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status']]
-    
-    # Prepare DataFrame for 'Last Used Month wise'
-    df['Last Used'] = pd.to_datetime(df['Last Used'], errors='coerce')
-    last_used_monthwise_df = df.groupby(df['Last Used'].dt.to_period('M')).apply(
-        lambda x: x[['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status']]
-    ).reset_index(drop=True)
-    
-    # Create Excel file with the filtered DataFrames
     with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-        disable_df.to_excel(writer, sheet_name='Disable Policies', index=False)
-        zero_hit_count_df.to_excel(writer, sheet_name='0 Hit Count Policies', index=False)
+        active_policies_df.to_excel(writer, sheet_name='Active Policies', index=False)
+        blocked_policies_df.to_excel(writer, sheet_name='Blocked Policies', index=False)
+        unused_policies_df.to_excel(writer, sheet_name='Unused Policies', index=False)
+        df.to_excel(writer, sheet_name='All Data', index=False)
         last_used_monthwise_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
     
+    # Load the workbook and apply styles
+    workbook = load_workbook(output_excel)
+    for sheet_name in ['Active Policies', 'Blocked Policies', 'Unused Policies', 'All Data', 'Last Used Month Wise']:
+        sheet = workbook[sheet_name]
+        apply_styles(sheet)
+    workbook.save(output_excel)
     print(f"Filtered Excel file created at {output_excel}")
 
 # Function to send an email with the attached Excel file
@@ -232,16 +261,12 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
     
     print(f"Email sent with attachment {attachment_path}")
 
-# Function to clean up downloaded files
-def clean_up_downloaded_files(directory):
-    for file_name in os.listdir(directory):
-        file_path = os.path.join(directory, file_name)
-        try:
-            if os.path.isfile(file_path):
-                os.unlink(file_path)
-                print(f"Deleted file: {file_path}")
-        except Exception as e:
-            print(f"Failed to delete file {file_path}: {e}")
+# Function to clean up and delete directories
+def clean_up_directories(*directories):
+    for directory in directories:
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
+            print(f"Deleted directory: {directory}")
 
 # Process each firewall IP
 for firewall_ip in firewall_ips:
@@ -263,6 +288,9 @@ for firewall_ip in firewall_ips:
         email_to, email_cc, email_subject, email_body, excel_path
     )
     
-    # Clean up downloaded files
-    clean_up_downloaded_files(download_directory)
-    clean_up_downloaded_files(temp_directory)
+    # Clean up downloaded files and directories
+    clean_up_directories(download_directory, temp_directory)
+    
+# Recreate directories for future use
+os.makedirs(download_directory, exist_ok=True)
+os.makedirs(temp_directory, exist_ok=True)
