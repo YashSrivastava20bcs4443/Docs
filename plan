@@ -1,0 +1,484 @@
+   terraform plan --out=myplan.tfplan
+   C:\Users\sriva\OneDrive\Desktop\Azure_with_ Terraform\fornt_door Infra>
+Terraform used the selected providers to generate the following execution plan. Resource actions are indicated with the
+following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # azurerm_cdn_endpoint.cdn_endpoint will be created
+  + resource "azurerm_cdn_endpoint" "cdn_endpoint" {
+      + content_types_to_compress     = (known after apply)
+      + fqdn                          = (known after apply)
+      + id                            = (known after apply)
+      + is_http_allowed               = true
+      + is_https_allowed              = true
+      + location                      = "centralindia"
+      + name                          = "demo-cdn-endpoint"
+      + origin_path                   = (known after apply)
+      + probe_path                    = (known after apply)
+      + profile_name                  = "demo-cdn-profile"
+      + querystring_caching_behaviour = "IgnoreQueryString"
+      + resource_group_name           = "demo-resource_YS"
+
+      + origin {
+          + host_name  = "demo-frontdoor.azurefd.net"
+          + http_port  = 80
+          + https_port = 443
+          + name       = "frontdoor-origin"
+        }
+    }
+
+  # azurerm_cdn_profile.cdn_profile will be created
+  + resource "azurerm_cdn_profile" "cdn_profile" {
+      + id                  = (known after apply)
+      + location            = "centralindia"
+      + name                = "demo-cdn-profile"
+      + resource_group_name = "demo-resource_YS"
+      + sku                 = "Standard_Microsoft"
+    }
+
+  # azurerm_firewall.firewall will be created
+  + resource "azurerm_firewall" "firewall" {
+      + dns_proxy_enabled   = (known after apply)
+      + id                  = (known after apply)
+      + location            = "centralindia"
+      + name                = "demo-firewall"
+      + resource_group_name = "demo-resource_YS"
+      + sku_name            = "AZFW_VNet"
+      + sku_tier            = "Standard"
+      + threat_intel_mode   = (known after apply)
+
+      + ip_configuration {
+          + name               = "configuration"
+          + private_ip_address = "10.0.1.6"
+          + subnet_id          = (known after apply)
+        }
+    }
+
+  # azurerm_frontdoor.front_door will be created
+  + resource "azurerm_frontdoor" "front_door" {
+      + backend_pool_health_probes           = (known after apply)
+      + backend_pool_load_balancing_settings = (known after apply)
+      + backend_pools                        = (known after apply)
+      + cname                                = (known after apply)
+      + explicit_resource_order              = (known after apply)
+      + frontend_endpoints                   = (known after apply)
+      + header_frontdoor_id                  = (known after apply)
+      + id                                   = (known after apply)
+      + load_balancer_enabled                = true
+      + name                                 = "demo-frontdoor"
+      + resource_group_name                  = "demo-resource_YS"
+      + routing_rules                        = (known after apply)
+
+      + backend_pool {
+          + health_probe_name   = "healthProbeSettings"
+          + id                  = (known after apply)
+          + load_balancing_name = "loadBalancingSettings"
+          + name                = "backendPool"
+
+          + backend {
+              + address     = (known after apply)
+              + enabled     = true
+              + host_header = "demo-frontdoor.azurefd.net"
+              + http_port   = 80
+              + https_port  = 443
+              + priority    = 1
+              + weight      = 50
+            }
+        }
+
+      + backend_pool_health_probe {
+          + enabled             = true
+          + id                  = (known after apply)
+          + interval_in_seconds = 30
+          + name                = "healthProbeSettings"
+          + path                = "/"
+          + probe_method        = "GET"
+          + protocol            = "Https"
+        }
+
+      + backend_pool_load_balancing {
+          + additional_latency_milliseconds = 50
+          + id                              = (known after apply)
+          + name                            = "loadBalancingSettings"
+          + sample_size                     = 4
+          + successful_samples_required     = 2
+        }
+
+      + frontend_endpoint {
+          + host_name                    = "demo-frontdoor.azurefd.net"
+          + id                           = (known after apply)
+          + name                         = "frontendEndpoint"
+          + session_affinity_enabled     = false
+          + session_affinity_ttl_seconds = 0
+        }
+
+      + routing_rule {
+          + accepted_protocols = [
+              + "Http",
+              + "Https",
+            ]
+          + enabled            = true
+          + frontend_endpoints = [
+              + "frontendEndpoint",
+            ]
+          + id                 = (known after apply)
+          + name               = "defaultRoutingRule"
+          + patterns_to_match  = [
+              + "/*",
+            ]
+
+          + forwarding_configuration {
+              + backend_pool_name                     = "backendPool"
+              + cache_enabled                         = false
+              + cache_query_parameter_strip_directive = "StripAll"
+              + cache_use_dynamic_compression         = false
+              + forwarding_protocol                   = "MatchRequest"
+            }
+        }
+    }
+
+  # azurerm_lb.internal_lb will be created
+  + resource "azurerm_lb" "internal_lb" {
+      + id                   = (known after apply)
+      + location             = "centralindia"
+      + name                 = "demo-internal-lb"
+      + private_ip_address   = (known after apply)
+      + private_ip_addresses = (known after apply)
+      + resource_group_name  = "demo-resource_YS"
+      + sku                  = "Standard"
+      + sku_tier             = "Regional"
+
+      + frontend_ip_configuration {
+          + gateway_load_balancer_frontend_ip_configuration_id = (known after apply)
+          + id                                                 = (known after apply)
+          + inbound_nat_rules                                  = (known after apply)
+          + load_balancer_rules                                = (known after apply)
+          + name                                               = "LoadBalancerFrontEnd"
+          + outbound_rules                                     = (known after apply)
+          + private_ip_address                                 = "10.0.1.5"
+          + private_ip_address_allocation                      = "Static"
+          + private_ip_address_version                         = (known after apply)
+          + public_ip_address_id                               = (known after apply)
+          + public_ip_prefix_id                                = (known after apply)
+          + subnet_id                                          = (known after apply)
+        }
+    }
+
+  # azurerm_lb_backend_address_pool.backend_pool will be created
+  + resource "azurerm_lb_backend_address_pool" "backend_pool" {
+      + backend_ip_configurations = (known after apply)
+      + id                        = (known after apply)
+      + inbound_nat_rules         = (known after apply)
+      + load_balancing_rules      = (known after apply)
+      + loadbalancer_id           = (known after apply)
+      + name                      = "BackendAddressPool"
+      + outbound_rules            = (known after apply)
+    }
+
+  # azurerm_lb_rule.lb_rule_501 will be created
+  + resource "azurerm_lb_rule" "lb_rule_501" {
+      + backend_address_pool_ids       = (known after apply)
+      + backend_port                   = 501
+      + disable_outbound_snat          = false
+      + enable_floating_ip             = false
+      + frontend_ip_configuration_id   = (known after apply)
+      + frontend_ip_configuration_name = "LoadBalancerFrontEnd"
+      + frontend_port                  = 501
+      + id                             = (known after apply)
+      + idle_timeout_in_minutes        = (known after apply)
+      + load_distribution              = (known after apply)
+      + loadbalancer_id                = (known after apply)
+      + name                           = "Port501Rule"
+      + probe_id                       = (known after apply)
+      + protocol                       = "Tcp"
+    }
+
+  # azurerm_lb_rule.lb_rule_502 will be created
+  + resource "azurerm_lb_rule" "lb_rule_502" {
+      + backend_address_pool_ids       = (known after apply)
+      + backend_port                   = 502
+      + disable_outbound_snat          = false
+      + enable_floating_ip             = false
+      + frontend_ip_configuration_id   = (known after apply)
+      + frontend_ip_configuration_name = "LoadBalancerFrontEnd"
+      + frontend_port                  = 502
+      + id                             = (known after apply)
+      + idle_timeout_in_minutes        = (known after apply)
+      + load_distribution              = (known after apply)
+      + loadbalancer_id                = (known after apply)
+      + name                           = "Port502Rule"
+      + probe_id                       = (known after apply)
+      + protocol                       = "Tcp"
+    }
+
+  # azurerm_linux_virtual_machine.backend_vm will be created
+  + resource "azurerm_linux_virtual_machine" "backend_vm" {
+      + admin_password                                         = (sensitive value)
+      + admin_username                                         = "adminuser"
+      + allow_extension_operations                             = true
+      + bypass_platform_safety_checks_on_user_schedule_enabled = false
+      + computer_name                                          = "backend-vm"
+      + disable_password_authentication                        = false
+      + disk_controller_type                                   = (known after apply)
+      + extensions_time_budget                                 = "PT1H30M"
+      + id                                                     = (known after apply)
+      + location                                               = "centralindia"
+      + max_bid_price                                          = -1
+      + name                                                   = "backend-vm"
+      + network_interface_ids                                  = (known after apply)
+      + patch_assessment_mode                                  = "ImageDefault"
+      + patch_mode                                             = "ImageDefault"
+      + platform_fault_domain                                  = -1
+      + priority                                               = "Regular"
+      + private_ip_address                                     = (known after apply)
+      + private_ip_addresses                                   = (known after apply)
+      + provision_vm_agent                                     = true
+      + public_ip_address                                      = (known after apply)
+      + public_ip_addresses                                    = (known after apply)
+      + resource_group_name                                    = "demo-resource_YS"
+      + size                                                   = "Standard_B1s"
+      + virtual_machine_id                                     = (known after apply)
+      + vm_agent_platform_updates_enabled                      = false
+
+      + os_disk {
+          + caching                   = "ReadWrite"
+          + disk_size_gb              = (known after apply)
+          + name                      = (known after apply)
+          + storage_account_type      = "Standard_LRS"
+          + write_accelerator_enabled = false
+        }
+
+      + source_image_reference {
+          + offer     = "UbuntuServer"
+          + publisher = "canonical"
+          + sku       = "18.04-LTS"
+          + version   = "latest"
+        }
+    }
+
+  # azurerm_linux_virtual_machine.vm1 will be created
+  + resource "azurerm_linux_virtual_machine" "vm1" {
+      + admin_password                                         = (sensitive value)
+      + admin_username                                         = "adminuser"
+      + allow_extension_operations                             = true
+      + bypass_platform_safety_checks_on_user_schedule_enabled = false
+      + computer_name                                          = "vm1"
+      + disable_password_authentication                        = false
+      + disk_controller_type                                   = (known after apply)
+      + extensions_time_budget                                 = "PT1H30M"
+      + id                                                     = (known after apply)
+      + location                                               = "centralindia"
+      + max_bid_price                                          = -1
+      + name                                                   = "vm1"
+      + network_interface_ids                                  = (known after apply)
+      + patch_assessment_mode                                  = "ImageDefault"
+      + patch_mode                                             = "ImageDefault"
+      + platform_fault_domain                                  = -1
+      + priority                                               = "Regular"
+      + private_ip_address                                     = (known after apply)
+      + private_ip_addresses                                   = (known after apply)
+      + provision_vm_agent                                     = true
+      + public_ip_address                                      = (known after apply)
+      + public_ip_addresses                                    = (known after apply)
+      + resource_group_name                                    = "demo-resource_YS"
+      + size                                                   = "Standard_B1s"
+      + virtual_machine_id                                     = (known after apply)
+      + vm_agent_platform_updates_enabled                      = false
+
+      + os_disk {
+          + caching                   = "ReadWrite"
+          + disk_size_gb              = (known after apply)
+          + name                      = (known after apply)
+          + storage_account_type      = "Standard_LRS"
+          + write_accelerator_enabled = false
+        }
+
+      + source_image_reference {
+          + offer     = "UbuntuServer"
+          + publisher = "canonical"
+          + sku       = "18.04-LTS"
+          + version   = "latest"
+        }
+    }
+
+  # azurerm_network_interface.firewall_nic will be created
+  + resource "azurerm_network_interface" "firewall_nic" {
+      + applied_dns_servers           = (known after apply)
+      + dns_servers                   = (known after apply)
+      + enable_accelerated_networking = false
+      + enable_ip_forwarding          = false
+      + id                            = (known after apply)
+      + internal_dns_name_label       = (known after apply)
+      + internal_domain_name_suffix   = (known after apply)
+      + location                      = "centralindia"
+      + mac_address                   = (known after apply)
+      + name                          = "firewall-nic"
+      + private_ip_address            = (known after apply)
+      + private_ip_addresses          = (known after apply)
+      + resource_group_name           = "demo-resource_YS"
+      + virtual_machine_id            = (known after apply)
+
+      + ip_configuration {
+          + gateway_load_balancer_frontend_ip_configuration_id = (known after apply)
+          + name                                               = "internal"
+          + primary                                            = (known after apply)
+          + private_ip_address                                 = (known after apply)
+          + private_ip_address_allocation                      = "Dynamic"
+          + private_ip_address_version                         = "IPv4"
+          + subnet_id                                          = (known after apply)
+        }
+    }
+
+  # azurerm_network_interface.vm1_nic1 will be created
+  + resource "azurerm_network_interface" "vm1_nic1" {
+      + applied_dns_servers           = (known after apply)
+      + dns_servers                   = (known after apply)
+      + enable_accelerated_networking = false
+      + enable_ip_forwarding          = false
+      + id                            = (known after apply)
+      + internal_dns_name_label       = (known after apply)
+      + internal_domain_name_suffix   = (known after apply)
+      + location                      = "centralindia"
+      + mac_address                   = (known after apply)
+      + name                          = "vm1-nic1"
+      + private_ip_address            = (known after apply)
+      + private_ip_addresses          = (known after apply)
+      + resource_group_name           = "demo-resource_YS"
+      + virtual_machine_id            = (known after apply)
+
+      + ip_configuration {
+          + gateway_load_balancer_frontend_ip_configuration_id = (known after apply)
+          + name                                               = "internal"
+          + primary                                            = (known after apply)
+          + private_ip_address                                 = (known after apply)
+          + private_ip_address_allocation                      = "Dynamic"
+          + private_ip_address_version                         = "IPv4"
+          + subnet_id                                          = (known after apply)
+        }
+    }
+
+  # azurerm_network_interface.vm1_nic2 will be created
+  + resource "azurerm_network_interface" "vm1_nic2" {
+      + applied_dns_servers           = (known after apply)
+      + dns_servers                   = (known after apply)
+      + enable_accelerated_networking = false
+      + enable_ip_forwarding          = false
+      + id                            = (known after apply)
+      + internal_dns_name_label       = (known after apply)
+      + internal_domain_name_suffix   = (known after apply)
+      + location                      = "centralindia"
+      + mac_address                   = (known after apply)
+      + name                          = "vm1-nic2"
+      + private_ip_address            = (known after apply)
+      + private_ip_addresses          = (known after apply)
+      + resource_group_name           = "demo-resource_YS"
+      + virtual_machine_id            = (known after apply)
+
+      + ip_configuration {
+          + gateway_load_balancer_frontend_ip_configuration_id = (known after apply)
+          + name                                               = "internal"
+          + primary                                            = (known after apply)
+          + private_ip_address                                 = (known after apply)
+          + private_ip_address_allocation                      = "Dynamic"
+          + private_ip_address_version                         = "IPv4"
+          + subnet_id                                          = (known after apply)
+        }
+    }
+
+  # azurerm_network_interface_backend_address_pool_association.vm1_backend_pool will be created
+  + resource "azurerm_network_interface_backend_address_pool_association" "vm1_backend_pool" {
+      + backend_address_pool_id = (known after apply)
+      + id                      = (known after apply)
+      + ip_configuration_name   = "internal"
+      + network_interface_id    = (known after apply)
+    }
+
+  # azurerm_public_ip.front_door_public_ip will be created
+  + resource "azurerm_public_ip" "front_door_public_ip" {
+      + allocation_method       = "Static"
+      + ddos_protection_mode    = "VirtualNetworkInherited"
+      + fqdn                    = (known after apply)
+      + id                      = (known after apply)
+      + idle_timeout_in_minutes = 4
+      + ip_address              = (known after apply)
+      + ip_version              = "IPv4"
+      + location                = "centralindia"
+      + name                    = "front-door-public-ip"
+      + resource_group_name     = "demo-resource_YS"
+      + sku                     = "Standard"
+      + sku_tier                = "Regional"
+    }
+
+  # azurerm_resource_group.rg will be created
+  + resource "azurerm_resource_group" "rg" {
+      + id       = (known after apply)
+      + location = "centralindia"
+      + name     = "demo-resource_YS"
+    }
+
+  # azurerm_subnet.subnet will be created
+  + resource "azurerm_subnet" "subnet" {
+      + address_prefixes                               = [
+          + "10.0.1.0/24",
+        ]
+      + enforce_private_link_endpoint_network_policies = (known after apply)
+      + enforce_private_link_service_network_policies  = (known after apply)
+      + id                                             = (known after apply)
+      + name                                           = "demo-subnet"
+      + private_endpoint_network_policies              = (known after apply)
+      + private_endpoint_network_policies_enabled      = (known after apply)
+      + private_link_service_network_policies_enabled  = (known after apply)
+      + resource_group_name                            = "demo-resource_YS"
+      + virtual_network_name                           = "demo-vnet"
+    }
+
+  # azurerm_virtual_network.vnet will be created
+  + resource "azurerm_virtual_network" "vnet" {
+      + address_space       = [
+          + "10.0.0.0/16",
+        ]
+      + dns_servers         = (known after apply)
+      + guid                = (known after apply)
+      + id                  = (known after apply)
+      + location            = "centralindia"
+      + name                = "demo-vnet"
+      + resource_group_name = "demo-resource_YS"
+      + subnet              = (known after apply)
+    }
+
+  # azurerm_web_application_firewall_policy.waf_policy will be created
+  + resource "azurerm_web_application_firewall_policy" "waf_policy" {
+      + http_listener_ids   = (known after apply)
+      + id                  = (known after apply)
+      + location            = "centralindia"
+      + name                = "demo-waf-policy"
+      + path_based_rule_ids = (known after apply)
+      + resource_group_name = "demo-resource_YS"
+
+      + managed_rules {
+          + managed_rule_set {
+              + type    = "OWASP"
+              + version = "3.2"
+            }
+        }
+
+      + policy_settings {
+          + enabled                          = true
+          + file_upload_limit_in_mb          = 100
+          + max_request_body_size_in_kb      = 128
+          + mode                             = "Prevention"
+          + request_body_check               = true
+          + request_body_inspect_limit_in_kb = 128
+        }
+    }
+
+Plan: 19 to add, 0 to change, 0 to destroy.
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+
+Saved the plan to: myplan.tfplan
+
+To perform exactly these actions, run the following command to apply:
+    terraform apply "myplan.tfplan"
