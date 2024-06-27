@@ -18,6 +18,9 @@ download_directory = os.path.join(os.getcwd(), "downloads")
 temp_directory = os.path.join(os.getcwd(), "temp")
 
 chrome_options = webdriver.ChromeOptions()
+chrome_options.add_argument("--headless")  # Run in headless mode
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
 chrome_options.add_experimental_option("prefs", {
     "download.default_directory": temp_directory,
     "download.prompt_for_download": False,
@@ -85,7 +88,7 @@ def wait_for_download_and_rename(temp_dir, new_name, timeout=30):
             raise Exception(f"File download timed out after {timeout} seconds.")
         time.sleep(1)
 
-# Function to export firewall policies
+# Function to export policies
 def export_policies(ip):
     service = Service(driver_path)
     driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -200,13 +203,10 @@ def apply_styles(sheet):
         cell.fill = header_fill
         cell.border = thin_border
     
-    # Apply border to all cells and auto-size columns
-    for row in sheet.iter_rows():
-        for cell in row:
-            cell.border = thin_border
+    # Auto-adjust column widths
     for col in sheet.columns:
         max_length = 0
-        column = col[0].column_letter  # Get the column name
+        column = col[0].column_letter
         for cell in col:
             try:
                 if len(str(cell.value)) > max_length:
@@ -216,7 +216,7 @@ def apply_styles(sheet):
         adjusted_width = (max_length + 2)
         sheet.column_dimensions[column].width = adjusted_width
 
-# Function to create an Excel file with filtered sheets
+# Function to create filtered Excel file
 def create_filtered_excel(input_csv, output_excel):
     df = pd.read_csv(input_csv)
     
@@ -228,13 +228,13 @@ def create_filtered_excel(input_csv, output_excel):
     with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
         active_policies_df.to_excel(writer, sheet_name='Active Policies', index=False)
         blocked_policies_df.to_excel(writer, sheet_name='Blocked Policies', index=False)
-        unused_policies_df.to_excel(writer, sheet_name='Unused Policies', index=False)
+        unused_policies_df.to_excel(writer, sheet_name='0 Hit Policies', index=False)
         df.to_excel(writer, sheet_name='All Data', index=False)
         last_used_monthwise_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
     
     # Load the workbook and apply styles
     workbook = load_workbook(output_excel)
-    for sheet_name in ['Active Policies', 'Blocked Policies', 'Unused Policies', 'All Data', 'Last Used Month Wise']:
+    for sheet_name in ['Active Policies', 'Blocked Policies', '0 Hit Policies', 'All Data', 'Last Used Month Wise']:
         sheet = workbook[sheet_name]
         apply_styles(sheet)
     workbook.save(output_excel)
@@ -291,6 +291,4 @@ for firewall_ip in firewall_ips:
     # Clean up downloaded files and directories
     clean_up_directories(download_directory, temp_directory)
     
-# Recreate directories for future use
-os.makedirs(download_directory, exist_ok=True)
-os.makedirs(temp_directory, exist_ok=True)
+
