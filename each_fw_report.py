@@ -12,15 +12,17 @@ from openpyxl.styles import PatternFill, Font, Border, Side
 from openpyxl.utils import get_column_letter
 import smtplib
 from email.message import EmailMessage
+import config
 
 # Configure WebDriver options
 download_directory = os.path.join(os.getcwd(), "downloads")
 temp_directory = os.path.join(os.getcwd(), "temp")
 
 chrome_options = webdriver.ChromeOptions()
-chrome_options.add_argument("--headless")  # Run in headless mode
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
+# chrome_options.add_argument("--headless")  # Run in headless mode
+# chrome_options.add_argument("--no-sandbox")
+# chrome_options.add_argument("--disable-dev-shm-usage")
+
 chrome_options.add_experimental_option("prefs", {
     "download.default_directory": temp_directory,
     "download.prompt_for_download": False,
@@ -28,31 +30,41 @@ chrome_options.add_experimental_option("prefs", {
 })
 
 # Path to the ChromeDriver executable
-driver_path = 'D:\\VS CODE\\python\\chromedriver.exe'
+driver_path = 'C:\\Users\\y.s.va22\\Downloads\\PIC\\chromedriver.exe'
 
 # List of FortiGate firewall IPs
 firewall_ips = [
-    '192.168.1.11',
-    '192.168.1.10',
+    '172.16.125.10',
+    # '10.255.255.65',
 ]
 
 # Shared FortiGate credentials
-username_str = 'admin'
-password_str = '2002'
+username_str = config.FW_USERNAME
+password_str = config.FW_PASSWORD
 
 # Microsoft credentials
-microsoft_email = 'yashsrivastava48@outlook.com'
-microsoft_password = ''
+microsoft_email = config.SENDER_EMAIL
+microsoft_password = config.SENDER_PASSWORD
 
 # SMTP email configuration
-smtp_server = 'smtp.example.com'
-smtp_port = 587
-smtp_username = 'your_email@example.com'
-smtp_password = 'your_email_password'
-email_to = ['recipient1@example.com', 'recipient2@example.com']
-email_cc = ['cc1@example.com', 'cc2@example.com']
-email_subject = 'Filtered Firewall Policies'
-email_body = 'Please find attached the filtered firewall policies.'
+smtp_server = config.SMTP_SERVER
+smtp_port = config.SMTP_PORT
+smtp_username = config.SENDER_EMAIL
+smtp_password = config.SENDER_PASSWORD
+
+# email_to = ['yash.srivastava@fareportal.com', 'ashish.ksingh@fareportal.com', 'kushal.bisht@fareportal.com', 'rajeev.rana@fareportal.com', 'ems@fareportal.com', 'neteng@fareportal.com']
+# email_cc = ['randhir.singh@fareportal.com', 'abdul.hamed@fareportal.com']
+email_to = ['yash.srivastava@fareportal.com', 'palak.verma@fareportal.com']
+email_cc = ['akshat.jain@fareportal.com']
+
+email_subject = 'Firewalll Policy Review & Update '
+email_body = '''Hi Team,
+
+Please find the attached firewall policies of NJDC Lab Firewall.
+
+Thanks & Regards,
+EMS Team
+'''
 
 # Function to sign in to Microsoft
 def sign_in(driver, email, password):
@@ -88,7 +100,7 @@ def wait_for_download_and_rename(temp_dir, new_name, timeout=30):
             raise Exception(f"File download timed out after {timeout} seconds.")
         time.sleep(1)
 
-# Function to export policies
+# Function to export firewall policies
 def export_policies(ip):
     service = Service(driver_path)
     driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -99,13 +111,31 @@ def export_policies(ip):
         sign_in(driver, microsoft_email, microsoft_password)
         
         # Open FortiGate login page
-        driver.get(f'http://{ip}')
+        driver.get(f'https://{ip}:8443/')
+        
+        # Handle "Advanced" and "Proceed (unsafe)" if they appear
+        try:
+            advanced_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "details-button")))
+            advanced_button.click()
+            proceed_link = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "proceed-link")))
+            proceed_link.click()
+        except Exception as e:
+            print(f"No advanced option found or proceed (unsafe) link: {e}")
+        
+        # Click on the "Accept" button if it appears
+        try:
+            accept_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, '//button[@name="accept" and @value="Accept"]')))
+            accept_button.click()
+            print("Clicked on Accept button")
+        except Exception as e:
+            print(f"Accept button not found: {e}")
         
         # Log in to FortiGate
         time.sleep(3)  # Adjust sleep time if needed to wait for the page to load
         username = driver.find_element(By.ID, 'username')
         password = driver.find_element(By.ID, 'secretkey')
         login_button = driver.find_element(By.ID, 'login_button')
+        
         username.send_keys(username_str)
         password.send_keys(password_str)
         login_button.click()
@@ -130,9 +160,8 @@ def export_policies(ip):
         
         # Step 2: Select specific options by clicking buttons with exact text
         options = [
-            "Destination Address", "First Used", "Hit Count", 
-            "ID", "IPS", "Last Used", "Packets", 
-            "Source Address", "Status"
+            "Destination Address", "First Used", "Hit Count", "ID", 
+            "IPS", "Last Used", "Packets", "Source Address", "Status"
         ]
         
         for option in options:
@@ -178,9 +207,10 @@ def export_policies(ip):
         
         # Define the new filename based on IP
         new_filename = f'firewall_policies_{ip}.csv'
+        
         time.sleep(5)  # Wait for the file to be fully downloaded and rename it within the temp directory
         wait_for_download_and_rename(temp_directory, new_filename)
-    
+        
     except Exception as e:
         print(f"An error occurred while exporting policies for {ip}: {e}")
         driver.save_screenshot('error_screenshot.png')
@@ -197,16 +227,20 @@ def apply_styles(sheet):
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-    
+
     for cell in sheet[1]:
         cell.font = header_font
         cell.fill = header_fill
         cell.border = thin_border
-    
-    # Auto-adjust column widths
+
+    # Apply border to all cells and auto-size columns
+    for row in sheet.iter_rows():
+        for cell in row:
+            cell.border = thin_border
+
     for col in sheet.columns:
         max_length = 0
-        column = col[0].column_letter
+        column = col[0].column_letter  # Get the column name
         for cell in col:
             try:
                 if len(str(cell.value)) > max_length:
@@ -216,27 +250,45 @@ def apply_styles(sheet):
         adjusted_width = (max_length + 2)
         sheet.column_dimensions[column].width = adjusted_width
 
-# Function to create filtered Excel file
+# Function to create an Excel file with filtered sheets
 def create_filtered_excel(input_csv, output_excel):
     df = pd.read_csv(input_csv)
-    
-    active_policies_df = df[df['Status'] == 'Active']
-    blocked_policies_df = df[df['Status'] == 'Blocked']
+
+    active_policies_df = df[df['Status'] == 'Enabled']
+    blocked_policies_df = df[df['Status'] == 'Disabled']
     unused_policies_df = df[df['Hit Count'] == 0]
     last_used_monthwise_df = df[df['Last Used'].notnull()]
-    
+
     with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
         active_policies_df.to_excel(writer, sheet_name='Active Policies', index=False)
         blocked_policies_df.to_excel(writer, sheet_name='Blocked Policies', index=False)
-        unused_policies_df.to_excel(writer, sheet_name='0 Hit Policies', index=False)
-        df.to_excel(writer, sheet_name='All Data', index=False)
+        unused_policies_df.to_excel(writer, sheet_name='0 Hit Count', index=False)
         last_used_monthwise_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
-    
+        df.to_excel(writer, sheet_name='All Data', index=False)
+
     # Load the workbook and apply styles
     workbook = load_workbook(output_excel)
-    for sheet_name in ['Active Policies', 'Blocked Policies', '0 Hit Policies', 'All Data', 'Last Used Month Wise']:
+
+    for sheet_name in ['Active Policies', 'Blocked Policies', '0 Hit Count', 'All Data', 'Last Used Month Wise']:
         sheet = workbook[sheet_name]
         apply_styles(sheet)
+
+    # Sort the 'All Data' sheet by 'Hit Count'
+    all_data_sheet = workbook['All Data']
+    all_data_df = pd.DataFrame(all_data_sheet.values)
+    all_data_df.columns = all_data_df.iloc[0]
+    all_data_df = all_data_df[1:]
+    all_data_df = all_data_df.sort_values(by='Hit Count', ascending=True)
+    
+    for row in all_data_sheet.iter_rows(min_row=2, max_col=len(all_data_df.columns), max_row=len(all_data_df) + 1):
+        for cell in row:
+            cell.value = None
+    
+    for row in dataframe_to_rows(all_data_df, index=False, header=False):
+        all_data_sheet.append(row)
+
+    apply_styles(all_data_sheet)
+
     workbook.save(output_excel)
     print(f"Filtered Excel file created at {output_excel}")
 
@@ -248,18 +300,17 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
     msg['To'] = ', '.join(email_to)
     msg['Cc'] = ', '.join(email_cc)
     msg.set_content(body)
-    
+
     with open(attachment_path, 'rb') as file:
         file_data = file.read()
         file_name = os.path.basename(file.name)
         msg.add_attachment(file_data, maintype='application', subtype='octet-stream', filename=file_name)
-    
+
     with smtplib.SMTP(smtp_server, smtp_port) as server:
         server.starttls()
         server.login(smtp_username, smtp_password)
         server.send_message(msg)
-    
-    print(f"Email sent with attachment {attachment_path}")
+        print(f"Email sent with attachment {attachment_path}")
 
 # Function to clean up and delete directories
 def clean_up_directories(*directories):
@@ -272,23 +323,21 @@ def clean_up_directories(*directories):
 for firewall_ip in firewall_ips:
     # Export policies for the current firewall IP
     export_policies(firewall_ip)
-    
+
     # Define the path to the downloaded CSV file
     csv_path = os.path.join(download_directory, f'firewall_policies_{firewall_ip}.csv')
-    
+
     # Define the path to the output Excel file
-    excel_path = os.path.join(download_directory, f'filtered_firewall_policies_{firewall_ip}.xlsx')
-    
+    excel_path = os.path.join(download_directory, f'firewall_policies_{firewall_ip}.xlsx')
+
     # Create filtered Excel file
     create_filtered_excel(csv_path, excel_path)
-    
+
     # Send email with the attached Excel file
     send_email_with_attachment(
         smtp_server, smtp_port, smtp_username, smtp_password,
         email_to, email_cc, email_subject, email_body, excel_path
     )
-    
+
     # Clean up downloaded files and directories
     clean_up_directories(download_directory, temp_directory)
-    
-
