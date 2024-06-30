@@ -250,34 +250,26 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
 
     print(f"Email sent with attachment {attachment_path}")
 
-# Function to clean up and delete directories
 def clean_up_directories(*directories):
     for directory in directories:
         if os.path.exists(directory):
             shutil.rmtree(directory)
             print(f"Deleted directory: {directory}")
 
-# Process each firewall IP
 for firewall_ip in firewall_ips:
-    # Export policies for the current firewall IP
     export_policies(firewall_ip)
 
-    # Define the path to the downloaded CSV file
     csv_path = os.path.join(download_directory, f'firewall_policies_{firewall_ip}.csv')
 
-    # Read CSV file into DataFrame
     df = pd.read_csv(csv_path)
 
-    # Create filtered DataFrames
     active_policies_df = df[df['Status'] == 'Enabled']
     blocked_policies_df = df[df['Status'] == 'Disabled']
     zero_hit_count_df = df[df['Hit Count'] == '0']
     last_used_monthwise_df = df[df['Last Used'].notnull()]
 
-    # Define the path to the output Excel file
     excel_path = os.path.join(download_directory, f'firewall_policies_{firewall_ip}.xlsx')
 
-    # Create filtered Excel file
     with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
         active_policies_df.to_excel(writer, sheet_name='Active Policies', index=False)
         blocked_policies_df.to_excel(writer, sheet_name='Blocked Policies', index=False)
@@ -285,38 +277,36 @@ for firewall_ip in firewall_ips:
         last_used_monthwise_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
         df.to_excel(writer, sheet_name='All Data', index=False)
 
-    # Load the workbook and apply styles
     workbook = load_workbook(excel_path)
     for sheet_name in ['Active Policies', 'Blocked Policies', '0 Hit Count', 'Last Used Month Wise', 'All Data']:
         sheet = workbook[sheet_name]
         apply_styles(sheet)
 
-    # Create a dashboard sheet
     dashboard_sheet = workbook.create_sheet(title='Dashboard')
 
     def add_pivot_table(sheet, df, title, start_row, start_col):
         title_cell = sheet.cell(row=start_row, column=start_col, value=title)
         title_cell.font = Font(bold=True)
-        for r_idx, row in enumerate(dataframe_to_rows(df[['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status', 'Comments']], index=False, header=True), start_row + 1):
-            for c_idx, value in enumerate(row, start_col):
-                sheet.cell(row=r_idx, column=c_idx, value=value)
+        headers = ['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status', 'Comments']
+        for col_idx, header in enumerate(headers, start_col):
+            header_cell = sheet.cell(row=start_row + 1, column=col_idx, value=header)
+            header_cell.font = Font(bold=True)
+        for row_idx, row in enumerate(dataframe_to_rows(df[headers], index=False, header=False), start_row + 2):
+            for col_idx, value in enumerate(row, start_col):
+                sheet.cell(row=row_idx, column=col_idx, value=value)
 
-    # Add pivot tables to the dashboard
     add_pivot_table(dashboard_sheet, active_policies_df, "Active Policies", 1, 1)
     add_pivot_table(dashboard_sheet, blocked_policies_df, "Blocked Policies", 1, 10)
     add_pivot_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 20, 1)
     add_pivot_table(dashboard_sheet, last_used_monthwise_df, "Last Used Month Wise", 20, 10)
 
-    # Apply styles to the dashboard sheet
     apply_styles(dashboard_sheet)
     workbook.save(excel_path)
 
-    # Send email with the attached Excel file
     send_email_with_attachment(
         smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, email_subject, email_body, excel_path
     )
 
-    # Clean up downloaded files and directories
     clean_up_directories(download_directory, temp_directory)
 
 print("Script executed successfully.")
