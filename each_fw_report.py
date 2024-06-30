@@ -226,9 +226,34 @@ def combine_csv_files_to_excel(csv_files, output_excel_path):
             sheet = workbook[sheet_name]
             apply_styles(sheet)
 
-def filter_zero_hit_count_rows(all_data_df):
-    zero_hit_count_df = all_data_df[all_data_df['Hit Count'] == '0']
-    return zero_hit_count_df
+def generate_dashboard_sheet(workbook):
+    dashboard_sheet = workbook.create_sheet("Dashboard")
+    
+    active_policies = pd.read_excel(workbook, sheet_name=None)['Active Policies']
+    blocked_policies = pd.read_excel(workbook, sheet_name=None)['Blocked Policies']
+    zero_hit_count_policies = pd.read_excel(workbook, sheet_name=None)['0 Hit Count']
+    last_used_month_wise = pd.read_excel(workbook, sheet_name=None)['Last Used Month Wise']
+
+    def add_table(sheet, df, start_row, start_col, title):
+        sheet.cell(row=start_row, column=start_col, value=title).font = Font(bold=True)
+        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), start_row + 1):
+            for c_idx, value in enumerate(row, start_col):
+                sheet.cell(row=r_idx, column=c_idx, value=value)
+
+    add_table(dashboard_sheet, active_policies, 1, 1, "Active Policies")
+    add_table(dashboard_sheet, blocked_policies, 1, 6, "Blocked Policies")
+    add_table(dashboard_sheet, zero_hit_count_policies, 1, 11, "0 Hit Count")
+    add_table(dashboard_sheet, last_used_month_wise, 1, 16, "Last Used Month Wise")
+
+    apply_styles(dashboard_sheet)
+
+csv_files = [os.path.join(download_directory, f) for f in os.listdir(download_directory) if f.endswith('.csv')]
+output_excel_path = 'firewall_policies_combined.xlsx'
+combine_csv_files_to_excel(csv_files, output_excel_path)
+
+workbook = load_workbook(output_excel_path)
+generate_dashboard_sheet(workbook)
+workbook.save(output_excel_path)
 
 def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, subject, body, attachment_path):
     msg = EmailMessage()
@@ -238,9 +263,9 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
     msg['Cc'] = ', '.join(email_cc)
     msg.set_content(body)
 
-    with open(attachment_path, 'rb') as file:
-        file_data = file.read()
-        file_name = os.path.basename(file.name)
+    with open(attachment_path, 'rb') as f:
+        file_data = f.read()
+        file_name = os.path.basename(attachment_path)
         msg.add_attachment(file_data, maintype='application', subtype='octet-stream', filename=file_name)
 
     with smtplib.SMTP(smtp_server, smtp_port) as server:
@@ -248,67 +273,7 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
         server.login(smtp_username, smtp_password)
         server.send_message(msg)
 
-    print(f"Email sent with attachment {attachment_path}")
+send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, email_subject, email_body, output_excel_path)
 
-def clean_up_directories(*directories):
-    for directory in directories:
-        if os.path.exists(directory):
-            shutil.rmtree(directory)
-            print(f"Deleted directory: {directory}")
-
-for firewall_ip in firewall_ips:
-    export_policies(firewall_ip)
-
-    csv_path = os.path.join(download_directory, f'firewall_policies_{firewall_ip}.csv')
-
-    df = pd.read_csv(csv_path)
-
-    active_policies_df = df[df['Status'] == 'Enabled']
-    blocked_policies_df = df[df['Status'] == 'Disabled']
-    zero_hit_count_df = df[df['Hit Count'] == '0']
-    last_used_monthwise_df = df[df['Last Used'].notnull()]
-
-    excel_path = os.path.join(download_directory, f'firewall_policies_{firewall_ip}.xlsx')
-
-    with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
-        active_policies_df.to_excel(writer, sheet_name='Active Policies', index=False)
-        blocked_policies_df.to_excel(writer, sheet_name='Blocked Policies', index=False)
-        zero_hit_count_df.to_excel(writer, sheet_name='0 Hit Count', index=False)
-        last_used_monthwise_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
-        df.to_excel(writer, sheet_name='All Data', index=False)
-
-    workbook = load_workbook(excel_path)
-    for sheet_name in ['Active Policies', 'Blocked Policies', '0 Hit Count', 'Last Used Month Wise', 'All Data']:
-        sheet = workbook[sheet_name]
-        apply_styles(sheet)
-
-    dashboard_sheet = workbook.create_sheet(title='Dashboard')
-
-    def add_table(sheet, df, title, start_row, start_col, color):
-        title_cell = sheet.cell(row=start_row, column=start_col, value=title)
-        title_cell.font = Font(bold=True)
-        title_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-        headers = ['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status', 'Comments']
-        for col_idx, header in enumerate(headers, start_col):
-            header_cell = sheet.cell(row=start_row + 1, column=col_idx, value=header)
-            header_cell.font = Font(bold=True)
-            header_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-        for row_idx, row in enumerate(dataframe_to_rows(df[headers], index=False, header=False), start_row + 2):
-            for col_idx, value in enumerate(row, start_col):
-                sheet.cell(row=row_idx, column=col_idx, value=value)
-
-    add_table(dashboard_sheet, active_policies_df, "Active Policies", 1, 1, "FFC7CE")
-    add_table(dashboard_sheet, blocked_policies_df, "Blocked Policies", 20, 1, "FFEB9C")
-    add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 40, 1, "C6EFCE")
-    add_table(dashboard_sheet, last_used_monthwise_df, "Last Used Month Wise", 60, 1, "9BC2E6")
-
-    apply_styles(dashboard_sheet)
-    workbook.save(excel_path)
-
-    send_email_with_attachment(
-        smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, email_subject, email_body, excel_path
-    )
-
-    clean_up_directories(download_directory, temp_directory)
-
-print("Script executed successfully.")
+shutil.rmtree(download_directory)
+shutil.rmtree(temp_directory)
