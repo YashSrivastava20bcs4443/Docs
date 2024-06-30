@@ -160,107 +160,79 @@ def export_policies(ip):
                 print(f"Failed to click on '{option}' button: {e}")
 
         try:
-            apply_button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, '//button[contains(@class, "standard-button primary") and text()="Apply"]'))
+            ok_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, '//button[@class="btn btn-primary" and text()="OK"]'))
             )
-            driver.execute_script("arguments[0].click();", apply_button)
-            print("Clicked on Apply button")
+            driver.execute_script("arguments[0].click();", ok_button)
+            print("Clicked on OK button to apply changes")
         except Exception as e:
-            print(f"Failed to click on Apply button: {e}")
+            print(f"Failed to click OK button: {e}")
+            return
 
-        try:
-            export_button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, '//span[@class="ng-binding ng-scope" and text()="Export"]'))
-            )
-            driver.execute_script("arguments[0].click();", export_button)
-            time.sleep(2)
-            print("Clicked on Export button")
-        except Exception as e:
-            print(f"Failed to click on Export button: {e}")
-
-        try:
-            export_csv_option = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, '//span[@class="ng-scope" and text()="CSV"]'))
-            )
-            driver.execute_script("arguments[0].click();", export_csv_option)
-            print("Clicked on CSV option")
-        except Exception as e:
-            print(f"Failed to click on CSV option: {e}")
-
-        new_filename = f'firewall_policies_{ip}.csv'
         time.sleep(5)
-        wait_for_download_and_rename(temp_directory, new_filename)
 
-    except Exception as e:
-        print(f"An error occurred while exporting policies for {ip}: {e}")
-        driver.save_screenshot('error_screenshot.png')
+        export_button = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.XPATH, '//f-icon[@class="fa-download"]'))
+        )
+        driver.execute_script("arguments[0].click();", export_button)
+        print("Clicked on export button using JavaScript")
+
+        wait_for_download_and_rename(temp_directory, f"{ip}_policies.csv")
+
     finally:
         driver.quit()
 
-os.makedirs(download_directory, exist_ok=True)
-os.makedirs(temp_directory, exist_ok=True)
+# Process the downloaded files and update the Excel sheet
+for ip in firewall_ips:
+    export_policies(ip)
 
-def apply_styles(sheet):
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+excel_path = 'path/to/your/excel/file.xlsx'
+workbook = load_workbook(excel_path)
+dashboard_sheet = workbook['Dashboard']
 
-    for cell in sheet[1]:
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin_border
+active_policies_df = pd.read_csv(os.path.join(download_directory, f"{firewall_ips[0]}_policies.csv"))
+blocked_policies_df = pd.read_csv(os.path.join(download_directory, f"{firewall_ips[0]}_policies.csv"))
+zero_hit_count_df = pd.read_csv(os.path.join(download_directory, f"{firewall_ips[0]}_policies.csv"))
+last_used_monthwise_df = pd.read_csv(os.path.join(download_directory, f"{firewall_ips[0]}_policies.csv"))
 
-    for row in sheet.iter_rows():
-        for cell in row:
-            cell.border = thin_border
+def add_table(sheet, df, title, start_row, start_col, color):
+    # Adding title
+    title_cell = sheet.cell(row=start_row, column=start_col, value=title)
+    title_cell.font = Font(bold=True, color="FFFFFF")
+    title_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+    title_cell.alignment = Alignment(horizontal="center")
+    sheet.merge_cells(start_row=start_row, start_column=start_col, end_row=start_row, end_column=start_col + 6)
 
-def combine_csv_files_to_excel(csv_files, output_excel_path):
-    with pd.ExcelWriter(output_excel_path, engine='openpyxl') as writer:
-        for csv_file in csv_files:
-            df = pd.read_csv(csv_file)
-            sheet_name = os.path.basename(csv_file).replace('.csv', '')
-            df.to_excel(writer, index=False, sheet_name=sheet_name)
+    # Adding headers
+    headers = ['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status']
+    for col_idx, header in enumerate(headers, start=start_col):
+        header_cell = sheet.cell(row=start_row + 1, column=col_idx, value=header)
+        header_cell.font = Font(bold=True, color="FFFFFF")
+        header_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+        header_cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+        header_cell.alignment = Alignment(horizontal="center")
 
-        workbook = writer.book
-        for sheet_name in workbook.sheetnames:
-            sheet = workbook[sheet_name]
-            apply_styles(sheet)
+    # Adding data
+    for row_idx, row in enumerate(dataframe_to_rows(df[headers], index=False, header=False), start=start_row + 2):
+        for col_idx, value in enumerate(row, start=start_col):
+            cell = sheet.cell(row=row_idx, column=col_idx, value=value)
+            cell.border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
-def generate_dashboard_sheet(workbook):
-    dashboard_sheet = workbook.create_sheet("Dashboard")
-    
-    active_policies = pd.read_excel(workbook, sheet_name=None)['Active Policies']
-    blocked_policies = pd.read_excel(workbook, sheet_name=None)['Blocked Policies']
-    zero_hit_count_policies = pd.read_excel(workbook, sheet_name=None)['0 Hit Count']
-    last_used_month_wise = pd.read_excel(workbook, sheet_name=None)['Last Used Month Wise']
+# Adding tables to dashboard
+add_table(dashboard_sheet, active_policies_df, "Active Policies", 1, 2, "4F81BD")
+add_table(dashboard_sheet, blocked_policies_df, "Blocked Policies", 1, 11, "4F81BD")
+add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 1, 20, "4F81BD")
+add_table(dashboard_sheet, last_used_monthwise_df, "Last Used Month Wise", 1, 29, "4F81BD")
 
-    def add_table(sheet, df, start_row, start_col, title):
-        sheet.cell(row=start_row, column=start_col, value=title).font = Font(bold=True)
-        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), start_row + 1):
-            for c_idx, value in enumerate(row, start_col):
-                sheet.cell(row=r_idx, column=c_idx, value=value)
+workbook.save(excel_path)
 
-    add_table(dashboard_sheet, active_policies, 1, 1, "Active Policies")
-    add_table(dashboard_sheet, blocked_policies, 1, 6, "Blocked Policies")
-    add_table(dashboard_sheet, zero_hit_count_policies, 1, 11, "0 Hit Count")
-    add_table(dashboard_sheet, last_used_month_wise, 1, 16, "Last Used Month Wise")
-
-    apply_styles(dashboard_sheet)
-
-csv_files = [os.path.join(download_directory, f) for f in os.listdir(download_directory) if f.endswith('.csv')]
-output_excel_path = 'firewall_policies_combined.xlsx'
-combine_csv_files_to_excel(csv_files, output_excel_path)
-
-workbook = load_workbook(output_excel_path)
-generate_dashboard_sheet(workbook)
-workbook.save(output_excel_path)
-
-def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, subject, body, attachment_path):
+# Function to send email with attachment
+def send_email(subject, body, to, cc, attachment_path):
     msg = EmailMessage()
     msg['Subject'] = subject
     msg['From'] = smtp_username
-    msg['To'] = ', '.join(email_to)
-    msg['Cc'] = ', '.join(email_cc)
+    msg['To'] = ', '.join(to)
+    msg['Cc'] = ', '.join(cc)
     msg.set_content(body)
 
     with open(attachment_path, 'rb') as f:
@@ -273,7 +245,5 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
         server.login(smtp_username, smtp_password)
         server.send_message(msg)
 
-send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, email_subject, email_body, output_excel_path)
-
-shutil.rmtree(download_directory)
-shutil.rmtree(temp_directory)
+# Send email with updated Excel file as attachment
+send_email(email_subject, email_body, email_to, email_cc, excel_path)
