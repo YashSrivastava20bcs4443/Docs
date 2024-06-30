@@ -284,21 +284,23 @@ for firewall_ip in firewall_ips:
 
     dashboard_sheet = workbook.create_sheet(title='Dashboard')
 
-    def add_pivot_table(sheet, df, title, start_row, start_col):
+    def add_table(sheet, df, title, start_row, start_col, color):
         title_cell = sheet.cell(row=start_row, column=start_col, value=title)
         title_cell.font = Font(bold=True)
+        title_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
         headers = ['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status', 'Comments']
         for col_idx, header in enumerate(headers, start_col):
             header_cell = sheet.cell(row=start_row + 1, column=col_idx, value=header)
             header_cell.font = Font(bold=True)
+            header_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
         for row_idx, row in enumerate(dataframe_to_rows(df[headers], index=False, header=False), start_row + 2):
             for col_idx, value in enumerate(row, start_col):
                 sheet.cell(row=row_idx, column=col_idx, value=value)
 
-    add_pivot_table(dashboard_sheet, active_policies_df, "Active Policies", 1, 1)
-    add_pivot_table(dashboard_sheet, blocked_policies_df, "Blocked Policies", 1, 10)
-    add_pivot_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 20, 1)
-    add_pivot_table(dashboard_sheet, last_used_monthwise_df, "Last Used Month Wise", 20, 10)
+    add_table(dashboard_sheet, active_policies_df, "Active Policies", 1, 1, "FFC7CE")
+    add_table(dashboard_sheet, blocked_policies_df, "Blocked Policies", 20, 1, "FFEB9C")
+    add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 40, 1, "C6EFCE")
+    add_table(dashboard_sheet, last_used_monthwise_df, "Last Used Month Wise", 60, 1, "9BC2E6")
 
     apply_styles(dashboard_sheet)
     workbook.save(excel_path)
