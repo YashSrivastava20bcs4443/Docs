@@ -7,7 +7,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from openpyxl import load_workbook, Workbook
+from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Font, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 from email.message import EmailMessage
@@ -23,12 +23,10 @@ chrome_options.add_experimental_option("prefs", {
     "download.prompt_for_download": False,
     "safebrowsing.enabled": True
 })
-driver_path = 'C:\\Users\\y.s.va22\\Downloads\\PIC\\chromedriver.exe'
+driver_path = 'C:\\Users\\y.s.va22\\Downloads\\prod\\chromedriver.exe'
 
 # List of FortiGate firewall IPs
-firewall_ips = [
-    '172.16.125.10',
-]
+firewall_ips = ['172.16.125.10']
 
 # Shared FortiGate credentials
 username_str = config.FW_USERNAME
@@ -95,7 +93,6 @@ def export_policies(ip):
     try:
         driver.get('https://login.microsoftonline.com/')
         sign_in(driver, microsoft_email, microsoft_password)
-
         driver.get(f'https://{ip}:8443/')
         try:
             advanced_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "details-button")))
@@ -104,14 +101,13 @@ def export_policies(ip):
             proceed_link.click()
         except Exception as e:
             print(f"No advanced option found or proceed (unsafe) link: {e}")
-
-        # Click "Accept" button if it appears
+        
         try:
             accept_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[@name='accept']")))
             accept_button.click()
         except Exception as e:
             print(f"No accept button found: {e}")
-
+        
         time.sleep(3)
         username = driver.find_element(By.ID, 'username')
         password = driver.find_element(By.ID, 'secretkey')
@@ -119,11 +115,10 @@ def export_policies(ip):
         username.send_keys(username_str)
         password.send_keys(password_str)
         login_button.click()
+        
         time.sleep(5)
-
-        driver.get(f'http://{ip}/ng/firewall/policy/policy/standard')
+        driver.get(f'https://{ip}:8443/ng/firewall/policy/policy/standard')
         time.sleep(30)
-
         try:
             configure_table_button = WebDriverWait(driver, 30).until(
                 EC.presence_of_element_located((By.XPATH, '//f-icon[@class="fa-cog"]'))
@@ -134,10 +129,10 @@ def export_policies(ip):
             print(f"Failed to click configure table button: {e}")
             driver.save_screenshot('error_screenshot.png')
             return
-
+        
         options = [
             "Destination Address", "First Used", "Hit Count", "ID", "IPS", "Last Used",
-            "Packets", "Source Address", "Status"
+            "Packets", "Source Address", "Status", "Comments"
         ]
         for option in options:
             try:
@@ -148,7 +143,7 @@ def export_policies(ip):
                 print(f"Clicked on '{option}' button")
             except Exception as e:
                 print(f"Failed to click on '{option}' button: {e}")
-
+        
         try:
             apply_button = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, '//button[contains(@class, "standard-button primary") and text()="Apply"]'))
@@ -157,7 +152,7 @@ def export_policies(ip):
             print("Clicked on Apply button")
         except Exception as e:
             print(f"Failed to click on Apply button: {e}")
-
+        
         try:
             export_button = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, '//span[@class="ng-binding ng-scope" and text()="Export"]'))
@@ -167,7 +162,7 @@ def export_policies(ip):
             print("Clicked on Export button")
         except Exception as e:
             print(f"Failed to click on Export button: {e}")
-
+        
         try:
             export_csv_option = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, '//span[@class="ng-scope" and text()="CSV"]'))
@@ -176,7 +171,7 @@ def export_policies(ip):
             print("Clicked on CSV option")
         except Exception as e:
             print(f"Failed to click on CSV option: {e}")
-
+        
         new_filename = f'firewall_policies_{ip}.csv'
         time.sleep(5)
         wait_for_download_and_rename(temp_directory, new_filename)
@@ -186,55 +181,37 @@ def export_policies(ip):
     finally:
         driver.quit()
 
-os.makedirs(download_directory, exist_ok=True)
-os.makedirs(temp_directory, exist_ok=True)
-
+# Function to apply styles to Excel sheet
 def apply_styles(sheet):
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-    
     for cell in sheet[1]:
         cell.font = header_font
         cell.fill = header_fill
         cell.border = thin_border
-
     for row in sheet.iter_rows():
         for cell in row:
             cell.border = thin_border
 
-def create_excel_file_for_firewall(firewall_ip, csv_file):
-    output_excel_path = os.path.join(os.getcwd(), f"firewall_policies_{firewall_ip}.xlsx")
-    df = pd.read_csv(csv_file)
-    
+# Function to combine CSV files into Excel
+def combine_csv_files_to_excel(csv_files, output_excel_path):
     with pd.ExcelWriter(output_excel_path, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='All Data')
-        
-        zero_hit_count_df = df[df['Hit Count'] == 0]
-        zero_hit_count_df.to_excel(writer, index=False, sheet_name='0 Hit Count')
-
+        for csv_file in csv_files:
+            df = pd.read_csv(csv_file)
+            sheet_name = os.path.basename(csv_file).replace('.csv', '')
+            df.to_excel(writer, index=False, sheet_name=sheet_name)
         workbook = writer.book
-        all_data_df = pd.read_excel(output_excel_path, sheet_name='All Data')
-        zero_hit_count_df = pd.read_excel(output_excel_path, sheet_name='0 Hit Count')
-        
-        active_policies_df = all_data_df[all_data_df['Status'] == 'Enabled']
-        blocked_policies_df = all_data_df[all_data_df['Status'] == 'Disabled']
-        last_used_monthwise_df = all_data_df.groupby('Last Used').size().reset_index(name='Count')
-        
-        active_policies_df.to_excel(writer, index=False, sheet_name='Active Policies')
-        blocked_policies_df.to_excel(writer, index=False, sheet_name='Blocked Policies')
-        last_used_monthwise_df.to_excel(writer, index=False, sheet_name='Last Used Month Wise')
+        for sheet_name in workbook.sheetnames:
+            sheet = workbook[sheet_name]
+            apply_styles(sheet)
 
-        create_dashboard_sheet(workbook, active_policies_df, blocked_policies_df, zero_hit_count_df, last_used_monthwise_df)
-        
-    workbook = load_workbook(output_excel_path)
-    for sheet_name in workbook.sheetnames:
-        sheet = workbook[sheet_name]
-        apply_styles(sheet)
-    workbook.save(output_excel_path)
+# Function to filter zero hit count rows
+def filter_zero_hit_count_rows(all_data_df):
+    zero_hit_count_df = all_data_df[all_data_df['Hit Count'] == '0']
+    return zero_hit_count_df
 
-    return output_excel_path
-
+# Function to send email with attachment
 def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, subject, body, attachment_path):
     msg = EmailMessage()
     msg['Subject'] = subject
@@ -242,41 +219,102 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
     msg['To'] = ', '.join(email_to)
     msg['Cc'] = ', '.join(email_cc)
     msg.set_content(body)
-
-    with open(attachment_path, 'rb') as f:
-        file_data = f.read()
-        file_name = os.path.basename(attachment_path)
+    with open(attachment_path, 'rb') as file:
+        file_data = file.read()
+        file_name = os.path.basename(file.name)
         msg.add_attachment(file_data, maintype='application', subtype='octet-stream', filename=file_name)
-
     with smtplib.SMTP(smtp_server, smtp_port) as server:
         server.starttls()
         server.login(smtp_username, smtp_password)
         server.send_message(msg)
-    print(f'Email sent to {", ".join(email_to)} with CC to {", ".join(email_cc)}')
+    print(f"Email sent with attachment {attachment_path}")
 
-def add_dataframe_to_sheet(sheet, dataframe, start_row, start_col, title):
-    title_cell = sheet.cell(row=start_row, column=start_col, value=title)
-    title_cell.font = Font(bold=True)
-    for r_idx, row in enumerate(dataframe_to_rows(dataframe, index=False, header=True), start_row + 1):
-        for c_idx, value in enumerate(row, start_col):
-            sheet.cell(row=r_idx, column=c_idx, value=value)
+# Function to clean up and delete directories
+def clean_up_directories(*directories):
+    for directory in directories:
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
+            print(f"Deleted directory: {directory}")
 
-def create_dashboard_sheet(workbook, active_policies_df, blocked_policies_df, zero_hit_count_df, last_used_monthwise_df):
-    dashboard_sheet = workbook.create_sheet(title='Dashboard')
-
-    add_dataframe_to_sheet(dashboard_sheet, active_policies_df, start_row=1, start_col=1, title="Active Policies")
-    add_dataframe_to_sheet(dashboard_sheet, blocked_policies_df, start_row=1, start_col=10, title="Blocked Policies")
-    add_dataframe_to_sheet(dashboard_sheet, zero_hit_count_df, start_row=20, start_col=1, title="0 Hit Count")
-    add_dataframe_to_sheet(dashboard_sheet, last_used_monthwise_df, start_row=20, start_col=10, title="Last Used Month Wise")
-
-    return dashboard_sheet
-
-# Main script
+# Process each firewall IP
 for firewall_ip in firewall_ips:
+    # Export policies for the current firewall IP
     export_policies(firewall_ip)
-    csv_file = os.path.join(download_directory, f'firewall_policies_{firewall_ip}.csv')
-    output_excel_path = create_excel_file_for_firewall(firewall_ip, csv_file)
-    send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, email_subject, email_body, output_excel_path)
+    
+    # Define the path to the downloaded CSV file
+    csv_path = os.path.join(download_directory, f'firewall_policies_{firewall_ip}.csv')
+    
+    # Read CSV file into DataFrame
+    df = pd.read_csv(csv_path)
+    
+    # Create filtered DataFrames
+    active_policies_df = df[df['Status'] == 'Enabled']
+    blocked_policies_df = df[df['Status'] == 'Disabled']
+    zero_hit_count_df = df[df['Hit Count'] == '0']
+    last_used_monthwise_df = df[df['Last Used'].notnull()]
+    
+    # Define the path to the output Excel file
+    excel_path = os.path.join(download_directory, f'firewall_policies_{firewall_ip}.xlsx')
+    
+    # Create filtered Excel file
+    with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+        active_policies_df.to_excel(writer, sheet_name='Active Policies', index=False)
+        blocked_policies_df.to_excel(writer, sheet_name='Blocked Policies', index=False)
+        zero_hit_count_df.to_excel(writer, sheet_name='0 Hit Count', index=False)
+        last_used_monthwise_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
+        df.to_excel(writer, sheet_name='All Data', index=False)
+        df_sorted_by_hit_count = df.sort_values(by='Hit Count')
+        df_sorted_by_hit_count.to_excel(writer, sheet_name='Sorted by Hit Count', index=False)
+    
+    # Load the workbook and apply styles
+    workbook = load_workbook(excel_path)
+    for sheet_name in ['Active Policies', 'Blocked Policies', '0 Hit Count', 'All Data', 'Last Used Month Wise', 'Sorted by Hit Count']:
+        sheet = workbook[sheet_name]
+        apply_styles(sheet)
+    
+    # Create a dashboard sheet
+    dashboard_sheet = workbook.create_sheet(title='Dashboard')
+    
+    # Add Active Policies table to the dashboard (upper left corner)
+    active_policies_title = dashboard_sheet.cell(row=1, column=1, value="Active Policies")
+    active_policies_title.font = Font(bold=True)
+    for r_idx, row in enumerate(dataframe_to_rows(active_policies_df, index=False, header=True), 2):
+        for c_idx, value in enumerate(row, 1):
+            dashboard_sheet.cell(row=r_idx, column=c_idx, value=value)
+    
+    # Add Blocked Policies table to the dashboard (upper right corner)
+    blocked_policies_title = dashboard_sheet.cell(row=1, column=10, value="Blocked Policies")
+    blocked_policies_title.font = Font(bold=True)
+    for r_idx, row in enumerate(dataframe_to_rows(blocked_policies_df, index=False, header=True), 2):
+        for c_idx, value in enumerate(row, 10):
+            dashboard_sheet.cell(row=r_idx, column=c_idx, value=value)
+    
+    # Add 0 Hit Count table to the dashboard (lower left corner)
+    zero_hit_count_title = dashboard_sheet.cell(row=20, column=1, value="0 Hit Count")
+    zero_hit_count_title.font = Font(bold=True)
+    for r_idx, row in enumerate(dataframe_to_rows(zero_hit_count_df, index=False, header=True), 21):
+        for c_idx, value in enumerate(row, 1):
+            dashboard_sheet.cell(row=r_idx, column=c_idx, value=value)
+    
+    # Add Last Used Month Wise table to the dashboard (lower right corner)
+    last_used_monthwise_title = dashboard_sheet.cell(row=20, column=10, value="Last Used Month Wise")
+    last_used_monthwise_title.font = Font(bold=True)
+    for r_idx, row in enumerate(dataframe_to_rows(last_used_monthwise_df, index=False, header=True), 21):
+        for c_idx, value in enumerate(row, 10):
+            dashboard_sheet.cell(row=r_idx, column=c_idx, value=value)
+    
+    # Apply styles to the dashboard sheet
+    apply_styles(dashboard_sheet)
+    
+    workbook.save(excel_path)
+    
+    # Send email with the attached Excel file
+    send_email_with_attachment(
+        smtp_server, smtp_port, smtp_username, smtp_password,
+        email_to, email_cc, email_subject, email_body, excel_path
+    )
+    
+    # Clean up downloaded files and directories
+    clean_up_directories(download_directory, temp_directory)
 
-shutil.rmtree(download_directory)
-shutil.rmtree(temp_directory)
+print("Script executed successfully.")
