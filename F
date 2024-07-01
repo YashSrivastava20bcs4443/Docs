@@ -211,135 +211,100 @@ os.makedirs(temp_directory, exist_ok=True)
 def apply_styles(sheet):
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    border_style = Side(border_style="thin", color="000000")
+    header_border = Border(left=border_style, right=border_style, top=border_style, bottom=border_style)
 
-    for cell in sheet[1]:
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin_border
-
-    for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row, min_col=1, max_col=sheet.max_column):
+    for row in sheet.iter_rows(min_row=1, max_row=1, min_col=1, max_col=sheet.max_column):
         for cell in row:
-            cell.border = thin_border
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = header_border
 
-def combine_csv_files_to_excel(csv_files, output_excel_path):
-    with pd.ExcelWriter(output_excel_path, engine='openpyxl') as writer:
-        for csv_file in csv_files:
-            df = pd.read_csv(csv_file)
-            sheet_name = os.path.basename(csv_file).replace('.csv', '')
-            df.to_excel(writer, index=False, sheet_name=sheet_name)
+for ip, location in firewall_ips:
+    export_policies(ip, location)
 
-        workbook = writer.book
-        for sheet_name in workbook.sheetnames:
-            sheet = workbook[sheet_name]
-            apply_styles(sheet)
+file_list = [f for f in os.listdir(download_directory) if f.endswith(".csv")]
+combined_df = pd.DataFrame()
+for file in file_list:
+    file_path = os.path.join(download_directory, file)
+    df = pd.read_csv(file_path, encoding='unicode_escape')
+    df['Location'] = file.split('_')[-1].split('.')[0]
+    combined_df = pd.concat([combined_df, df], ignore_index=True)
 
-def filter_zero_hit_count_rows(all_data_df):
-    zero_hit_count_df = all_data_df[all_data_df['Hit Count'] == '0']
-    return zero_hit_count_df
+file_name = "Combined_Firewall_Policies.xlsx"
+combined_df.to_excel(file_name, index=False)
 
-def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, subject, body, attachment_path):
-    msg = EmailMessage()
-    msg['Subject'] = subject
-    msg['From'] = smtp_username
-    msg['To'] = ', '.join(email_to)
-    msg['Cc'] = ', '.join(email_cc)
-    msg.set_content(body)
+wb = load_workbook(file_name)
+ws = wb.active
 
-    with open(attachment_path, 'rb') as file:
-        file_data = file.read()
-        file_name = os.path.basename(file.name)
-        msg.add_attachment(file_data, maintype='application', subtype='octet-stream', filename=file_name)
+last_used_df = combined_df[['Last Used', 'Hit Count']].copy()
+last_used_df.dropna(subset=['Last Used'], inplace=True)
+last_used_df['Last Used'] = pd.to_datetime(last_used_df['Last Used'], format='%Y-%m-%d', errors='coerce')
+last_used_df = last_used_df.dropna(subset=['Last Used'])
+last_used_df['Year-Month'] = last_used_df['Last Used'].dt.to_period('M')
 
-    with smtplib.SMTP(smtp_server, smtp_port) as server:
-        server.starttls()
-        server.login(smtp_username, smtp_password)
-        server.send_message(msg)
+last_used_df = last_used_df.groupby('Year-Month').agg({
+    'Hit Count': 'sum',
+    'Last Used': 'count'
+}).reset_index()
 
-    print(f"Email sent with attachment {attachment_path}")
+last_used_df.rename(columns={'Last Used': 'Count'}, inplace=True)
 
-for firewall_ip, location in firewall_ips:
-    export_policies(firewall_ip, location)
+if 'Last Used Month Wise' not in wb.sheetnames:
+    wb.create_sheet('Last Used Month Wise')
 
-    csv_path = os.path.join(download_directory, f'firewall_policies_{location}.csv')
+last_used_sheet = wb['Last Used Month Wise']
 
-    df = pd.read_csv(csv_path)
+for row in dataframe_to_rows(last_used_df, index=False, header=True):
+    last_used_sheet.append(row)
 
-    active_policies_df = df[df['Status'] == 'Enabled']
-    blocked_policies_df = df[df['Status'] == 'Disabled']
-    zero_hit_count_df = df[df['Hit Count'] == '0']
-    last_used_monthwise_df = df[df['Last Used'].notnull()].copy()
-    sorted_by_hit_count_df = df.sort_values(by='Hit Count', ascending=False)
+apply_styles(last_used_sheet)
 
-    # Sort last_used_monthwise_df by 'Last Used' column
-    last_used_monthwise_df['Last Used'] = pd.to_datetime(last_used_monthwise_df['Last Used'])
-    last_used_monthwise_df = last_used_monthwise_df.sort_values(by='Last Used', ascending=False)
+# Modify Last Used Month Wise sheet
+last_used_df = combined_df[['Last Used', 'Hit Count']].dropna()
+last_used_df['Last Used'] = pd.to_datetime(last_used_df['Last Used'])
+last_used_df = last_used_df.sort_values(by='Last Used')
 
-    # Insert empty row between different months
-    last_used_monthwise_df['Month'] = last_used_monthwise_df['Last Used'].dt.to_period('M')
-    unique_months = last_used_monthwise_df['Month'].unique()
-    result_df = pd.DataFrame()
-    for month in unique_months:
-        month_df = last_used_monthwise_df[last_used_monthwise_df['Month'] == month]
-        result_df = pd.concat([result_df, month_df, pd.DataFrame([[]], columns=last_used_monthwise_df.columns)])
+wb.create_sheet('Last Used Month Wise Modified')
+sheet = wb['Last Used Month Wise Modified']
 
-    result_df.reset_index(drop=True, inplace=True)
+current_month = None
+for _, row in last_used_df.iterrows():
+    month_year = row['Last Used'].strftime('%Y-%m')
+    if month_year != current_month:
+        sheet.append([month_year])
+        current_month = month_year
+    sheet.append([row['Last Used'], row['Hit Count']])
 
-    # Create new sheet with "all" values for both Source and Destination
-    all_source_destination_df = df[(df['Source Address'] == 'all') & (df['Destination Address'] == 'all')]
+# Adding a new sheet with Source and Destination as 'all'
+source_dest_all_df = combined_df[(combined_df['Source Address'] == 'all') | (combined_df['Destination Address'] == 'all')]
+wb.create_sheet('Source_Dest_All')
+source_dest_all_sheet = wb['Source_Dest_All']
 
-    excel_path = os.path.join(download_directory, f'firewall_policies_{location}.xlsx')
+for row in dataframe_to_rows(source_dest_all_df, index=False, header=True):
+    source_dest_all_sheet.append(row)
 
-    with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
-        active_policies_df.to_excel(writer, sheet_name='Active Policies', index=False)
-        blocked_policies_df.to_excel(writer, sheet_name='Blocked Policies', index=False)
-        zero_hit_count_df.to_excel(writer, sheet_name='0 Hit Count', index=False)
-        result_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
-        sorted_by_hit_count_df.to_excel(writer, sheet_name='Sorted by Hit Count', index=False)
-        df.to_excel(writer, sheet_name='All Data', index=False)
-        all_source_destination_df.to_excel(writer, sheet_name='All Source Destination', index=False)
+apply_styles(source_dest_all_sheet)
 
-    workbook = load_workbook(excel_path)
-    for sheet_name in ['Active Policies', 'Blocked Policies', '0 Hit Count', 'Last Used Month Wise', 'Sorted by Hit Count', 'All Data', 'All Source Destination']:
-        sheet = workbook[sheet_name]
-        apply_styles(sheet)
+wb.save(file_name)
 
-    dashboard_sheet = workbook.create_sheet(title='Dashboard')
+message = EmailMessage()
+message["Subject"] = "Firewall Policies Report"
+message["From"] = smtp_username
+message["To"] = email_to
+message["Cc"] = email_cc
+message.set_content("Please find attached the firewall policies report.")
 
-    def add_table(sheet, df, title, start_row, start_col, color):
-        title_cell = sheet.cell(row=start_row, column=start_col, value=title)
-        title_cell.font = Font(bold=True)
-        title_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-        headers = ['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status', 'Comments']
-        for col_idx, header in enumerate(headers, start_col):
-            header_cell = sheet.cell(row=start_row + 1, column=col_idx, value=header)
-            header_cell.font = Font(bold=True)
-            header_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-        for row_idx, row in enumerate(dataframe_to_rows(df[headers], index=False, header=False), start_row + 2):
-            for col_idx, value in enumerate(row, start_col):
-                sheet.cell(row=row_idx, column=col_idx, value=value)
+with open(file_name, "rb") as f:
+    file_data = f.read()
+    file_name = os.path.basename(file_name)
+    message.add_attachment(file_data, maintype="application", subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename=file_name)
 
-    add_table(dashboard_sheet, active_policies_df, "Active Policies", 1, 1, "FFC7CE")
-    add_table(dashboard_sheet, blocked_policies_df, "Blocked Policies", 20, 1, "FFEB9C")
-    add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 40, 1, "C6EFCE")
-    add_table(dashboard_sheet, result_df, "Last Used Month Wise", 60, 1, "9BC2E6")
+with smtplib.SMTP(smtp_server, smtp_port) as server:
+    server.starttls()
+    server.login(smtp_username, smtp_password)
+    server.send_message(message)
 
-    apply_styles(dashboard_sheet)
-    workbook.save(excel_path)
-
-    email_subject = f"Firewall Policies for {location}"
-    email_body = f'''Hi Team,
-
-Please find the attached firewall policies of {firewall_ip} ({location}).
-
-Thanks & Regards,
-EMS Team
-'''
-
-    send_email_with_attachment(
-        smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, email_subject, email_body, excel_path
-    )
-
-    os.remove(excel_path)  # Remove only the Excel file
-
-print("Script executed successfully.")
+print("Email sent successfully.")
+shutil.rmtree(download_directory)
+shutil.rmtree(temp_directory)
