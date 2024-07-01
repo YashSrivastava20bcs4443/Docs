@@ -218,7 +218,7 @@ def apply_styles(sheet):
         cell.fill = header_fill
         cell.border = thin_border
 
-    for row in sheet.iter_rows():
+    for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row, min_col=1, max_col=sheet.max_column):
         for cell in row:
             cell.border = thin_border
 
@@ -257,12 +257,6 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
         server.send_message(msg)
 
     print(f"Email sent with attachment {attachment_path}")
-
-def clean_up_directories(*directories):
-    for directory in directories:
-        if os.path.exists(directory):
-            shutil.rmtree(directory)
-            print(f"Deleted directory: {directory}")
 
 for firewall_ip, location in firewall_ips:
     export_policies(firewall_ip, location)
@@ -328,6 +322,6 @@ EMS Team
         smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, email_subject, email_body, excel_path
     )
 
-    clean_up_directories(download_directory, temp_directory)
+    os.remove(excel_path)  # Remove only the Excel file
 
 print("Script executed successfully.")
