@@ -218,9 +218,8 @@ def apply_styles(sheet):
     for cell in sheet[1]:
         cell.font = header_font
         cell.fill = header_fill
-        cell.border = thin_border
 
-    for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row, min_col=1, max_col=sheet.max_column):
+    for row in sheet.iter_rows(min_row=1, max_col=sheet.max_column):
         for cell in row:
             cell.border = thin_border
 
@@ -249,7 +248,8 @@ def format_last_used_monthwise(df):
     for period, group in df.groupby('Year-Month'):
         formatted_data.append([f"{period.year}-{period.month}"])
         formatted_data.extend(group.values.tolist())
-    formatted_df = pd.DataFrame(formatted_data, columns=['Year-Month'] + df.columns.tolist())
+    formatted_df = pd.DataFrame(formatted_data)
+    formatted_df.columns = ['Year-Month'] + df.columns.tolist()
     return formatted_df
 
 def create_all_addresses_sheet(df, workbook):
@@ -268,11 +268,11 @@ for firewall_ip, location in firewall_ips:
 
     df = pd.read_csv(csv_path)
 
-    active_policies_df = df[df['Status'] == 'Enabled']
-    blocked_policies_df = df[df['Status'] == 'Disabled']
-    zero_hit_count_df = df[df['Hit Count'] == '0']
-    last_used_monthwise_df = df[df['Last Used'].notnull()]
-    sorted_by_hit_count_df = df.sort_values(by='Hit Count', ascending=False)
+    active_policies_df = df[df['Status'] == 'Enabled'].copy()
+    blocked_policies_df = df[df['Status'] == 'Disabled'].copy()
+    zero_hit_count_df = df[df['Hit Count'] == '0'].copy()
+    last_used_monthwise_df = df[df['Last Used'].notnull()].copy()
+    sorted_by_hit_count_df = df.sort_values(by='Hit Count', ascending=False).copy()
 
     excel_path = os.path.join(download_directory, f'firewall_policies_{location}.xlsx')
 
