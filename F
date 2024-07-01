@@ -268,7 +268,7 @@ for firewall_ip, location in firewall_ips:
     active_policies_df = df[df['Status'] == 'Enabled']
     blocked_policies_df = df[df['Status'] == 'Disabled']
     zero_hit_count_df = df[df['Hit Count'] == '0']
-    last_used_monthwise_df = df[df['Last Used'].notnull()]
+    last_used_monthwise_df = df[df['Last Used'].notnull()].copy()
     sorted_by_hit_count_df = df.sort_values(by='Hit Count', ascending=False)
 
     # Sort last_used_monthwise_df by 'Last Used' column
@@ -277,10 +277,13 @@ for firewall_ip, location in firewall_ips:
 
     # Insert empty row between different months
     last_used_monthwise_df['Month'] = last_used_monthwise_df['Last Used'].dt.to_period('M')
-    last_used_monthwise_df = pd.concat(
-        [last_used_monthwise_df] +
-        [pd.DataFrame([[]], columns=last_used_monthwise_df.columns)] * (last_used_monthwise_df['Month'].nunique() - 1)
-    ).sort_values(by=['Month', 'Last Used'], ascending=[False, False]).reset_index(drop=True)
+    unique_months = last_used_monthwise_df['Month'].unique()
+    result_df = pd.DataFrame()
+    for month in unique_months:
+        month_df = last_used_monthwise_df[last_used_monthwise_df['Month'] == month]
+        result_df = pd.concat([result_df, month_df, pd.DataFrame([[]], columns=last_used_monthwise_df.columns)])
+
+    result_df.reset_index(drop=True, inplace=True)
 
     # Create new sheet with "all" values for both Source and Destination
     all_source_destination_df = df[(df['Source Address'] == 'all') & (df['Destination Address'] == 'all')]
@@ -291,7 +294,7 @@ for firewall_ip, location in firewall_ips:
         active_policies_df.to_excel(writer, sheet_name='Active Policies', index=False)
         blocked_policies_df.to_excel(writer, sheet_name='Blocked Policies', index=False)
         zero_hit_count_df.to_excel(writer, sheet_name='0 Hit Count', index=False)
-        last_used_monthwise_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
+        result_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
         sorted_by_hit_count_df.to_excel(writer, sheet_name='Sorted by Hit Count', index=False)
         df.to_excel(writer, sheet_name='All Data', index=False)
         all_source_destination_df.to_excel(writer, sheet_name='All Source Destination', index=False)
@@ -319,7 +322,7 @@ for firewall_ip, location in firewall_ips:
     add_table(dashboard_sheet, active_policies_df, "Active Policies", 1, 1, "FFC7CE")
     add_table(dashboard_sheet, blocked_policies_df, "Blocked Policies", 20, 1, "FFEB9C")
     add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 40, 1, "C6EFCE")
-    add_table(dashboard_sheet, last_used_monthwise_df, "Last Used Month Wise", 60, 1, "9BC2E6")
+    add_table(dashboard_sheet, result_df, "Last Used Month Wise", 60, 1, "9BC2E6")
 
     apply_styles(dashboard_sheet)
     workbook.save(excel_path)
