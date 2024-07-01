@@ -1,4 +1,3 @@
-
 import os
 import shutil
 import time
@@ -14,7 +13,6 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from email.message import EmailMessage
 import smtplib
 import config
-from datetime import datetime
 
 # Configure WebDriver options
 download_directory = os.path.join(os.getcwd(), "downloads")
@@ -29,18 +27,8 @@ driver_path = 'C:\\Users\\y.s.va22\\Downloads\\prod\\chromedriver.exe'
 
 # List of FortiGate firewall IPs with location
 firewall_ips = [
-    ('172.16.125.10', 'OKR 1'),
-    ('172.16.125.11', 'GCR'),
-    ('172.16.125.12', 'Pune'),
-    ('172.16.125.13', 'Mexico'),
-    ('172.16.125.14', 'LI'),
-    ('172.16.125.15', 'Canada'),
-    ('172.16.125.16', 'New York'),
-    ('172.16.125.17', 'NDJC 1'),
-    ('172.16.125.18', 'LV'),
-    ('172.16.125.19', 'OKR 2'),
-    ('172.16.125.20', 'NDJC 2'),
-    ('172.16.125.21', 'NDJC 3')
+    ('172.22.13.10', 'GCR-D1200-FW'),
+    # Add other firewall IPs and locations here...
 ]
 
 # Shared FortiGate credentials
@@ -58,10 +46,9 @@ smtp_username = config.SENDER_EMAIL
 smtp_password = config.SENDER_PASSWORD
 
 # Email details
-email_to = ['yash.srivastava@fareportal.com', 'palak.verma@fareportal.com']
-email_cc = ['akshat.jain@fareportal.com']
+email_to = ['yash.srivastava@fareportal.com', 'ashish.ksingh@fareportal.com']
+email_cc = ['rajeev.rana@fareportal.com']
 
-# Function to sign in to Microsoft
 def sign_in(driver, email, password):
     EMAILFIELD = (By.ID, "i0116")
     PASSWORDFIELD = (By.ID, "i0118")
@@ -71,6 +58,7 @@ def sign_in(driver, email, password):
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(PASSWORDFIELD)).send_keys(password)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+
     try:
         stay_signed_in_popup = driver.find_element(By.XPATH, "//div[contains(text(), 'Stay signed in?')]")
         if stay_signed_in_popup:
@@ -79,7 +67,6 @@ def sign_in(driver, email, password):
     except:
         pass
 
-# Function to wait for file to be fully downloaded and rename it
 def wait_for_download_and_rename(temp_dir, new_name, timeout=30):
     start_time = time.time()
     while True:
@@ -94,7 +81,6 @@ def wait_for_download_and_rename(temp_dir, new_name, timeout=30):
             raise Exception(f"File download timed out after {timeout} seconds.")
         time.sleep(1)
 
-# Function to export firewall policies
 def export_policies(ip, location):
     service = Service(driver_path)
     driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -102,6 +88,7 @@ def export_policies(ip, location):
         driver.get('https://login.microsoftonline.com/')
         sign_in(driver, microsoft_email, microsoft_password)
         driver.get(f'https://{ip}:8443/')
+
         try:
             advanced_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "details-button")))
             advanced_button.click()
@@ -109,6 +96,7 @@ def export_policies(ip, location):
             proceed_link.click()
         except Exception as e:
             print(f"No advanced option found or proceed (unsafe) link: {e}")
+
         try:
             accept_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[@name='accept']")))
             accept_button.click()
@@ -116,19 +104,15 @@ def export_policies(ip, location):
             print(f"No accept button found: {e}")
 
         time.sleep(3)
-
         username = driver.find_element(By.ID, 'username')
         password = driver.find_element(By.ID, 'secretkey')
         login_button = driver.find_element(By.ID, 'login_button')
-
         username.send_keys(username_str)
         password.send_keys(password_str)
         login_button.click()
-
         time.sleep(5)
 
-        # Handle special case for '172.16.125.20' with ?vdom=root
-        if ip == '172.16.125.20':
+        if ip == '10.255.255.65':
             driver.get(f'https://{ip}:8443/ng/firewall/policy/policy/standard?vdom=root')
         else:
             driver.get(f'https://{ip}:8443/ng/firewall/policy/policy/standard')
@@ -147,18 +131,9 @@ def export_policies(ip, location):
             return
 
         options = [
-            "Destination Address",
-            "First Used",
-            "Hit Count",
-            "ID",
-            "IPS",
-            "Last Used",
-            "Packets",
-            "Source Address",
-            "Status",
-            "Comments"
+            "Destination Address", "First Used", "Hit Count", "ID", "IPS", "Last Used",
+            "Packets", "Source Address", "Status", "Comments"
         ]
-
         for option in options:
             try:
                 button = WebDriverWait(driver, 10).until(
@@ -214,84 +189,79 @@ def apply_styles(sheet):
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-
     for cell in sheet[1]:
         cell.font = header_font
         cell.fill = header_fill
-
-    for row in sheet.iter_rows(min_row=1, max_col=sheet.max_column):
+        cell.border = thin_border
+    for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row, min_col=1, max_col=sheet.max_column):
         for cell in row:
             cell.border = thin_border
 
+def format_last_used_sheet(sheet, df):
+    df['Last Used'] = pd.to_datetime(df['Last Used'], format='%Y/%m/%d %H:%M:%S')
+    df = df.sort_values(by='Last Used', ascending=False)
+    current_month = None
+    start_row = 2
+    headers = df.columns.tolist()
+    for index, row in df.iterrows():
+        if row['Last Used'].strftime('%Y-%m') != current_month:
+            current_month = row['Last Used'].strftime('%Y-%m')
+            sheet.append([current_month] + [''] * (len(headers) - 1))
+            for cell in sheet[start_row]:
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+            start_row += 1
+        sheet.append(row.tolist())
+        start_row += 1
+
+def create_all_source_destination_sheet(workbook, df):
+    all_df = df[(df['Source Address'] == 'all') & (df['Destination Address'] == 'all')]
+    sheet = workbook.create_sheet(title='All Source-Destination')
+    for row in dataframe_to_rows(all_df, index=False, header=True):
+        sheet.append(row)
+    apply_styles(sheet)
+
 def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, subject, body, attachment_path):
-    message = EmailMessage()
-    message['Subject'] = subject
-    message['From'] = smtp_username
-    message['To'] = email_to
-    message['Cc'] = email_cc
-    message.set_content(body)
-
+    msg = EmailMessage()
+    msg['Subject'] = subject
+    msg['From'] = smtp_username
+    msg['To'] = ', '.join(email_to)
+    msg['Cc'] = ', '.join(email_cc)
+    msg.set_content(body)
     with open(attachment_path, 'rb') as file:
-        message.add_attachment(file.read(), maintype='application', subtype='octet-stream', filename=os.path.basename(attachment_path))
-
+        msg.add_attachment(file.read(), maintype='application', subtype='octet-stream', filename=os.path.basename(attachment_path))
     with smtplib.SMTP(smtp_server, smtp_port) as server:
         server.starttls()
         server.login(smtp_username, smtp_password)
-        server.send_message(message)
+        server.send_message(msg)
     print(f"Email sent to {email_to} with CC to {email_cc}")
-
-def format_last_used_monthwise(df):
-    df['Last Used'] = pd.to_datetime(df['Last Used'], format='%Y/%m/%d %H:%M:%S')
-    df = df.sort_values(by='Last Used', ascending=False)
-    df['Year-Month'] = df['Last Used'].dt.to_period('M')
-    formatted_data = []
-    for period, group in df.groupby('Year-Month'):
-        formatted_data.append([f"{period.year}-{period.month}"])
-        formatted_data.extend(group.values.tolist())
-    formatted_df = pd.DataFrame(formatted_data)
-    formatted_df.columns = ['Year-Month'] + df.columns.tolist()
-    return formatted_df
-
-def create_all_addresses_sheet(df, workbook):
-    all_addresses_df = df.copy()
-    all_addresses_df['Source Address'] = 'all'
-    all_addresses_df['Destination Address'] = 'all'
-    all_addresses_sheet = workbook.create_sheet(title='All Addresses')
-    for row in dataframe_to_rows(all_addresses_df, index=False, header=True):
-        all_addresses_sheet.append(row)
-    apply_styles(all_addresses_sheet)
 
 for firewall_ip, location in firewall_ips:
     export_policies(firewall_ip, location)
-
     csv_path = os.path.join(download_directory, f'firewall_policies_{location}.csv')
-
     df = pd.read_csv(csv_path)
-
-    active_policies_df = df[df['Status'] == 'Enabled'].copy()
-    blocked_policies_df = df[df['Status'] == 'Disabled'].copy()
-    zero_hit_count_df = df[df['Hit Count'] == '0'].copy()
-    last_used_monthwise_df = df[df['Last Used'].notnull()].copy()
-    sorted_by_hit_count_df = df.sort_values(by='Hit Count', ascending=False).copy()
-
+    active_policies_df = df[df['Status'] == 'Enabled']
+    Disabled_policies_df = df[df['Status'] == 'Disabled']
+    zero_hit_count_df = df[df['Hit Count'] == '0']
+    last_used_monthwise_df = df[df['Last Used'].notnull()]
+    sorted_by_hit_count_df = df.sort_values(by='Hit Count', ascending=False)
     excel_path = os.path.join(download_directory, f'firewall_policies_{location}.xlsx')
-
     with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
         active_policies_df.to_excel(writer, sheet_name='Active Policies', index=False)
-        blocked_policies_df.to_excel(writer, sheet_name='Blocked Policies', index=False)
+        Disabled_policies_df.to_excel(writer, sheet_name='Disabled Policies', index=False)
         zero_hit_count_df.to_excel(writer, sheet_name='0 Hit Count', index=False)
+        last_used_monthwise_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
         sorted_by_hit_count_df.to_excel(writer, sheet_name='Sorted by Hit Count', index=False)
-        formatted_last_used_monthwise_df = format_last_used_monthwise(last_used_monthwise_df)
-        formatted_last_used_monthwise_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
         df.to_excel(writer, sheet_name='All Data', index=False)
-
     workbook = load_workbook(excel_path)
-    for sheet_name in ['Active Policies', 'Blocked Policies', '0 Hit Count', 'Last Used Month Wise', 'Sorted by Hit Count', 'All Data']:
-        sheet = workbook[sheet_name]
-        apply_styles(sheet)
-
+    apply_styles(workbook['Active Policies'])
+    apply_styles(workbook['Disabled Policies'])
+    apply_styles(workbook['0 Hit Count'])
+    apply_styles(workbook['Sorted by Hit Count'])
+    apply_styles(workbook['All Data'])
+    format_last_used_sheet(workbook['Last Used Month Wise'], last_used_monthwise_df)
+    create_all_source_destination_sheet(workbook, df)
     dashboard_sheet = workbook.create_sheet(title='Dashboard')
-
     def add_table(sheet, df, title, start_row, start_col, color):
         title_cell = sheet.cell(row=start_row, column=start_col, value=title)
         title_cell.font = Font(bold=True)
@@ -304,31 +274,23 @@ for firewall_ip, location in firewall_ips:
         for row_idx, row in enumerate(dataframe_to_rows(df[headers], index=False, header=False), start_row + 2):
             for col_idx, value in enumerate(row, start_col):
                 sheet.cell(row=row_idx, column=col_idx, value=value)
-
     add_table(dashboard_sheet, active_policies_df, "Active Policies", 1, 1, "FFC7CE")
-    add_table(dashboard_sheet, blocked_policies_df, "Blocked Policies", 20, 1, "FFEB9C")
-    add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 40, 1, "C6EFCE")
-    add_table(dashboard_sheet, formatted_last_used_monthwise_df, "Last Used Month Wise", 60, 1, "9BC2E6")
-
+    add_table(dashboard_sheet, Disabled_policies_df, "Disabled Policies", 1, 14, "FFEB9C")
+    add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 1, 25, "C6EFCE")
+    add_table(dashboard_sheet, last_used_monthwise_df, "Last Used Month Wise", 1, 36, "9BC2E6")
     apply_styles(dashboard_sheet)
-
-    create_all_addresses_sheet(df, workbook)
-
     workbook.save(excel_path)
-
     email_subject = f"Firewall Policies for {location}"
     email_body = f'''Hi Team,
-
 Please find the attached firewall policies of {firewall_ip} ({location}).
-
 Thanks & Regards,
 EMS Team
 '''
-
     send_email_with_attachment(
-        smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, email_subject, email_body, excel_path
+        smtp_server, smtp_port, smtp_username, smtp_password,
+        email_to, email_cc, email_subject, email_body, excel_path
     )
-
     os.remove(excel_path)
+    os.remove(csv_path)
 
 print("Script executed successfully.")
