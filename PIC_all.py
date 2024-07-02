@@ -269,7 +269,7 @@ def process_firewall_policies(firewall_ip, location):
     disabled_policies_df = df[df['Status'] == 'Disabled']
     zero_hit_count_df = df[df['Hit Count'] == '0']
     last_used_monthwise_df = df[df['Last Used'].notnull()].sort_values(by='Last Used', ascending=False)
-    sorted_by_hit_count_df = df.sort_values(by='Hit Count', ascending=False)
+    sorted_by_hit_count_df = df.sort_values(by='Hit Count', ascending=True)  # Sort in ascending order
     source_dest_all_df = df[(df['Source Address'] == 'all') & (df['Destination Address'] == 'all')]
 
     excel_path = os.path.join(download_directory, f'firewall_policies_{location}.xlsx')
@@ -307,8 +307,17 @@ def process_firewall_policies(firewall_ip, location):
     add_table(dashboard_sheet, disabled_policies_df, "Disabled Policies", 1, 14, "FFEB9C")
     add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 1, 25, "C6EFCE")
     add_table(dashboard_sheet, last_used_monthwise_df, "Last Used Month Wise", 1, 36, "9BC2E6")
+    add_table(dashboard_sheet, source_dest_all_df, "Source Dest All", 1, 47, "D9EAD3")  # New table for Source Dest All
 
     apply_styles(dashboard_sheet)
+
+    # Highlight rows in "Last Used Month Wise" sheet
+    last_used_sheet = workbook['Last Used Month Wise']
+    for row in last_used_sheet.iter_rows(min_row=2, max_row=last_used_sheet.max_row, min_col=1, max_col=last_used_sheet.max_column):
+        if row[4].value:  # Check if "Last Used" column has a value
+            for cell in row:
+                cell.fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+
     workbook.save(excel_path)
 
     email_subject = f"Firewall Policies for {location}"
@@ -331,4 +340,4 @@ for firewall_ip, location in firewall_ips:
     process_firewall_policies(firewall_ip, location)
 
 print("Script executed successfully.")
-        
+    
