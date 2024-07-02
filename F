@@ -276,9 +276,20 @@ for firewall_ip, location in firewall_ips:
             header_cell = sheet.cell(row=start_row + 1, column=col_idx, value=header)
             header_cell.font = Font(bold=True)
             header_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-        for row_idx, row in enumerate(dataframe_to_rows(df[headers], index=False, header=False), start_row + 2):
+        current_month = None
+        data_start_row = start_row + 2
+        for row in dataframe_to_rows(df, index=False, header=False):
+            last_used_month = row[4].strftime('%Y/%m')
+            if last_used_month != current_month:
+                current_month = last_used_month
+                month_cell = sheet.cell(row=data_start_row, column=start_col, value=current_month)
+                month_cell.font = Font(bold=True)
+                month_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+                month_cell.alignment = Alignment(horizontal="center")  # Center-align the month header
+                data_start_row += 1
             for col_idx, value in enumerate(row, start_col):
-                sheet.cell(row=row_idx, column=col_idx, value=value)
+                sheet.cell(row=data_start_row, column=col_idx, value=value)
+            data_start_row += 1
     add_table(dashboard_sheet, active_policies_df, "Active Policies", 1, 1, "FFC7CE")
     add_table(dashboard_sheet, disabled_policies_df, "Disabled Policies", 1, 14, "FFEB9C")
     add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 1, 25, "C6EFCE")
