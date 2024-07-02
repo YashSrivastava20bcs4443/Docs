@@ -8,7 +8,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from openpyxl import load_workbook
-from openpyxl.styles import PatternFill, Font, Border, Side
+from openpyxl.styles import PatternFill, Font, Border, Side, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 from email.message import EmailMessage
 import smtplib
@@ -189,11 +189,13 @@ def apply_styles(sheet):
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    center_alignment = Alignment(horizontal="center", vertical="center")
     for cell in sheet[1]:
         cell.font = header_font
         cell.fill = header_fill
         cell.border = thin_border
-    for row in sheet.iter_rows(min_row=2, max_row=sheet.max_row, min_col=1, max_col=sheet.max_column):
+        cell.alignment = center_alignment
+    for row in sheet.iter_rows(min_row=2):
         for cell in row:
             cell.border = thin_border
 
@@ -210,6 +212,7 @@ def format_last_used_sheet(sheet, df):
             month_cell = sheet.cell(row=start_row, column=1, value=current_month)
             month_cell.font = Font(bold=True)
             month_cell.fill = PatternFill(start_color="9BC2E6", end_color="9BC2E6", fill_type="solid")
+            month_cell.alignment = Alignment(horizontal="center", vertical="center")
             start_row += 1
         for col_idx, header in enumerate(headers, 1):
             sheet.cell(row=start_row, column=col_idx, value=row[header])
@@ -222,6 +225,7 @@ def create_all_source_destination_sheet(workbook, df):
     for row in dataframe_to_rows(all_df, index=False, header=True):
         sheet.append(row)
     apply_styles(sheet)
+    return all_df
 
 def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, subject, body, attachment_path):
     msg = EmailMessage()
@@ -263,25 +267,29 @@ for firewall_ip, location in firewall_ips:
     apply_styles(workbook['Sorted by Hit Count'])
     apply_styles(workbook['All Data'])
     format_last_used_sheet(workbook['Last Used Month Wise'], last_used_monthwise_df)
-    create_all_source_destination_sheet(workbook, df)
+    all_source_destination_df = create_all_source_destination_sheet(workbook, df)
     dashboard_sheet = workbook.create_sheet(title='Dashboard')
+
     def add_table(sheet, df, title, start_row, start_col, color):
         title_cell = sheet.cell(row=start_row, column=start_col, value=title)
         title_cell.font = Font(bold=True)
         title_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-        headers = ['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status', 'Comments']
+        headers = df.columns.tolist()
         for col_idx, header in enumerate(headers, start_col):
             header_cell = sheet.cell(row=start_row + 1, column=col_idx, value=header)
             header_cell.font = Font(bold=True)
             header_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-        for row_idx, row in enumerate(dataframe_to_rows(df[headers], index=False, header=False), start_row + 2):
+        for row_idx, row in enumerate(dataframe_to_rows(df, index=False, header=False), start_row + 2):
             for col_idx, value in enumerate(row, start_col):
                 sheet.cell(row=row_idx, column=col_idx, value=value)
+
     add_table(dashboard_sheet, active_policies_df, "Active Policies", 1, 1, "FFC7CE")
     add_table(dashboard_sheet, disabled_policies_df, "Disabled Policies", 1, 14, "FFEB9C")
     add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 1, 25, "C6EFCE")
-    add_table(dashboard_sheet, last_used_monthwise_df, "Last Used Month Wise", 1, 36, "9BC2E6")
+    format_last_used_sheet(dashboard_sheet, last_used_monthwise_df)
+    add_table(dashboard_sheet, all_source_destination_df, "All Source-Destination", 1, 47, "9BC2E6")
     apply_styles(dashboard_sheet)
+
     workbook.save(excel_path)
     email_subject = f"Firewall Policies for {location}"
     email_body = f'''Hi Team,
