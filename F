@@ -210,7 +210,7 @@ def format_last_used_sheet(sheet, df):
             month_cell = sheet.cell(row=start_row, column=1, value=current_month)
             month_cell.font = Font(bold=True)
             month_cell.fill = PatternFill(start_color="9BC2E6", end_color="9BC2E6", fill_type="solid")
-            month_cell.alignment = Alignment(horizontal="center")  # Center-align the month header
+            month_cell.alignment = Alignment(horizontal="center")
             start_row += 1
         for col_idx, header in enumerate(headers, 1):
             sheet.cell(row=start_row, column=col_idx, value=row[header])
@@ -243,7 +243,7 @@ for firewall_ip, location in firewall_ips:
     export_policies(firewall_ip, location)
     csv_path = os.path.join(download_directory, f'firewall_policies_{location}.csv')
     df = pd.read_csv(csv_path)
-    df.loc[:, 'Last Used'] = pd.to_datetime(df['Last Used'], format='%Y/%m/%d %H:%M:%S')
+    df.loc[:, 'Last Used'] = pd.to_datetime(df['Last Used'], format='%Y/%m/%d %H:%M:%S', errors='coerce')
     active_policies_df = df[df['Status'] == 'Enabled']
     disabled_policies_df = df[df['Status'] == 'Disabled']
     zero_hit_count_df = df[df['Hit Count'] == '0']
@@ -270,7 +270,7 @@ for firewall_ip, location in firewall_ips:
         title_cell = sheet.cell(row=start_row, column=start_col, value=title)
         title_cell.font = Font(bold=True)
         title_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-        title_cell.alignment = Alignment(horizontal="center")  # Center-align the table title
+        title_cell.alignment = Alignment(horizontal="center")
         headers = ['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status', 'Comments']
         for col_idx, header in enumerate(headers, start_col):
             header_cell = sheet.cell(row=start_row + 1, column=col_idx, value=header)
@@ -279,13 +279,13 @@ for firewall_ip, location in firewall_ips:
         current_month = None
         data_start_row = start_row + 2
         for row in dataframe_to_rows(df, index=False, header=False):
-            last_used_month = row[4].strftime('%Y/%m')
+            last_used_month = pd.to_datetime(row[4], errors='coerce').strftime('%Y/%m')
             if last_used_month != current_month:
                 current_month = last_used_month
                 month_cell = sheet.cell(row=data_start_row, column=start_col, value=current_month)
                 month_cell.font = Font(bold=True)
                 month_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-                month_cell.alignment = Alignment(horizontal="center")  # Center-align the month header
+                month_cell.alignment = Alignment(horizontal="center")
                 data_start_row += 1
             for col_idx, value in enumerate(row, start_col):
                 sheet.cell(row=data_start_row, column=col_idx, value=value)
