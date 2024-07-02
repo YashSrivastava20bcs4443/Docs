@@ -28,17 +28,17 @@ driver_path = 'C:\\Users\\y.s.va22\\Downloads\\prod\\chromedriver.exe'
 # List of FortiGate firewall IPs with location
 firewall_ips = [
     ('172.16.125.10', 'OKR 1'),
-    ('172.16.125.11', 'GCR'),
-    ('172.16.125.12', 'Pune'),
-    ('172.16.125.13', 'Mexico'),
-    ('172.16.125.14', 'LI'),
-    ('172.16.125.15', 'Canada'),
-    ('172.16.125.16', 'New York'),
-    ('172.16.125.17', 'NDJC 1'),
-    ('172.16.125.18', 'LV'),
-    ('172.16.125.19', 'OKR 2'),
-    ('172.16.125.20', 'NDJC 2'),
-    ('172.16.125.21', 'NDJC 3')
+    # ('10.255.255.65', 'NJDC LAB'),
+    # ('172.16.125.12', 'Pune'),
+    # ('172.16.125.13', 'Mexico'),
+    # ('172.16.125.14', 'LI'),
+    # ('172.16.125.15', 'Canada'),
+    # ('172.16.125.16', 'New York'),
+    # ('172.16.125.17', 'NDJC 1'),
+    # ('172.16.125.18', 'LV'),
+    # ('172.16.125.19', 'OKR 2'),
+    # ('172.16.125.20', 'NDJC 2'),
+    # ('172.16.125.21', 'NDJC 3')
 ]
 
 # Shared FortiGate credentials
@@ -56,8 +56,8 @@ smtp_username = config.SENDER_EMAIL
 smtp_password = config.SENDER_PASSWORD
 
 # Email details
-email_to = ['yash.srivastava@fareportal.com', 'palak.verma@fareportal.com']
-email_cc = ['akshat.jain@fareportal.com']
+email_to = ['yash.srivastava@fareportal.com']
+email_cc = ['palak.verma@fareportal.com']
 
 # Function to sign in to Microsoft
 def sign_in(driver, email, password):
@@ -126,7 +126,7 @@ def export_policies(ip, location):
         time.sleep(5)
 
         # Handle special case for '172.16.125.20' with ?vdom=root
-        if ip == '172.16.125.20':
+        if ip == '10.255.255.65':
             driver.get(f'https://{ip}:8443/ng/firewall/policy/policy/standard?vdom=root')
         else:
             driver.get(f'https://{ip}:8443/ng/firewall/policy/policy/standard')
@@ -258,7 +258,7 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
 
     print(f"Email sent with attachment {attachment_path}")
 
-for firewall_ip, location in firewall_ips:
+def process_firewall_policies(firewall_ip, location):
     export_policies(firewall_ip, location)
 
     csv_path = os.path.join(download_directory, f'firewall_policies_{location}.csv')
@@ -266,23 +266,25 @@ for firewall_ip, location in firewall_ips:
     df = pd.read_csv(csv_path)
 
     active_policies_df = df[df['Status'] == 'Enabled']
-    blocked_policies_df = df[df['Status'] == 'Disabled']
+    disabled_policies_df = df[df['Status'] == 'Disabled']
     zero_hit_count_df = df[df['Hit Count'] == '0']
-    last_used_monthwise_df = df[df['Last Used'].notnull()]
+    last_used_monthwise_df = df[df['Last Used'].notnull()].sort_values(by='Last Used', ascending=False)
     sorted_by_hit_count_df = df.sort_values(by='Hit Count', ascending=False)
+    source_dest_all_df = df[(df['Source Address'] == 'all') & (df['Destination Address'] == 'all')]
 
     excel_path = os.path.join(download_directory, f'firewall_policies_{location}.xlsx')
 
     with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
         active_policies_df.to_excel(writer, sheet_name='Active Policies', index=False)
-        blocked_policies_df.to_excel(writer, sheet_name='Blocked Policies', index=False)
+        disabled_policies_df.to_excel(writer, sheet_name='Disabled Policies', index=False)
         zero_hit_count_df.to_excel(writer, sheet_name='0 Hit Count', index=False)
         last_used_monthwise_df.to_excel(writer, sheet_name='Last Used Month Wise', index=False)
         sorted_by_hit_count_df.to_excel(writer, sheet_name='Sorted by Hit Count', index=False)
+        source_dest_all_df.to_excel(writer, sheet_name='Source Dest All', index=False)
         df.to_excel(writer, sheet_name='All Data', index=False)
 
     workbook = load_workbook(excel_path)
-    for sheet_name in ['Active Policies', 'Blocked Policies', '0 Hit Count', 'Last Used Month Wise', 'Sorted by Hit Count', 'All Data']:
+    for sheet_name in ['Active Policies', 'Disabled Policies', '0 Hit Count', 'Last Used Month Wise', 'Sorted by Hit Count', 'Source Dest All', 'All Data']:
         sheet = workbook[sheet_name]
         apply_styles(sheet)
 
@@ -302,9 +304,9 @@ for firewall_ip, location in firewall_ips:
                 sheet.cell(row=row_idx, column=col_idx, value=value)
 
     add_table(dashboard_sheet, active_policies_df, "Active Policies", 1, 1, "FFC7CE")
-    add_table(dashboard_sheet, blocked_policies_df, "Blocked Policies", 20, 1, "FFEB9C")
-    add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 40, 1, "C6EFCE")
-    add_table(dashboard_sheet, last_used_monthwise_df, "Last Used Month Wise", 60, 1, "9BC2E6")
+    add_table(dashboard_sheet, disabled_policies_df, "Disabled Policies", 1, 14, "FFEB9C")
+    add_table(dashboard_sheet, zero_hit_count_df, "0 Hit Count", 1, 25, "C6EFCE")
+    add_table(dashboard_sheet, last_used_monthwise_df, "Last Used Month Wise", 1, 36, "9BC2E6")
 
     apply_styles(dashboard_sheet)
     workbook.save(excel_path)
@@ -322,6 +324,11 @@ EMS Team
         smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, email_subject, email_body, excel_path
     )
 
-    os.remove(excel_path)  # Remove only the Excel file
+    os.remove(excel_path)
+    os.remove(csv_path)
+
+for firewall_ip, location in firewall_ips:
+    process_firewall_policies(firewall_ip, location)
 
 print("Script executed successfully.")
+        
