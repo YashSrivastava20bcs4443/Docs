@@ -50,7 +50,7 @@ def combine_csv_files_to_excel(csv_files, output_excel_path):
 
         workbook = writer.book
         for sheet_name in workbook.sheetnames:
-            sheet = workbook[sheetname]
+            sheet = workbook[sheet_name]
             apply_styles(sheet)
 
 # Function to filter rows with zero hit count
@@ -101,11 +101,12 @@ def process_firewall_policies(csv_path, location):
         source_dest_all_df.to_excel(writer, sheet_name='Source Dest All', index=False)
         df.to_excel(writer, sheet_name='All Data', index=False)
 
-    workbook = load_workbook(excel_path)
-    for sheet_name in ['Active Policies', 'Disabled Policies', '0 Hit Count', 'Last Used Month Wise', 'Sorted by Hit Count', 'Source Dest All', 'All Data']:
-        sheet = workbook[sheet_name]
-        apply_styles(sheet)
+        workbook = writer.book
+        for sheet_name in writer.sheets:
+            sheet = workbook[sheet_name]
+            apply_styles(sheet)
 
+    workbook = load_workbook(excel_path)
     dashboard_sheet = workbook.create_sheet(title='Dashboard')
 
     def add_table(sheet, df, title, start_row, start_col, color):
@@ -117,7 +118,7 @@ def process_firewall_policies(csv_path, location):
             header_cell = sheet.cell(row=start_row + 1, column=col_idx, value=header)
             header_cell.font = Font(bold=True)
             header_cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-        for row_idx, row in enumerate(dataframe_to_rows(df[headers], index=False, header=False), start_row + 2):
+        for row_idx, row in enumerate(dataframe_to_rows(df[headers], index=False, header=False), start=start_row + 2):
             for col_idx, value in enumerate(row, start_col):
                 sheet.cell(row=row_idx, column=col_idx, value=value)
 
