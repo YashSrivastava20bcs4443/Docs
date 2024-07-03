@@ -7,7 +7,7 @@ from email.message import EmailMessage
 import smtplib
 import config
 
-# Paths
+# Directories
 download_directory = os.path.join(os.getcwd(), "downloads")
 os.makedirs(download_directory, exist_ok=True)
 
@@ -25,6 +25,7 @@ smtp_password = config.SENDER_PASSWORD
 email_to = ['yash.srivastava@fareportal.com']
 email_cc = ['palak.verma@fareportal.com']
 
+# Function to apply styles to Excel sheet
 def apply_styles(sheet):
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
@@ -39,6 +40,7 @@ def apply_styles(sheet):
         for cell in row:
             cell.border = thin_border
 
+# Function to combine multiple CSV files into one Excel file
 def combine_csv_files_to_excel(csv_files, output_excel_path):
     with pd.ExcelWriter(output_excel_path, engine='openpyxl') as writer:
         for csv_file in csv_files:
@@ -48,13 +50,15 @@ def combine_csv_files_to_excel(csv_files, output_excel_path):
 
         workbook = writer.book
         for sheet_name in workbook.sheetnames:
-            sheet = workbook[sheet_name]
+            sheet = workbook[sheetname]
             apply_styles(sheet)
 
+# Function to filter rows with zero hit count
 def filter_zero_hit_count_rows(all_data_df):
     zero_hit_count_df = all_data_df[all_data_df['Hit Count'] == '0']
     return zero_hit_count_df
 
+# Function to send email with attachment
 def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_password, email_to, email_cc, subject, body, attachment_path):
     msg = EmailMessage()
     msg['Subject'] = subject
@@ -75,6 +79,7 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
 
     print(f"Email sent with attachment {attachment_path}")
 
+# Function to process firewall policies from a given CSV file
 def process_firewall_policies(csv_path, location):
     df = pd.read_csv(csv_path)
 
@@ -136,7 +141,7 @@ def process_firewall_policies(csv_path, location):
     email_subject = f"Firewall Policies for {location}"
     email_body = f'''Hi Team,
 
-Please find the attached firewall policies of {location}.
+Please find the attached firewall policies for {location}.
 
 Thanks & Regards,
 EMS Team
@@ -149,13 +154,14 @@ EMS Team
     os.remove(excel_path)
     os.remove(csv_path)
 
-# Define the CSV file paths and corresponding locations
-csv_files = [
-    ('path_to_your_csv_file_1.csv', 'Location 1'),
-    # Add more tuples as needed
+# Example usage
+firewall_data = [
+    ('path_to_csv_1.csv', 'OKR 1'),
+    ('path_to_csv_2.csv', 'NJDC LAB'),
+    # Add more CSV paths and locations as needed
 ]
 
-for csv_path, location in csv_files:
+for csv_path, location in firewall_data:
     process_firewall_policies(csv_path, location)
 
 print("Script executed successfully.")
