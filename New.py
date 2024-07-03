@@ -1,44 +1,116 @@
-import paramiko
-import csv
+def export_policies(ip, location):
+    service = Service(driver_path)
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    try:
+        driver.get('https://login.microsoftonline.com/')
+        sign_in(driver, microsoft_email, microsoft_password)
+        driver.get(f'https://{ip}:8443/')
+        try:
+            advanced_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "details-button")))
+            advanced_button.click()
+            proceed_link = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "proceed-link")))
+            proceed_link.click()
+        except Exception as e:
+            print(f"No advanced option found or proceed (unsafe) link: {e}")
+        try:
+            accept_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[@name='accept']")))
+            accept_button.click()
+        except Exception as e:
+            print(f"No accept button found: {e}")
 
-# FortiGate firewall ke details
-hostname = 'your_firewall_ip'
-username = 'your_username'
-password = 'your_password'
+        time.sleep(3)
 
-# SSH client initialize karna
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        username = driver.find_element(By.ID, 'username')
+        password = driver.find_element(By.ID, 'secretkey')
+        login_button = driver.find_element(By.ID, 'login_button')
 
-try:
-    # Firewall se connect karna
-    client.connect(hostname, username=username, password=password)
+        username.send_keys(username_str)
+        password.send_keys(password_str)
+        login_button.click()
 
-    # Command run karna
-    stdin, stdout, stderr = client.exec_command('get system status')
+        time.sleep(5)
 
-    # Output read karna
-    output = stdout.read().decode()
+        # Process data for the first link
+        if ip == '10.255.255.65':
+            links = [
+                f'https://{ip}:8443/ng/firewall/policy/policy/standard?vdom=root',
+                f'https://{ip}:8443/ng/firewall/policy/policy/standard?vdom=inside'
+            ]
+        else:
+            links = [f'https://{ip}:8443/ng/firewall/policy/policy/standard']
 
-    # CSV file mein save karna
-    with open('system_status.csv', 'w', newline='') as csvfile:
-        csvwriter = csv.writer(csvfile)
-        
-        # CSV file ke headers
-        headers = ['Key', 'Value']
-        csvwriter.writerow(headers)
+        for link in links:
+            driver.get(link)
+            time.sleep(30)
 
-        # Output ko lines mein split karna
-        lines = output.splitlines()
+            try:
+                configure_table_button = WebDriverWait(driver, 30).until(
+                    EC.presence_of_element_located((By.XPATH, '//f-icon[@class="fa-cog"]'))
+                )
+                driver.execute_script("arguments[0].click();", configure_table_button)
+                print("Clicked on configure table button using JavaScript")
+            except Exception as e:
+                print(f"Failed to click configure table button: {e}")
+                driver.save_screenshot('error_screenshot.png')
+                return
 
-        # Har line ko key-value pairs mein convert karna aur write karna
-        for line in lines:
-            if ':' in line:
-                key, value = line.split(':', 1)
-                csvwriter.writerow([key.strip(), value.strip()])
+            options = [
+                "Destination Address",
+                "First Used",
+                "Hit Count",
+                "ID",
+                "IPS",
+                "Last Used",
+                "Packets",
+                "Source Address",
+                "Status",
+                "Comments"
+            ]
 
-    print("Data CSV file mein successfully save ho gaya.")
-    
-finally:
-    # SSH connection close karna
-    client.close()
+            for option in options:
+                try:
+                    button = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable((By.XPATH, f'//button[.//span[text()="{option}"]]'))
+                    )
+                    driver.execute_script("arguments[0].click();", button)
+                    print(f"Clicked on '{option}' button")
+                except Exception as e:
+                    print(f"Failed to click on '{option}' button: {e}")
+
+            try:
+                apply_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, '//button[contains(@class, "standard-button primary") and text()="Apply"]'))
+                )
+                driver.execute_script("arguments[0].click();", apply_button)
+                print("Clicked on Apply button")
+            except Exception as e:
+                print(f"Failed to click on Apply button: {e}")
+
+            try:
+                export_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, '//span[@class="ng-binding ng-scope" and text()="Export"]'))
+                )
+                driver.execute_script("arguments[0].click();", export_button)
+                time.sleep(2)
+                print("Clicked on Export button")
+            except Exception as e:
+                print(f"Failed to click on Export button: {e}")
+
+            try:
+                export_csv_option = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, '//span[@class="ng-scope" and text()="CSV"]'))
+                )
+                driver.execute_script("arguments[0].click();", export_csv_option)
+                print("Clicked on CSV option")
+            except Exception as e:
+                print(f"Failed to click on CSV option: {e}")
+
+            new_filename = f'firewall_policies_{location}_{link.split("=")[-1]}.csv'
+            time.sleep(5)
+            wait_for_download_and_rename(temp_directory, new_filename)
+
+    except Exception as e:
+        print(f"An error occurred while exporting policies for {ip}: {e}")
+        driver.save_screenshot('error_screenshot.png')
+    finally:
+        driver.quit()
