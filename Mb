@@ -1,0 +1,62 @@
+import paramiko
+import os
+import re
+from datetime import datetime
+
+# SFTP server credentials
+host = 'your_sftp_server'
+port = 22
+username = 'your_username'
+password = 'your_password'
+
+# Directories
+source_folder = '/path/to/Network_devices_Backup'
+destination_folder = os.path.join(source_folder, 'monthly_Backup')
+
+# Dates to copy
+specific_dates = ['01-31', '02-28', '03-31', '04-30', '05-31', '06-30', '07-31', '08-31', '09-30', '10-31', '11-30', '12-31']
+
+# Connect to SFTP server
+transport = paramiko.Transport((host, port))
+transport.connect(username=username, password=password)
+sftp = paramiko.SFTPClient.from_transport(transport)
+
+# Ensure the destination folder exists
+try:
+    sftp.mkdir(destination_folder)
+except IOError:
+    # Directory already exists
+    pass
+
+# Function to check if the date in filename matches specific dates
+def is_specific_date(filename):
+    match = re.search(r'\d{4}-\d{2}-\d{2}', filename)
+    if match:
+        date_str = match.group()
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+        return date_obj.strftime('%m-%d') in specific_dates
+    return False
+
+# Copy the specific date files to the corresponding folder in the destination
+for folder in sftp.listdir(source_folder):
+    folder_path = os.path.join(source_folder, folder)
+    if sftp.stat(folder_path).st_mode & 0o040000:  # Check if it's a directory
+        for file in sftp.listdir(folder_path):
+            if is_specific_date(file):
+                source_file_path = os.path.join(folder_path, file)
+                dest_folder_path = os.path.join(destination_folder, folder)
+                
+                # Ensure the destination subfolder exists
+                try:
+                    sftp.mkdir(dest_folder_path)
+                except IOError:
+                    # Directory already exists
+                    pass
+                
+                destination_file_path = os.path.join(dest_folder_path, file)
+                sftp.get(source_file_path, destination_file_path)
+                print(f'Copied {source_file_path} to {destination_file_path}')
+
+# Close the SFTP connection
+sftp.close()
+transport.close()
