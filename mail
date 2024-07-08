@@ -1,1 +1,12 @@
-Subject: Assistance Needed for Firewall Policy Auditing ReportsDear [Recipient's Name],I hope this message finds you well. I am currently in the process of automating the firewall policy auditing reports. Out of the 11 firewalls, I have successfully generated reports for 7 and the work for LI FW is in progress.However, I am facing issues with generating reports for the following firewalls due to different firmware versions:NJDC FW1NJDC FW2NJDC FW3Could you please provide assistance or guidance on how to address this compatibility issue?
+Subject: Firewall Backup Status and Routing Request
+
+Hi Rajiv,
+
+I wanted to update you on the current firewall backup status. Out of our 11 sites, we are successfully taking backups for the following 6 sites: LI, LV, Canada, Pune, GCR, and OKR.
+
+However, for NJDC, Mexico, and New York, we are able to reach them from our centralized server at 10.7.35.251, but backups are not being taken.
+
+Could you please check the routing for these sites and make the necessary adjustments?
+
+Thanks,
+[Your Name]
