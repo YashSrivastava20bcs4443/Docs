@@ -1,29 +1,9 @@
-# Main Terraform configuration
-
 module "vnet_peering" {
-  source                        = "./vnet_peering"
-  source_vnet_id                = azurerm_virtual_network.vnet.id
-  source_vnet_name              = azurerm_virtual_network.vnet.name
-  source_resource_group_name    = azurerm_resource_group.rg.name
-  destination_vnet_id           = azurerm_virtual_network.vnet2.id
-  destination_vnet_name         = azurerm_virtual_network.vnet2.name
-  destination_resource_group_name = azurerm_resource_group.rg.name
-  peering_name                  = "vnet-peering-pr-tst-net-to-pr-tst-net2"
-}
-
-
-# Virtual Network 2
-resource "azurerm_virtual_network" "vnet2" {
-  name                = "pr-tst-net2"
-  address_space       = ["10.30.40.0/24"]
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-}
-
-# Subnet in Virtual Network 2
-resource "azurerm_subnet" "subnet_vnet2" {
-  name                 = "pr-vnet2-snet"
-  resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.vnet2.name
-  address_prefixes     = ["10.30.40.0/26"]
+  source              = "./modules/vnet_peering"
+  resource_group_name = "your-resource-group-name"
+  location            = "your-location"
+  vnet1_name          = "pr-tst-net"
+  vnet1_address_space = ["10.20.30.0/24"]
+  vnet2_name          = "pr-tst-net2"
+  vnet2_address_space = ["10.30.40.0/24"]
 }
