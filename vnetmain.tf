@@ -1,23 +1,57 @@
-# vnet_peering/main.tf
-
-resource "azurerm_virtual_network_peering" "source_to_destination" {
-  name                          = "${var.peering_name}-source-to-destination"
-  resource_group_name           = var.source_resource_group_name
-  virtual_network_name          = var.source_vnet_name
-  remote_virtual_network_id     = var.destination_vnet_id
-  allow_forwarded_traffic       = true
-  allow_gateway_transit         = false
-  use_remote_gateways           = false
-  allow_virtual_network_access  = true
+variable "resource_group_name" {
+  description = "Name of the resource group where the VNets are deployed"
 }
 
-resource "azurerm_virtual_network_peering" "destination_to_source" {
-  name                          = "${var.peering_name}-destination-to-source"
-  resource_group_name           = var.destination_resource_group_name
-  virtual_network_name          = var.destination_vnet_name
-  remote_virtual_network_id     = var.source_vnet_id
-  allow_forwarded_traffic       = true
-  allow_gateway_transit         = false
-  use_remote_gateways           = false
-  allow_virtual_network_access  = true
+variable "location" {
+  description = "Location where the VNets are deployed"
+}
+
+variable "vnet1_name" {
+  description = "Name of the first virtual network"
+}
+
+variable "vnet1_address_space" {
+  description = "Address space of the first virtual network"
+}
+
+variable "vnet2_name" {
+  description = "Name of the second virtual network"
+}
+
+variable "vnet2_address_space" {
+  description = "Address space of the second virtual network"
+}
+
+resource "azurerm_virtual_network" "vnet1" {
+  name                = var.vnet1_name
+  address_space       = var.vnet1_address_space
+  location            = var.location
+  resource_group_name = var.resource_group_name
+}
+
+resource "azurerm_virtual_network" "vnet2" {
+  name                = var.vnet2_name
+  address_space       = var.vnet2_address_space
+  location            = var.location
+  resource_group_name = var.resource_group_name
+}
+
+resource "azurerm_virtual_network_peering" "vnet1-to-vnet2" {
+  name                      = "vnet1-to-vnet2"
+  resource_group_name       = var.resource_group_name
+  virtual_network_name      = azurerm_virtual_network.vnet1.name
+  remote_virtual_network_id = azurerm_virtual_network.vnet2.id
+  allow_forwarded_traffic   = true
+  allow_gateway_transit     = false
+  use_remote_gateways       = false
+}
+
+resource "azurerm_virtual_network_peering" "vnet2-to-vnet1" {
+  name                      = "vnet2-to-vnet1"
+  resource_group_name       = var.resource_group_name
+  virtual_network_name      = azurerm_virtual_network.vnet2.name
+  remote_virtual_network_id = azurerm_virtual_network.vnet1.id
+  allow_forwarded_traffic   = true
+  allow_gateway_transit     = false
+  use_remote_gateways       = false
 }
