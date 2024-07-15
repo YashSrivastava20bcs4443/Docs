@@ -1,6 +1,0 @@
-module "vnet_peering" {
-  source              = "./modules/vnet_peering"
-  resource_group_name = var.resource_group_name
-  vnet1_name          = azurerm_virtual_network.vnet.name
-  vnet2_name          = azurerm_virtual_network.vnet2.name
-}
