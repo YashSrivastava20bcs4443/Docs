@@ -91,3 +91,19 @@ module "alb_ex" {
   probe_name            = "ssh-probe"
   lb_rule_name          = "ssh-lb-rule"
 }
+
+
+output "public_ip_id" {
+  description = "The ID of the public IP address."
+  value       = azurerm_public_ip.alb_ex_pip.id
+}
+
+output "lb_id" {
+  description = "The ID of the load balancer."
+  value       = azurerm_lb.alb_ex.id
+}
+
+output "frontend_ip_configuration_id" {
+  description = "The ID of the frontend IP configuration."
+  value       = azurerm_lb_frontend_ip_configuration.alb_ex_feip.id
+}
