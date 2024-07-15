@@ -20,7 +20,7 @@ resource "azurerm_lb_rule" "internal_lb_rule" {
   protocol                  = "Tcp"
   frontend_port             = var.frontend_port
   backend_port              = var.backend_port
-  frontend_ip_configuration_id = azurerm_lb.internal_lb.frontend_ip_configuration[0].id
+  frontend_ip_configuration_name = var.frontend_ip_config_name
   probe_id                  = azurerm_lb_probe.internal_lb_probe.id
 }
 
