@@ -20,9 +20,7 @@ resource "azurerm_lb_rule" "internal_lb_rule" {
   protocol                  = "Tcp"
   frontend_port             = var.frontend_port
   backend_port              = var.backend_port
-  frontend_ip_configuration = {
-    id = azurerm_lb.internal_lb.frontend_ip_configuration[0].id
-  }
+  frontend_ip_configuration_id = azurerm_lb.internal_lb.frontend_ip_configuration[0].id
   probe_id                  = azurerm_lb_probe.internal_lb_probe.id
 }
 
@@ -100,6 +98,7 @@ variable "probe_number_of_probes" {
   description = "The number of probes"
   type        = number
 }
+
 module "internal_lb" {
   source                  = "./modules/alb_in"
   lb_name                 = "my-internal-lb"
