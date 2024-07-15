@@ -1,0 +1,93 @@
+variable "resource_group_name" {
+  description = "The name of the resource group."
+  type        = string
+}
+
+variable "location" {
+  description = "The location of the resources."
+  type        = string
+}
+
+variable "lb_name" {
+  description = "The name of the load balancer."
+  type        = string
+  default     = "alb-ex"
+}
+
+variable "frontend_ip_configuration_name" {
+  description = "The name of the frontend IP configuration."
+  type        = string
+  default     = "LoadBalancerFrontend"
+}
+
+variable "public_ip_name" {
+  description = "The name of the public IP address."
+  type        = string
+  default     = "alb-ex-pip"
+}
+
+variable "probe_name" {
+  description = "The name of the probe."
+  type        = string
+  default     = "ssh-probe"
+}
+
+variable "lb_rule_name" {
+  description = "The name of the load balancing rule."
+  type        = string
+  default     = "ssh-lb-rule"
+}
+
+# Public IP
+resource "azurerm_public_ip" "alb_ex_pip" {
+  name                = var.public_ip_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+
+# Load Balancer
+resource "azurerm_lb" "alb_ex" {
+  name                = var.lb_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+
+  frontend_ip_configuration {
+    name                 = var.frontend_ip_configuration_name
+    public_ip_address_id = azurerm_public_ip.alb_ex_pip.id
+  }
+}
+
+# Health Probe
+resource "azurerm_lb_probe" "alb_ex_probe" {
+  name                = var.probe_name
+  resource_group_name = var.resource_group_name
+  loadbalancer_id     = azurerm_lb.alb_ex.id
+  protocol            = "Tcp"
+  port                = 22
+}
+
+# Load Balancer Rule
+resource "azurerm_lb_rule" "alb_ex_rule" {
+  name                           = var.lb_rule_name
+  resource_group_name            = var.resource_group_name
+  loadbalancer_id                = azurerm_lb.alb_ex.id
+  protocol                       = "Tcp"
+  frontend_port                  = 22
+  backend_port                   = 22
+  frontend_ip_configuration_name = var.frontend_ip_configuration_name
+  probe_id                       = azurerm_lb_probe.alb_ex_probe.id
+}
+
+
+module "alb_ex" {
+  source                = "./modules/alb_ex"
+  resource_group_name   = var.resource_group_name
+  location              = var.location
+  lb_name               = "alb-ex"
+  frontend_ip_configuration_name = "LoadBalancerFrontend"
+  public_ip_name        = "alb-ex-pip"
+  probe_name            = "ssh-probe"
+  lb_rule_name          = "ssh-lb-rule"
+}
