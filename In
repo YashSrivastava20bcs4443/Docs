@@ -23,14 +23,7 @@ resource "azurerm_lb_rule" "internal_lb_rule" {
   frontend_ip_configuration  = {
     id = azurerm_lb.internal_lb.frontend_ip_configuration[0].id
   }
-  backend_address_pool_id    = azurerm_lb_backend_address_pool.internal_backend_pool.id
   probe_id                   = azurerm_lb_probe.internal_lb_probe.id
-}
-
-resource "azurerm_lb_backend_address_pool" "internal_backend_pool" {
-  resource_group_name = azurerm_lb.internal_lb.resource_group_name
-  loadbalancer_id     = azurerm_lb.internal_lb.id
-  name                = var.backend_pool_name
 }
 
 resource "azurerm_lb_probe" "internal_lb_probe" {
@@ -88,11 +81,6 @@ variable "backend_port" {
   type        = number
 }
 
-variable "backend_pool_name" {
-  description = "The name of the backend address pool"
-  type        = string
-}
-
 variable "probe_name" {
   description = "The name of the probe"
   type        = string
@@ -126,7 +114,6 @@ module "internal_lb" {
   lb_rule_name            = "internal_lb_rule"
   frontend_port           = 25
   backend_port            = 25
-  backend_pool_name       = "internal_backend_pool"
   probe_name              = "internal_lb_probe"
   probe_port              = 25
   probe_interval          = 5
@@ -135,25 +122,20 @@ module "internal_lb" {
 
 output "internal_lb_id" {
   description = "The ID of the internal load balancer"
-  value       = azurerm_lb.internal_lb.id
+  value       = module.internal_lb.internal_lb_id
 }
 
 output "internal_lb_frontend_ip_configuration_id" {
   description = "The ID of the frontend IP configuration of the internal load balancer"
-  value       = azurerm_lb.internal_lb.frontend_ip_configuration[0].id
-}
-
-output "internal_lb_backend_address_pool_id" {
-  description = "The ID of the backend address pool of the internal load balancer"
-  value       = azurerm_lb_backend_address_pool.internal_backend_pool.id
+  value       = module.internal_lb.internal_lb_frontend_ip_configuration_id
 }
 
 output "internal_lb_probe_id" {
   description = "The ID of the probe of the internal load balancer"
-  value       = azurerm_lb_probe.internal_lb_probe.id
+  value       = module.internal_lb.internal_lb_probe_id
 }
 
 output "internal_lb_rule_id" {
   description = "The ID of the load balancer rule"
-  value       = azurerm_lb_rule.internal_lb_rule.id
+  value       = module.internal_lb.internal_lb_rule_id
 }
