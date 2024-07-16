@@ -1,4 +1,4 @@
-resource "azurerm_lb" "internal_lb" {
+resource "azurerm_lb" "alb_in" {
   name                = var.lb_name
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -14,24 +14,22 @@ resource "azurerm_lb" "internal_lb" {
 }
 
 resource "azurerm_lb_rule" "internal_lb_rule" {
-  resource_group_name       = azurerm_lb.internal_lb.resource_group_name
-  loadbalancer_id           = azurerm_lb.internal_lb.id
-  name                      = var.lb_rule_name
-  protocol                  = "Tcp"
-  frontend_port             = var.frontend_port
-  backend_port              = var.backend_port
+  loadbalancer_id               = azurerm_lb.alb_in.id
+  name                          = var.lb_rule_name
+  protocol                      = "Tcp"
+  frontend_port                 = var.frontend_port
+  backend_port                  = var.backend_port
   frontend_ip_configuration_name = var.frontend_ip_config_name
-  probe_id                  = azurerm_lb_probe.internal_lb_probe.id
+  probe_id                      = azurerm_lb_probe.internal_lb_probe.id
 }
 
 resource "azurerm_lb_probe" "internal_lb_probe" {
-  resource_group_name = azurerm_lb.internal_lb.resource_group_name
-  loadbalancer_id     = azurerm_lb.internal_lb.id
-  name                = var.probe_name
-  protocol            = "Tcp"
-  port                = var.probe_port
+  loadbalancer_id = azurerm_lb.alb_in.id
+  name            = var.probe_name
+  protocol        = "Tcp"
+  port            = var.probe_port
   interval_in_seconds = var.probe_interval
-  number_of_probes    = var.probe_number_of_probes
+  number_of_probes = var.probe_number_of_probes
 }
 
 variable "lb_name" {
@@ -99,41 +97,22 @@ variable "probe_number_of_probes" {
   type        = number
 }
 
-module "internal_lb" {
-  source                  = "./modules/alb_in"
-  lb_name                 = "my-internal-lb"
-  location                = azurerm_resource_group.rg.location
-  resource_group_name     = azurerm_resource_group.rg.name
-  frontend_ip_config_name = "my-frontend-config"
-  subnet_id               = azurerm_subnet.inc1_prd_prl_lbs_snet01.id
-  tags                    = {
-    environment = "production"
-  }
-  lb_rule_name            = "internal_lb_rule"
-  frontend_port           = 25
-  backend_port            = 25
-  probe_name              = "internal_lb_probe"
-  probe_port              = 25
-  probe_interval          = 5
-  probe_number_of_probes  = 2
-}
-
 output "internal_lb_id" {
   description = "The ID of the internal load balancer"
-  value       = module.internal_lb.internal_lb_id
+  value       = azurerm_lb.alb_in.id
 }
 
 output "internal_lb_frontend_ip_configuration_id" {
   description = "The ID of the frontend IP configuration of the internal load balancer"
-  value       = module.internal_lb.internal_lb_frontend_ip_configuration_id
+  value       = azurerm_lb.alb_in.frontend_ip_configuration[0].id
 }
 
 output "internal_lb_probe_id" {
   description = "The ID of the probe of the internal load balancer"
-  value       = module.internal_lb.internal_lb_probe_id
+  value       = azurerm_lb_probe.internal_lb_probe.id
 }
 
 output "internal_lb_rule_id" {
   description = "The ID of the load balancer rule"
-  value       = module.internal_lb.internal_lb_rule_id
+  value       = azurerm_lb_rule.internal_lb_rule.id
 }
