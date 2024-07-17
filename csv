@@ -73,12 +73,12 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
         server.send_message(msg)
     print(f"Email sent with attachment {attachment_path}")
 
-# Function to process firewall policies from a given CSV file
-def process_firewall_policies(csv_path, location):
+# Function to process firewall policies from a given Excel file
+def process_firewall_policies(excel_path, location):
     try:
-        df = pd.read_csv(csv_path, encoding='ISO-8859-1')
+        df = pd.read_excel(excel_path)
     except Exception as e:
-        print(f"Error reading {csv_path}: {e}")
+        print(f"Error reading {excel_path}: {e}")
         return
 
     required_columns = ['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status', 'Comments']
@@ -93,8 +93,8 @@ def process_firewall_policies(csv_path, location):
     sorted_by_hit_count_df = df.sort_values(by='Hit Count', ascending=True)  # Sort in ascending order
     source_dest_all_df = df[(df['Source Address'] == 'all') & (df['Destination Address'] == 'all')]
 
-    excel_path = os.path.join(download_directory, f'firewall_policies_{location}.xlsx')
-    with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+    output_excel_path = os.path.join(download_directory, f'firewall_policies_{location}.xlsx')
+    with pd.ExcelWriter(output_excel_path, engine='openpyxl') as writer:
         active_policies_df.to_excel(writer, sheet_name='Active Policies', index=False)
         disabled_policies_df.to_excel(writer, sheet_name='Disabled Policies', index=False)
         zero_hit_count_df.to_excel(writer, sheet_name='0 Hit Count', index=False)
@@ -107,7 +107,7 @@ def process_firewall_policies(csv_path, location):
             sheet = workbook[sheet_name]
             apply_styles(sheet)
 
-    workbook = load_workbook(excel_path)
+    workbook = load_workbook(output_excel_path)
     dashboard_sheet = workbook.create_sheet(title='Dashboard')
 
     def add_table(sheet, df, title, start_row, start_col, color):
@@ -138,7 +138,7 @@ def process_firewall_policies(csv_path, location):
             for cell in row:
                 cell.fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
-    workbook.save(excel_path)
+    workbook.save(output_excel_path)
 
     email_subject = f"Firewall Policies for {location}"
     email_body = f'''
@@ -150,19 +150,19 @@ def process_firewall_policies(csv_path, location):
 
     send_email_with_attachment(
         smtp_server, smtp_port, smtp_username, smtp_password,
-        email_to, email_cc, email_subject, email_body, excel_path
+        email_to, email_cc, email_subject, email_body, output_excel_path
     )
 
+    os.remove(output_excel_path)
     os.remove(excel_path)
-    os.remove(csv_path)
 
 # Example usage
 firewall_data = [
-    ('C:\\Users\\y.s.va22\\Downloads\\prod\\downloads\\firewall_policies_NJDC_EMEX01A.csv', 'NJDC_EMEX01A'),
-    # Add more CSV paths and locations as needed
+    ('C:\\Users\\y.s.va22\\Downloads\\prod\\downloads\\firewall_policies_NJDC_EMEX01A.xlsx', 'NJDC_EMEX01A'),
+    # Add more Excel paths and locations as needed
 ]
 
-for csv_path, location in firewall_data:
-    process_firewall_policies(csv_path, location)
+for excel_path, location in firewall_data:
+    process_firewall_policies(excel_path, location)
 
 print("Script executed successfully.")
