@@ -52,7 +52,7 @@ def combine_csv_files_to_excel(csv_files, output_excel_path):
 
 # Function to filter rows with zero hit count
 def filter_zero_hit_count_rows(all_data_df):
-    zero_hit_count_df = all_data_df[all_data_df['Hit Count'] == '0']
+    zero_hit_count_df = all_data_df[all_data_df['Hit Count'] == 0]
     return zero_hit_count_df
 
 # Function to send email with attachment
@@ -81,14 +81,27 @@ def process_firewall_policies(excel_path, location):
         print(f"Error reading {excel_path}: {e}")
         return
 
-    required_columns = ['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status', 'Comments']
+    required_columns = ['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status', 'Comments', 'Source Address', 'Destination Address']
     for column in required_columns:
         if column not in df.columns:
             df[column] = None  # Add missing columns with None values
 
+    # Convert 'Hit Count' to numeric, forcing errors to NaN
+    df['Hit Count'] = pd.to_numeric(df['Hit Count'], errors='coerce').fillna(0).astype(int)
+
+    # Ensure all required columns have the appropriate types
+    df['First Used'] = pd.to_datetime(df['First Used'], errors='coerce')
+    df['Last Used'] = pd.to_datetime(df['Last Used'], errors='coerce')
+    df['Packets'] = pd.to_numeric(df['Packets'], errors='coerce').fillna(0).astype(int)
+    df['ID'] = df['ID'].astype(str)
+    df['Status'] = df['Status'].astype(str)
+    df['Comments'] = df['Comments'].astype(str)
+    df['Source Address'] = df['Source Address'].astype(str)
+    df['Destination Address'] = df['Destination Address'].astype(str)
+
     active_policies_df = df[df['Status'] == 'Enabled']
     disabled_policies_df = df[df['Status'] == 'Disabled']
-    zero_hit_count_df = df[df['Hit Count'] == '0']
+    zero_hit_count_df = df[df['Hit Count'] == 0]
     last_used_monthwise_df = df[df['Last Used'].notnull()].sort_values(by='Last Used', ascending=False)
     sorted_by_hit_count_df = df.sort_values(by='Hit Count', ascending=True)  # Sort in ascending order
     source_dest_all_df = df[(df['Source Address'] == 'all') & (df['Destination Address'] == 'all')]
