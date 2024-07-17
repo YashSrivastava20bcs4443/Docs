@@ -81,7 +81,7 @@ def process_firewall_policies(csv_path, location):
         print(f"Error reading {csv_path}: {e}")
         return
 
-    required_columns = ['Status', 'Hit Count', 'Last Used', 'Source Address', 'Destination Address']
+    required_columns = ['Name', 'First Used', 'Hit Count', 'ID', 'Last Used', 'Packets', 'Status', 'Comments']
     for column in required_columns:
         if column not in df.columns:
             df[column] = None  # Add missing columns with None values
