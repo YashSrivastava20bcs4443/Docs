@@ -76,7 +76,7 @@ def send_email_with_attachment(smtp_server, smtp_port, smtp_username, smtp_passw
 # Function to process firewall policies from a given CSV file
 def process_firewall_policies(csv_path, location):
     try:
-        df = pd.read_csv(csv_path)
+        df = pd.read_csv(csv_path, encoding='ISO-8859-1')
     except Exception as e:
         print(f"Error reading {csv_path}: {e}")
         return
