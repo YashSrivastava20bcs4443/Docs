@@ -1,0 +1,66 @@
+terraform-dns-record/
+  ├── main.tf
+  ├── variables.tf
+  ├── outputs.tf
+
+provider "azurerm" {
+  features {}
+}
+
+resource "null_resource" "create_dns_a_record" {
+  provisioner "local-exec" {
+    command = <<EOT
+      az network dns record-set a create \
+        --resource-group ${var.resource_group_name} \
+        --zone-name ${var.zone_name} \
+        --name ${var.record_name} \
+        --ttl ${var.ttl}
+    EOT
+  }
+}
+
+variable "resource_group_name" {
+  description = "The name of the resource group."
+  type        = string
+}
+
+variable "zone_name" {
+  description = "The name of the DNS zone."
+  type        = string
+}
+
+variable "record_name" {
+  description = "The name of the DNS A record."
+  type        = string
+}
+
+variable "ttl" {
+  description = "The TTL (Time to Live) of the DNS record."
+  type        = number
+  default     = 60
+}
+
+output "resource_group_name" {
+  value = var.resource_group_name
+}
+
+output "zone_name" {
+  value = var.zone_name
+}
+
+output "record_name" {
+  value = var.record_name
+}
+
+output "ttl" {
+  value = var.ttl
+}
+
+module "dns_record" {
+  source = "./terraform-dns-record"
+
+  resource_group_name = "myresourcegroup"
+  zone_name           = "contoso.com"
+  record_name         = "www"
+  ttl                 = 60
+}
