@@ -1,49 +1,18 @@
-Method 2: Using PowerShell
-Step 1: Create a Self-Signed Certificate
+openssl genpkey -algorithm RSA -out private.key
 
-    Open PowerShell as an administrator.
-    Use the New-SelfSignedCertificate cmdlet to create a self-signed certificate:
+openssl req -new -key private.key -out request.csr
 
-    powershell
+openssl x509 -req -days 365 -in request.csr -signkey private.key -out certificate.crt
 
-    $cert = New-SelfSignedCertificate -DnsName "your.domain.com" -CertStoreLocation "cert:\LocalMachine\My"
 
-    Replace "your.domain.com" with your domain name.
+# Generate a private key
+openssl genpkey -algorithm RSA -out private.key
 
-Step 2: Export the Certificate and Private Key
+# Create a Certificate Signing Request (CSR)
+openssl req -new -key private.key -out request.csr
 
-    Export the certificate to a file:
+# Generate a self-signed certificate
+openssl x509 -req -days 365 -in request.csr -signkey private.key -out certificate.crt
 
-    powershell
-
-Export-Certificate -Cert $cert -FilePath "C:\path\to\certificate.cer"
-
-Export the private key to a PFX file:
-
-powershell
-
-    $password = ConvertTo-SecureString -String "yourpassword" -Force -AsPlainText
-    Export-PfxCertificate -Cert $cert -FilePath "C:\path\to\certificate.pfx" -Password $password
-
-    Replace "yourpassword" with a secure password.
-
-Step 3: Install the SSL Certificate
-
-The installation process varies depending on the web server you are using. Below are examples for IIS (Internet Information Services):
-
-For IIS:
-
-    Open IIS Manager.
-    Select your server name in the Connections pane.
-    Double-click "Server Certificates" in the middle pane.
-    Click "Import" in the Actions pane.
-    Browse to the PFX file and enter the password you used during export.
-    Assign the SSL certificate to your website:
-        In IIS Manager, select your site in the Connections pane.
-        Click "Bindings" in the Actions pane.
-        Add or edit an HTTPS binding, and select the imported certificate.
-
-Step 4: Test the SSL Certificate
-
-    Open a web browser and navigate to your website using https:// to ensure the certificate is working correctly.
-    Verify that you see a padlock icon in the address bar, indicating that the connection is secure.
+# Create a PFX file
+openssl pkcs12 -export -out certificate.pfx -inkey private.key -in certificate.crt
