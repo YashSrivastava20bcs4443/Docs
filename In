@@ -1,118 +1,49 @@
-resource "azurerm_lb" "alb_in" {
-  name                = var.lb_name
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  sku                 = "Standard"
+Method 2: Using PowerShell
+Step 1: Create a Self-Signed Certificate
 
-  frontend_ip_configuration {
-    name                          = var.frontend_ip_config_name
-    subnet_id                     = var.subnet_id
-    private_ip_address_allocation = "Dynamic"
-  }
+    Open PowerShell as an administrator.
+    Use the New-SelfSignedCertificate cmdlet to create a self-signed certificate:
 
-  tags = var.tags
-}
+    powershell
 
-resource "azurerm_lb_rule" "internal_lb_rule" {
-  loadbalancer_id               = azurerm_lb.alb_in.id
-  name                          = var.lb_rule_name
-  protocol                      = "Tcp"
-  frontend_port                 = var.frontend_port
-  backend_port                  = var.backend_port
-  frontend_ip_configuration_name = var.frontend_ip_config_name
-  probe_id                      = azurerm_lb_probe.internal_lb_probe.id
-}
+    $cert = New-SelfSignedCertificate -DnsName "your.domain.com" -CertStoreLocation "cert:\LocalMachine\My"
 
-resource "azurerm_lb_probe" "internal_lb_probe" {
-  loadbalancer_id = azurerm_lb.alb_in.id
-  name            = var.probe_name
-  protocol        = "Tcp"
-  port            = var.probe_port
-  interval_in_seconds = var.probe_interval
-  number_of_probes = var.probe_number_of_probes
-}
+    Replace "your.domain.com" with your domain name.
 
-variable "lb_name" {
-  description = "The name of the load balancer"
-  type        = string
-}
+Step 2: Export the Certificate and Private Key
 
-variable "location" {
-  description = "The location of the load balancer"
-  type        = string
-}
+    Export the certificate to a file:
 
-variable "resource_group_name" {
-  description = "The name of the resource group"
-  type        = string
-}
+    powershell
 
-variable "frontend_ip_config_name" {
-  description = "The name of the frontend IP configuration"
-  type        = string
-}
+Export-Certificate -Cert $cert -FilePath "C:\path\to\certificate.cer"
 
-variable "subnet_id" {
-  description = "The ID of the subnet"
-  type        = string
-}
+Export the private key to a PFX file:
 
-variable "tags" {
-  description = "A map of tags to assign to the resource"
-  type        = map(string)
-}
+powershell
 
-variable "lb_rule_name" {
-  description = "The name of the load balancer rule"
-  type        = string
-}
+    $password = ConvertTo-SecureString -String "yourpassword" -Force -AsPlainText
+    Export-PfxCertificate -Cert $cert -FilePath "C:\path\to\certificate.pfx" -Password $password
 
-variable "frontend_port" {
-  description = "The frontend port for the load balancer rule"
-  type        = number
-}
+    Replace "yourpassword" with a secure password.
 
-variable "backend_port" {
-  description = "The backend port for the load balancer rule"
-  type        = number
-}
+Step 3: Install the SSL Certificate
 
-variable "probe_name" {
-  description = "The name of the probe"
-  type        = string
-}
+The installation process varies depending on the web server you are using. Below are examples for IIS (Internet Information Services):
 
-variable "probe_port" {
-  description = "The port for the probe"
-  type        = number
-}
+For IIS:
 
-variable "probe_interval" {
-  description = "The interval in seconds for the probe"
-  type        = number
-}
+    Open IIS Manager.
+    Select your server name in the Connections pane.
+    Double-click "Server Certificates" in the middle pane.
+    Click "Import" in the Actions pane.
+    Browse to the PFX file and enter the password you used during export.
+    Assign the SSL certificate to your website:
+        In IIS Manager, select your site in the Connections pane.
+        Click "Bindings" in the Actions pane.
+        Add or edit an HTTPS binding, and select the imported certificate.
 
-variable "probe_number_of_probes" {
-  description = "The number of probes"
-  type        = number
-}
+Step 4: Test the SSL Certificate
 
-output "internal_lb_id" {
-  description = "The ID of the internal load balancer"
-  value       = azurerm_lb.alb_in.id
-}
-
-output "internal_lb_frontend_ip_configuration_id" {
-  description = "The ID of the frontend IP configuration of the internal load balancer"
-  value       = azurerm_lb.alb_in.frontend_ip_configuration[0].id
-}
-
-output "internal_lb_probe_id" {
-  description = "The ID of the probe of the internal load balancer"
-  value       = azurerm_lb_probe.internal_lb_probe.id
-}
-
-output "internal_lb_rule_id" {
-  description = "The ID of the load balancer rule"
-  value       = azurerm_lb_rule.internal_lb_rule.id
-}
+    Open a web browser and navigate to your website using https:// to ensure the certificate is working correctly.
+    Verify that you see a padlock icon in the address bar, indicating that the connection is secure.
