@@ -1,18 +1,52 @@
-openssl genpkey -algorithm RSA -out private.key
+---
+- name: Configure FortiGate firewall
+  hosts: all
+  gather_facts: no
 
-openssl req -new -key private.key -out request.csr
+  tasks:
+    - name: Remove old SSH host key
+      command: "ssh-keygen -R {{ ansible_host }}"
+      delegate_to: localhost
+      run_once: true
 
-openssl x509 -req -days 365 -in request.csr -signkey private.key -out certificate.crt
+    - name: Get current datetime
+      set_fact:
+        current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
 
+    - name: Create backup directory for each firewall if it doesn't exist
+      command: "mkdir -p {{ backup_base_dir }}/{{ inventory_hostname }}"
+      delegate_to: localhost
 
-# Generate a private key
-openssl genpkey -algorithm RSA -out private.key
+    - name: Backup FortiGate configuration locally
+      expect:
+        command: "scp {{ uname }}@{{ ansible_host }}:sys_config {{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}.conf"
+        responses:
+          "assword:": "{{ password1 }}"
+          "(?i)continue connecting (yes/no)?": "yes"
+        timeout: 60
+      delegate_to: localhost
 
-# Create a Certificate Signing Request (CSR)
-openssl req -new -key private.key -out request.csr
+    - name: Create corresponding directory for the firewall on SFTP server
+      expect:
+        command: "sftp {{ sftp_user }}@{{ sftp_server }}"
+        responses:
+          "Are you sure you want to continue connecting (yes/no/[fingerprint])?": "yes\n"
+          "(?i)password:": "{{ sftp_password }}"
+          "sftp> ": "mkdir {{ sftp_base_dir }}/{{ inventory_hostname }}\nbye"
+        timeout: 60
+      delegate_to: localhost
 
-# Generate a self-signed certificate
-openssl x509 -req -days 365 -in request.csr -signkey private.key -out certificate.crt
+    - name: Transfer backups to SFTP server
+      expect:
+        command: "sftp {{ sftp_user }}@{{ sftp_server }}"
+        responses:
+          "(?i)password:": "{{ sftp_password }}"
+          "sftp> ": "lcd {{ backup_base_dir }}/{{ inventory_hostname }}\ncd {{ sftp_base_dir }}/{{ inventory_hostname }}\nput *.conf\nbye"
+        timeout: 60
+      delegate_to: localhost
 
-# Create a PFX file
-openssl pkcs12 -export -out certificate.pfx -inkey private.key -in certificate.crt
+    - name: Delete local backups
+      file:
+        path: "{{ backup_base_dir }}/{{ inventory_hostname }}"
+        state: absent
+      delegate_to: localhost
