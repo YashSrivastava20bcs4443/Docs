@@ -1,66 +1,46 @@
-terraform-dns-record/
-  ├── main.tf
-  ├── variables.tf
-  ├── outputs.tf
+# Define the URLs for the installer and the vault registration key
+$installerUrl = "https://aka.ms/ASR-HyperV-Provider" # URL for the ASR Provider installer
+$vaultKeyUrl = "https://<your-vault-key-url>" # Replace with your vault registration key URL
 
-provider "azurerm" {
-  features {}
+# Define the paths to save the downloaded files
+$installerPath = "C:\Temp\ASRProviderInstaller.exe"
+$vaultKeyPath = "C:\Temp\VaultRegistrationKey.json"
+
+# List of servers to install the ASR Provider
+$servers = @("Server1", "Server2", "Server3") # Add your server names here
+
+# Function to download files
+function Download-File($url, $outputPath) {
+    Invoke-WebRequest -Uri $url -OutFile $outputPath
 }
 
-resource "null_resource" "create_dns_a_record" {
-  provisioner "local-exec" {
-    command = <<EOT
-      az network dns record-set a create \
-        --resource-group ${var.resource_group_name} \
-        --zone-name ${var.zone_name} \
-        --name ${var.record_name} \
-        --ttl ${var.ttl}
-    EOT
-  }
+# Function to install ASR Provider on a server
+function Install-ASRProvider {
+    param (
+        [string]$server,
+        [string]$installerPath,
+        [string]$vaultKeyPath
+    )
+
+    Invoke-Command -ComputerName $server -ScriptBlock {
+        param (
+            $installerPath,
+            $vaultKeyPath
+        )
+
+        # Install the ASR Provider
+        Start-Process -FilePath $installerPath -ArgumentList "/q" -Wait
+
+        # Register the server with the vault using the vault registration key
+        Start-Process -FilePath "C:\Program Files\Microsoft Azure Site Recovery Provider\AzureSiteRecoveryProvider.exe" -ArgumentList "/q /RegKeyFile:$vaultKeyPath" -Wait
+    } -ArgumentList $installerPath, $vaultKeyPath -Credential (Get-Credential)
 }
 
-variable "resource_group_name" {
-  description = "The name of the resource group."
-  type        = string
-}
+# Download the installer and vault registration key
+Download-File -url $installerUrl -outputPath $installerPath
+Download-File -url $vaultKeyUrl -outputPath $vaultKeyPath
 
-variable "zone_name" {
-  description = "The name of the DNS zone."
-  type        = string
-}
-
-variable "record_name" {
-  description = "The name of the DNS A record."
-  type        = string
-}
-
-variable "ttl" {
-  description = "The TTL (Time to Live) of the DNS record."
-  type        = number
-  default     = 60
-}
-
-output "resource_group_name" {
-  value = var.resource_group_name
-}
-
-output "zone_name" {
-  value = var.zone_name
-}
-
-output "record_name" {
-  value = var.record_name
-}
-
-output "ttl" {
-  value = var.ttl
-}
-
-module "dns_record" {
-  source = "./terraform-dns-record"
-
-  resource_group_name = "myresourcegroup"
-  zone_name           = "contoso.com"
-  record_name         = "www"
-  ttl                 = 60
+# Install ASR Provider on each server
+foreach ($server in $servers) {
+    Install-ASRProvider -server $server -installerPath $installerPath -vaultKeyPath $vaultKeyPath
 }
