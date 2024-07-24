@@ -1,12 +1,13 @@
-Subject: Firewall Backup Status and Routing Request
+Subject: Firewall Backup Automation via Ansible CI/CD Pipeline is Now Live
 
-Hi Rajiv,
+Dear Team,
 
-I wanted to update you on the current firewall backup status. Out of our 11 sites, we are successfully taking backups for the following 6 sites: LI, LV, Canada, Pune, GCR, and OKR.
+I am pleased to inform you that the automated backup process for all firewalls through our Ansible CI/CD pipeline is now live as of July 23rd. This implementation will ensure more reliable and consistent backups, enhancing our overall system resilience.
 
-However, for NJDC, Mexico, and New York, we are able to reach them from our centralized server at 10.7.35.251, but backups are not being taken.
+Should you have any questions or require further details, please do not hesitate to reach out.
 
-Could you please check the routing for these sites and make the necessary adjustments?
+Best regards,
 
-Thanks,
-[Your Name]
+[Your Name]  
+[Your Position]  
+[Your Contact Information]
