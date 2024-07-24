@@ -18,3 +18,8 @@ foreach ($record in $records) {
         --record-set-name $recordName `
         --ipv4-address $ip
 }
+
+RecordName,IP
+www,10.0.0.1
+mail,10.0.0.2
+ftp,10.0.0.3
