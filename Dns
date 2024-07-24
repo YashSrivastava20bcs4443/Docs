@@ -10,7 +10,11 @@ $vaultKeyPath = "C:\Temp\VaultRegistrationKey.json"
 $servers = @("Server1", "Server2", "Server3") # Add your server names here
 
 # Function to download files
-function Download-File($url, $outputPath) {
+function Download-File {
+    param (
+        [string]$url,
+        [string]$outputPath
+    )
     Invoke-WebRequest -Uri $url -OutFile $outputPath
 }
 
@@ -19,28 +23,45 @@ function Install-ASRProvider {
     param (
         [string]$server,
         [string]$installerPath,
-        [string]$vaultKeyPath
+        [string]$vaultKeyPath,
+        [PSCredential]$credential
     )
 
-    Invoke-Command -ComputerName $server -ScriptBlock {
+    Invoke-Command -ComputerName $server -Credential $credential -ScriptBlock {
         param (
             $installerPath,
             $vaultKeyPath
         )
 
+        # Define paths on the remote server
+        $remoteInstallerPath = "C:\Temp\ASRProviderInstaller.exe"
+        $remoteVaultKeyPath = "C:\Temp\VaultRegistrationKey.json"
+
+        # Ensure the temp directory exists
+        if (-Not (Test-Path -Path "C:\Temp")) {
+            New-Item -Path "C:\Temp" -ItemType Directory
+        }
+
+        # Copy the installer and vault key to the remote server
+        Copy-Item -Path $installerPath -Destination $remoteInstallerPath
+        Copy-Item -Path $vaultKeyPath -Destination $remoteVaultKeyPath
+
         # Install the ASR Provider
-        Start-Process -FilePath $installerPath -ArgumentList "/q" -Wait
+        Start-Process -FilePath $remoteInstallerPath -ArgumentList "/q" -Wait
 
         # Register the server with the vault using the vault registration key
-        Start-Process -FilePath "C:\Program Files\Microsoft Azure Site Recovery Provider\AzureSiteRecoveryProvider.exe" -ArgumentList "/q /RegKeyFile:$vaultKeyPath" -Wait
-    } -ArgumentList $installerPath, $vaultKeyPath -Credential (Get-Credential)
+        Start-Process -FilePath "C:\Program Files\Microsoft Azure Site Recovery Provider\AzureSiteRecoveryProvider.exe" -ArgumentList "/q /RegKeyFile:$remoteVaultKeyPath" -Wait
+    } -ArgumentList $installerPath, $vaultKeyPath
 }
 
 # Download the installer and vault registration key
 Download-File -url $installerUrl -outputPath $installerPath
 Download-File -url $vaultKeyUrl -outputPath $vaultKeyPath
 
+# Prompt for credentials to connect to the servers
+$credential = Get-Credential
+
 # Install ASR Provider on each server
 foreach ($server in $servers) {
-    Install-ASRProvider -server $server -installerPath $installerPath -vaultKeyPath $vaultKeyPath
+    Install-ASRProvider -server $server -installerPath $installerPath -vaultKeyPath $vaultKeyPath -credential $credential
 }
