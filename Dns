@@ -9,6 +9,12 @@ $vaultKeyPath = "C:\Temp\VaultRegistrationKey.json"
 # List of servers to install the ASR Provider
 $servers = @("Server1", "Server2", "Server3") # Add your server names here
 
+# Define credentials directly in the script
+# Note: This method is insecure and should be avoided in production environments
+$userName = "YourUsername"
+$password = ConvertTo-SecureString "YourPassword" -AsPlainText -Force
+$credential = New-Object System.Management.Automation.PSCredential($userName, $password)
+
 # Function to download files
 function Download-File {
     param (
@@ -43,8 +49,8 @@ function Install-ASRProvider {
         }
 
         # Copy the installer and vault key to the remote server
-        Copy-Item -Path $installerPath -Destination $remoteInstallerPath
-        Copy-Item -Path $vaultKeyPath -Destination $remoteVaultKeyPath
+        Copy-Item -Path $using:installerPath -Destination $remoteInstallerPath
+        Copy-Item -Path $using:vaultKeyPath -Destination $remoteVaultKeyPath
 
         # Install the ASR Provider
         Start-Process -FilePath $remoteInstallerPath -ArgumentList "/q" -Wait
@@ -57,9 +63,6 @@ function Install-ASRProvider {
 # Download the installer and vault registration key
 Download-File -url $installerUrl -outputPath $installerPath
 Download-File -url $vaultKeyUrl -outputPath $vaultKeyPath
-
-# Prompt for credentials to connect to the servers
-$credential = Get-Credential
 
 # Install ASR Provider on each server
 foreach ($server in $servers) {
