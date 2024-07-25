@@ -1,58 +1,26 @@
-# Set your Azure resource group and DNS zone names
-$resourceGroupName = "demo-resource-YS"
-$dnsZoneName = "my.internal.dns"
+# DNS Zone Name
+$zoneName = "example.com"
 
-# Log in to Azure (interactive login)
-Connect-AzAccount
+# Define records to manage
+$records = @(
+    @{ OldARecord = "test1.com"; NewARecord = "test1_dr.com" },
+    @{ OldARecord = "test2.com"; NewARecord = "test2_dr.com" }
+    # Add more records as needed
+)
 
-# Retrieve all VMs in the resource group
-$vms = Get-AzVM -ResourceGroupName $resourceGroupName
+# Loop through each record
+foreach ($record in $records) {
+    $oldARecord = $record.OldARecord
+    $newARecord = $record.NewARecord
+    
+    # Create New A Record
+    Add-DnsServerResourceRecordA -Name $newARecord -IPv4Address "192.168.1.1" -ZoneName $zoneName -CreatePtr $true
 
-# Debug: Output all VMs and their tags
-Write-Output "All VMs in the Resource Group:"
-$vms | ForEach-Object {
-    Write-Output "VM Name: $($_.Name)"
-    Write-Output "Tags: $($_.Tags)"
+    # Delete Old A Record
+    Remove-DnsServerResourceRecordA -Name $oldARecord -ZoneName $zoneName -Confirm:$false
+    
+    # Create CNAME Record
+    Add-DnsServerResourceRecordCName -Name $oldARecord -HostNameAlias $newARecord -ZoneName $zoneName
 }
 
-# Filter VMs based on the specified tags
-$filteredVms = $vms | Where-Object {
-    $_.Tags["resource_type"] -eq "virtual_machine" -and
-    $_.Tags["environment"] -eq "dr" -and
-    $_.Tags["cost_center"] -eq "it" -and
-    $_.Tags["service"] -eq "vm"
-}
-
-# Debug: Output the filtered VMs
-Write-Output "Filtered VMs based on Tags:"
-$filteredVms | ForEach-Object { Write-Output $_.Name }
-
-# Check if any VMs were retrieved
-if ($filteredVms.Count -eq 0) {
-    Write-Output "No VMs found with the specified tags."
-    exit
-}
-
-# Loop through each filtered VM to create DNS records
-foreach ($vm in $filteredVms) {
-    # Get the VM's private IP address
-    $networkInterfaceName = $vm.NetworkProfile.NetworkInterfaces.Id.Split('/')[-1]
-    $networkInterface = Get-AzNetworkInterface -ResourceGroupName $resourceGroupName -Name $networkInterfaceName
-    $privateIp = $networkInterface.IpConfigurations.PrivateIpAddress
-
-    # Debug: Output the network interface and private IP
-    Write-Output "VM Name: $($vm.Name)"
-    Write-Output "Network Interface Name: $networkInterfaceName"
-    Write-Output "Private IP: $privateIp"
-
-    # Set the DNS record name (you can customize this as needed)
-    $dnsRecordName = $vm.Name
-
-    # Debug: Output the DNS record being created
-    Write-Output "Creating DNS record: $dnsRecordName with IP: $privateIp"
-
-    # Create the DNS record in the private DNS zone
-    New-AzPrivateDnsRecordSet -ResourceGroupName $resourceGroupName -ZoneName $dnsZoneName -Name $dnsRecordName -RecordType A -Ttl 3600 -PrivateDnsRecords (New-AzPrivateDnsRecordConfig -Ipv4Address $privateIp)
-}
-
-Write-Output "DNS records have been created for the VMs."
+Write-Host "DNS records updated successfully."
