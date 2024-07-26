@@ -3,7 +3,12 @@ param (
     [string]$ResourceGroupName,
     [string]$VaultName,
     [string]$VMName,
-    [string]$HyperVHost
+    [string]$HyperVHost,
+    [string]$PolicyName,
+    [string]$StorageAccountId,
+    [string]$RecoveryResourceGroupId,
+    [string]$RecoveryNetworkId,
+    [string]$RecoveryVmSize = "Standard_DS1_v2"
 )
 
 # Login to Azure
@@ -17,39 +22,16 @@ Set-AzRecoveryServicesVaultContext -Vault $vault
 # Get Hyper-V Site
 $hyperVSite = Get-AzRecoveryServicesAsrFabric -Name $HyperVHost
 
+# Get Protection Container
+$protectionContainer = Get-AzRecoveryServicesAsrProtectionContainer -FabricName $hyperVSite.Name
+
 # Get VM
-$vm = Get-AzRecoveryServicesAsrProtectableItem -Fabric $hyperVSite -ProtectionContainer $hyperVSite.ProtectionContainers[0] | Where-Object { $_.FriendlyName -eq $VMName }
+$vm = Get-AzRecoveryServicesAsrProtectableItem -FabricName $hyperVSite.Name -ProtectionContainerName $protectionContainer.Name | Where-Object { $_.FriendlyName -eq $VMName }
+
+# Get Replication Policy
+$policy = Get-AzRecoveryServicesAsrProtectionProfile -Name $PolicyName
 
 # Enable Replication
-$policy = Get-AzRecoveryServicesAsrProtectionProfile -Name "Your_Replication_Policy_Name"
-$protectionContainerMapping = Get-AzRecoveryServicesAsrProtectionContainerMapping -FabricName $hyperVSite.Name -ProtectionContainerName $hyperVSite.ProtectionContainers[0].Name
+$protectionContainerMapping = Get-AzRecoveryServicesAsrProtectionContainerMapping -FabricName $hyperVSite.Name -ProtectionContainerName $protectionContainer.Name
 
-New-AzRecoveryServicesAsrReplicationProtectedItem -AzureToVMware -Name $VMName -ProtectionContainerMapping $protectionContainerMapping[0] -ProtectableItem $vm -RecoveryAzureStorageAccountId "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Storage/storageAccounts/YourStorageAccountName" -RecoveryAzureVmSize "Standard_DS1_v2" -RecoveryResourceGroupId "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName" -RecoveryAzureNetworkId "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Network/virtualNetworks/YourVnetName/subnets/YourSubnetName" -RecoveryCloudServiceId "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.ClassicCompute/domainNames/YourCloudServiceName"
-
-
-provider "azurerm" {
-  features {}
-}
-
-resource "null_resource" "enable_asr_replication" {
-  count = 121  # Number of VMs
-
-  provisioner "local-exec" {
-    command = "powershell.exe -File Enable-ASRReplication.ps1 -SubscriptionId ${var.subscription_id} -ResourceGroupName ${var.resource_group_name} -VaultName ${var.vault_name} -VMName ${element(var.vm_names, count.index)} -HyperVHost ${var.hyperv_host}"
-  }
-}
-
-variable "subscription_id" {}
-variable "resource_group_name" {}
-variable "vault_name" {}
-variable "vm_names" {
-  type = list(string)
-}
-variable "hyperv_host" {}
-
-
-subscription_id = "your_subscription_id"
-resource_group_name = "your_resource_group_name"
-vault_name = "your_vault_name"
-vm_names = ["VM1", "VM2", ..., "VM121"]
-hyperv_host = "your_hyperv_host"
+New-AzRecoveryServicesAsrReplicationProtectedItem -Name $VMName -ProtectionContainerMapping $protectionContainerMapping[0] -ProtectableItem $vm -Policy $policy -RecoveryAzureStorageAccountId $StorageAccountId -RecoveryAzureVmSize $RecoveryVmSize -RecoveryResourceGroupId $RecoveryResourceGroupId -RecoveryAzureNetworkId $RecoveryNetworkId
