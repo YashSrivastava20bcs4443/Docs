@@ -1,25 +1,21 @@
-# Variables
-$resourceGroupName = "YourResourceGroupName"
-$dnsZoneName = "yourdomain.com"
-$csvFilePath = "C:\path\to\your\records.csv"
 
-# Import CSV
-$records = Import-Csv -Path $csvFilePath
 
-# Loop through each record and create DNS records
-foreach ($record in $records) {
-    $recordName = $record.RecordName
-    $ip = $record.IP
+**BAU (Business As Usual):**
 
-    # Create A record
-    az network dns record-set a add-record `
-        --resource-group $resourceGroupName `
-        --zone-name $dnsZoneName `
-        --record-set-name $recordName `
-        --ipv4-address $ip
-}
+1. **Network Devices Backup Automation**
+2. **Firewall Policy Automation**
+3. **Pipeline Setup for Cloud Infra Automation**
 
-RecordName,IP
-www,10.0.0.1
-mail,10.0.0.2
-ftp,10.0.0.3
+**This Week's Tasks:**
+
+1. Created a document for DR (Disaster Recovery) Deployment.
+2. Created new VNets and subnets in the cloud using automation.
+3. Planning to implement automatic deletion of backups older than 35 days.
+
+**Next Week's Tasks:**
+
+1. Plan automation for FortiGate Analyzer and Manager.
+
+---
+
+Feel free to adjust any details as needed!
