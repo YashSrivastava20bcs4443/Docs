@@ -1,22 +1,39 @@
-Engaging Stakeholders
-Effective capacity management requires engaging with stakeholders to understand their needs and expectations. Steps include:
 
-Identify Key Stakeholders: Determine who within the organization has a stake in capacity management, such as department heads, project managers, and business analysts.
 
-Example: In a large retail company, key stakeholders might include the IT Director, the Head of E-commerce, and the Operations Manager. The IT Director oversees overall IT infrastructure, the Head of E-commerce manages the online sales platform, and the Operations Manager ensures smooth daily operations.
+1. Elasticsearch:
+Elasticsearch ek powerful search aur analytics engine hai jo log data store aur process karne ke liye widely used hota hai.
 
-Gather Requirements: Conduct interviews, surveys, and meetings to gather information about current and future capacity requirements.
+Pros:
+High performance search capabilities.
+Can handle large volumes of data.
+Kibana can be used for visualizing the data stored in Elasticsearch.
+Cons:
+Requires setup and maintenance.
+May be overkill for small-scale log storage needs.
+2. Relational Database (e.g., MySQL, PostgreSQL):
+Aap logs ko relational database me store kar sakte hain.
 
-Example: Schedule meetings with each stakeholder to discuss their current capacity needs and future projections. The Head of E-commerce might highlight an upcoming holiday season sale expected to double the usual web traffic.
+Pros:
+Structured data storage with SQL query capabilities.
+Well-known and widely used.
+Cons:
+May require more effort to structure and maintain.
+Not as optimized for log storage and searching as Elasticsearch.
+3. NoSQL Database (e.g., MongoDB):
+MongoDB jaise NoSQL databases bhi logs store karne ke liye accha option hain.
 
-Educate Stakeholders: Teach stakeholders how to forecast their requirements by analyzing historical data, understanding business trends, and using predictive analytics.
+Pros:
+Flexible schema design.
+Good for unstructured or semi-structured data.
+Cons:
+Requires understanding of NoSQL principles.
+May not offer the same level of query performance for complex searches as SQL databases.
+4. File Storage:
+Logs ko simple text files ya JSON files me store kar sakte hain.
 
-Example: Hold a workshop where the IT team demonstrates how to use historical data and predictive models to forecast capacity needs. Show the Head of E-commerce how last year's holiday sale data can help predict this year's needs.
-
-Collaborate on Planning: Work together to develop capacity plans that align with business objectives and expected growth.
-
-Example: Collaborate with the Head of E-commerce to create a capacity plan for the holiday season, ensuring sufficient resources are allocated to handle increased web traffic and transaction volumes.
-
-Regular Updates: Keep stakeholders informed about capacity trends, potential issues, and planned changes.
-
-Example: Send monthly reports to all stakeholders with updates on capacity usage, any detected trends, potential issues, and upcoming changes in infrastructure or resource allocation.
+Pros:
+Easy to set up and use.
+No additional infrastructure required.
+Cons:
+Not efficient for large volumes of data.
+Limited search and analysis capabilities
