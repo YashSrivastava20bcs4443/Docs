@@ -1,39 +1,5 @@
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.14.3-linux-x86_64.tar.gz
+tar -xzf elasticsearch-8.14.3-linux-x86_64.tar.gz
+cd elasticsearch-8.14.3
 
 
-1. Elasticsearch:
-Elasticsearch ek powerful search aur analytics engine hai jo log data store aur process karne ke liye widely used hota hai.
-
-Pros:
-High performance search capabilities.
-Can handle large volumes of data.
-Kibana can be used for visualizing the data stored in Elasticsearch.
-Cons:
-Requires setup and maintenance.
-May be overkill for small-scale log storage needs.
-2. Relational Database (e.g., MySQL, PostgreSQL):
-Aap logs ko relational database me store kar sakte hain.
-
-Pros:
-Structured data storage with SQL query capabilities.
-Well-known and widely used.
-Cons:
-May require more effort to structure and maintain.
-Not as optimized for log storage and searching as Elasticsearch.
-3. NoSQL Database (e.g., MongoDB):
-MongoDB jaise NoSQL databases bhi logs store karne ke liye accha option hain.
-
-Pros:
-Flexible schema design.
-Good for unstructured or semi-structured data.
-Cons:
-Requires understanding of NoSQL principles.
-May not offer the same level of query performance for complex searches as SQL databases.
-4. File Storage:
-Logs ko simple text files ya JSON files me store kar sakte hain.
-
-Pros:
-Easy to set up and use.
-No additional infrastructure required.
-Cons:
-Not efficient for large volumes of data.
-Limited search and analysis capabilities
