@@ -35,3 +35,16 @@ config log syslogd filter
     set voip enable
     set filter <all>
 end
+
+sudo journalctl -u logstash -f
+
+[INFO ][logstash.inputs.udp      ] Starting UDP listener {:address=>"0.0.0.0:514"}
+[INFO ][logstash.inputs.udp      ] UDP listener started {:address=>"0.0.0.0:514", :receive_buffer_bytes=>"106496", :queue_size=>"2000"}
+[INFO ][logstash.pipeline        ] Pipeline started successfully {:pipeline_id=>"main", :thread=>"#<Thread:0xabcdef run>"}
+
+curl -XGET 'http://localhost:9600/_node/stats/pipelines?pretty'
+
+
+curl -X GET "http://localhost:9200/_cat/indices?v"
+
+http://localhost:9200/fortigate-logs-*/_count
