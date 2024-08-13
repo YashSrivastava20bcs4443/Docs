@@ -1,0 +1,35 @@
+Step 1: FortiGate Firewall Ko Syslog Server Configure Karna
+FortiGate CLI Mein Login Karein.
+
+Syslog Server Add Karein.
+Aapko FortiGate firewall ko is tarah configure karna hoga taake woh logs ko aapke Logstash server par bheje:
+
+config log syslogd setting
+    set status enable
+    set server "192.168.1.2"  # Replace with your Logstash server's IP
+    set port 514
+    set facility local7
+    set format default
+    set source-ip "192.168.1.x"  # Replace with FortiGate's IP
+    set mode udp
+    set reliable disable
+end
+
+
+
+Yahan:
+
+server: Aapke Logstash server ka IP address (192.168.1.2).
+port: Syslog ke liye commonly used port, default 514 (UDP).
+source-ip: FortiGate firewall ka IP address.
+
+config log syslogd filter
+    set severity information
+    set forward-traffic enable
+    set local-traffic enable
+    set multicast-traffic enable
+    set sniffer-traffic enable
+    set anomaly enable
+    set voip enable
+    set filter <all>
+end
