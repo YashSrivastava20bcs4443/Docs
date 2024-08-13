@@ -48,3 +48,34 @@ curl -XGET 'http://localhost:9600/_node/stats/pipelines?pretty'
 curl -X GET "http://localhost:9200/_cat/indices?v"
 
 http://localhost:9200/fortigate-logs-*/_count
+
+
+input {
+  udp {
+    port => 514
+    type => "fortigate"
+  }
+}
+
+filter {
+  if [type] == "fortigate" {
+    grok {
+      match => {
+        "message" => "%{SYSLOG5424PRI:syslog_index} %{WORD:FG_type} %{CISCOTIMESTAMP:FG_time} %{IP:FG_src_ip} %{WORD:FG_action} %{NOTSPACE:FG_service} %{GREEDYDATA:FG_message}"
+      }
+      tag_on_failure => ["_grokparsefailure"]
+    }
+    date {
+      match => [ "FG_time", "MMM dd HH:mm:ss" ]
+      timezone => "UTC"
+    }
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["http://192.168.1.2:9200"]
+    index => "fortigate-logs-%{+YYYY.MM.dd}"
+  }
+  stdout { codec => rubydebug }  # This will print logs to stdout for debugging
+}
