@@ -1,0 +1,41 @@
+input {
+  udp {
+    port => 514
+    type => "fortigate"
+  }
+}
+
+filter {
+  if [type] == "fortigate" {
+    grok {
+      match => { 
+        "message" => '<%{POSINT:syslog_pri}>date=%{DATE:date} time=%{TIME:time} devname="%{DATA:devname}" devid="%{DATA:devid}" eventtime=%{NUMBER:eventtime} tz="%{DATA:tz}" logid="%{DATA:logid}" type="%{DATA:type}" subtype="%{DATA:subtype}" level="%{DATA:level}" vd="%{DATA:vd}" srcip=%{IP:srcip} srcport=%{NUMBER:srcport} srcintf="%{DATA:srcintf}" srcintfrole="%{DATA:srcintfrole}" dstip=%{IP:dstip} dstport=%{NUMBER:dstport} dstintf="%{DATA:dstintf}" dstintfrole="%{DATA:dstintfrole}" srccountry="%{DATA:srccountry}" dstcountry="%{DATA:dstcountry}" sessionid=%{NUMBER:sessionid} proto=%{NUMBER:proto} action="%{DATA:action}" policyid=%{NUMBER:policyid} service="%{DATA:service}" trandisp="%{DATA:trandisp}" app="%{DATA:app}" duration=%{NUMBER:duration} sentbyte=%{NUMBER:sentbyte} rcvdbyte=%{NUMBER:rcvdbyte} sentpkt=%{NUMBER:sentpkt} rcvdpkt=%{NUMBER:rcvdpkt} appcat="%{DATA:appcat}" dsthwvendor="%{DATA:dsthwvendor}" masterdstmac="%{MAC:masterdstmac}" datmac="%{MAC:datmac}" dstserver=%{NUMBER:dstserver}'
+      }
+      # Add a tag for debugging
+      tag_on_failure => ["_grokparsefailure"]
+    }
+
+    # Adjust the date filter if necessary
+    date {
+      match => ["eventtime", "UNIX_MS"]
+      target => "@timestamp"
+      # Add a tag for debugging
+      tag_on_failure => ["_dateparsefailure"]
+    }
+
+    mutate {
+      remove_field => ["message", "eventtime"]
+    }
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["http://localhost:9200"]
+    index => "fortigate-logs-%{+YYYY.MM.dd}"
+    user => "admin"
+    password => "yash2002"
+    cacert => "/home/kushal/ELK/kibana-8.15.0/data/ca_1723544162750.crt"
+  }
+  stdout { codec => rubydebug }
+}
