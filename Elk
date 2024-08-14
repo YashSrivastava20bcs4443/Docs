@@ -79,3 +79,17 @@ output {
   }
   stdout { codec => rubydebug }  # This will print logs to stdout for debugging
 }
+
+
+
+
+output {
+  elasticsearch {
+    hosts => ["https://172.20.10.236:9200"]
+    user => "admin"
+    password => "xxxxxx"
+    cacert => "/path/to/your/certificate.crt"
+  }
+}
+
+sudo bin/logstash -f logstash.conf
