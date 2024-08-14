@@ -93,3 +93,24 @@ output {
 }
 
 sudo bin/logstash -f logstash.conf
+
+
+filter {
+  if [type] == "fortigate" {
+    grok {
+      match => { 
+        "message" => 'devname="%{DATA:devname}" devid="%{DATA:devid}" eventtime=%{NUMBER:eventtime} tz=%{NUMBER:tz} logid="%{DATA:logid}" type="%{DATA:type}" subtype="%{DATA:subtype}" level="%{DATA:level}" vd="%{DATA:vd}" srcip=%{IP:src_ip} srcport=%{NUMBER:srcport} srcintf="%{DATA:srcintf}" srcintfrole="%{DATA:srcintfrole}" dstip=%{IP:dst_ip} dstport=%{NUMBER:dstport} dstintf="%{DATA:dstintf}" dstintfrole="%{DATA:dstintfrole}" sessionid=%{NUMBER:sessionid} proto=%{NUMBER:proto} action="%{DATA:action}" policyid=%{NUMBER:policyid}'
+      }
+    }
+
+    # Convert eventtime to @timestamp
+    date {
+      match => ["eventtime", "UNIX_MS"]
+      target => "@timestamp"
+    }
+
+    mutate {
+      remove_field => ["message", "eventtime"]
+    }
+  }
+}
