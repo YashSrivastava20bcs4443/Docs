@@ -1,0 +1,123 @@
+
+Memory updated
+To visualize the specific fields from your FortiGate logs in Kibana, follow these steps for each field or combination of fields:
+
+1. Verify Data in Discover
+Before creating visualizations, ensure that these fields are being correctly ingested into Elasticsearch:
+
+Go to Discover in Kibana.
+Select your index pattern (fortigate-logs-*).
+Verify that the fields (e.g., date, time, devname, srcip, dstip, etc.) are populated with the correct data.
+2. Create Visualizations for Each Field
+2.1 Date and Time
+Visualization Type: Line Chart
+Steps:
+Go to Visualize.
+Select Line Chart.
+In the X-Axis, choose the @timestamp field (or your parsed date and time fields if they are separate).
+For Y-Axis, you can use Count to see the number of logs over time.
+Apply filters if needed to focus on specific events or devices.
+2.2 Device Name (devname)
+Visualization Type: Bar Chart or Pie Chart
+Steps:
+Select Bar Chart or Pie Chart.
+In Buckets, choose devname for the aggregation.
+Use Count as the metric to see the distribution of logs by device name.
+2.3 Type (type)
+Visualization Type: Bar Chart or Pie Chart
+Steps:
+Similar to devname, create a Bar or Pie Chart.
+Choose type for the aggregation to see the different log types.
+2.4 Level (level)
+Visualization Type: Bar Chart or Pie Chart
+Steps:
+Aggregate on the level field to visualize the distribution of log levels (e.g., info, warning, error).
+2.5 Action (action)
+Visualization Type: Bar Chart or Pie Chart
+Steps:
+Aggregate on the action field to visualize the distribution of different actions taken (e.g., allow, deny).
+2.6 Policy ID (policyid)
+Visualization Type: Vertical Bar Chart
+Steps:
+Aggregate on the policyid field to see which policies are being triggered most frequently.
+2.7 Source and Destination Ports (srcport, dstport)
+Visualization Type: Bar Chart
+Steps:
+Create a Bar Chart for srcport and dstport.
+Choose Terms aggregation for these fields to see the most common ports used.
+2.8 Source and Destination Interfaces (srcintf, dstintf)
+Visualization Type: Bar Chart
+Steps:
+Aggregate on srcintf and dstintf to see the distribution of traffic across different interfaces.
+2.9 Source and Destination IPs (srcip, dstip)
+Visualization Type: Data Table or Vertical Bar Chart
+Steps:
+Aggregate on srcip and dstip to see the most active source and destination IPs.
+You can also use a Geo Map if you have geolocation data available.
+2.10 Sent and Received Bytes (sentbyte, rcvdbyte)
+Visualization Type: Area Chart or Bar Chart
+Steps:
+Create an Area or Bar Chart.
+Use Sum aggregation on sentbyte and rcvdbyte to visualize the total bytes sent and received over time.
+3. Combine Visualizations into a Dashboard
+Once individual visualizations are created, combine them into a single dashboard:
+
+Go to Dashboard.
+Click Create new dashboard.
+Add your visualizations.
+Arrange them to fit your needs and save the dashboard.
+This approach will help you effectively monitor and analyze your FortiGate log data using Kibana.
+
+You said:
+ek table bhi bana na hai
+ChatGPT said:
+ChatGPT
+To create a table visualization in Kibana to display your FortiGate log fields, follow these steps:
+
+1. Create a Data Table Visualization
+Go to Visualize in Kibana.
+Click on Create new visualization.
+Select Data Table.
+2. Configure the Table
+2.1 Add Columns for Each Field
+Buckets: You'll need to add a bucket for each field you want to display in the table.
+
+Click on Add under the Buckets section.
+Choose Split Rows.
+For each field (e.g., devname, type, level, etc.), choose:
+Aggregation: Select Terms.
+Field: Select the field you want to display (e.g., devname, srcip, dstip).
+Order by: You can order by Count or Alphabetically.
+Size: Set how many terms you want to display (e.g., 10, 20).
+2.2 Add a Metric
+Metric: If you want to display the count of logs or another metric in addition to the fields:
+
+In the Metrics section, click on Add.
+Choose Count or any other metric you need (e.g., Sum of sentbyte).
+2.3 Combine Fields in One Row (Optional)
+If you want to display multiple fields in the same row:
+
+Instead of using Split Rows, use Split Columns for each additional field.
+This will place the values of multiple fields side by side in one row for each log entry.
+3. Customize the Table
+Sorting: You can click on any column header to sort the table based on that field.
+Pagination: Adjust the pagination settings if needed, especially if you have a large dataset.
+4. Save and Add to Dashboard
+Once you’re satisfied with your table, click Save.
+Name your table and save it.
+Add this table to your dashboard by going to Dashboard > Add > Select your table visualization.
+Example Configuration:
+Let's say you want a table that shows date, time, devname, srcip, dstip, sentbyte, and rcvdbyte:
+
+Metric:
+Aggregation: Count (or use Sum for sentbyte and rcvdbyte if needed).
+Split Rows:
+1st Field: date (Terms aggregation)
+2nd Field: time (Terms aggregation)
+3rd Field: devname (Terms aggregation)
+4th Field: srcip (Terms aggregation)
+5th Field: dstip (Terms aggregation)
+6th Field: sentbyte (Sum aggregation)
+7th Field: rcvdbyte (Sum aggregation)
+Result:
+You will get a table showing each combination of date, time, devname, srcip, dstip with the corresponding sentbyte and rcvdbyte values, or any other fields you decide to include. This table can then be added to your Kibana dashboard alongside other visualizations.
