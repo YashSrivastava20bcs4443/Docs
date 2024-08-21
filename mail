@@ -1,35 +1,36 @@
-Subject: Request for HDMI to HDMI Cable for Laptop
 
-Dear [Manager's Name],
+**Subject:** Request for Azure AD Application Configuration for Cost Management API Access for Grafana Project
 
-I hope this email finds you well. I would like to request your approval for an HDMI to HDMI cable that I need for my laptop to facilitate presentations and extended displays during my work.
+**Dear [Manager's Name],**
 
-Could you please approve this request so that I can forward it to the IT Helpdesk for processing?
+I hope this message finds you well. I am writing to request the configuration of an Azure Active Directory (AD) application to enable access to the Azure Cost Management API. This is essential for our ongoing project that involves Azure cost analysis using Grafana.
 
-Thank you for your consideration.
+The configuration involves the following steps:
+
+1. **Register an Application in Azure AD:**
+   - Navigate to the Azure Portal, and go to **Azure Active Directory** > **App registrations** > **New registration**.
+   - Enter a name for the application, select the supported account types, and click "Register."
+   - Note down the **Application (client) ID** and **Directory (tenant) ID**.
+   - Under "Certificates & secrets," create a new client secret and store it securely.
+
+2. **Assign API Permissions:**
+   - In the Azure AD App, go to **API permissions** > **Add a permission**.
+   - Choose **Azure Service Management** > **Delegated permissions** and select the **user_impersonation** permission.
+   - Grant admin consent for the permission.
+
+3. **Grant Access to Cost Management Data:**
+   - Go to **Azure Portal** > **Subscriptions** > Select the relevant subscription > **Access control (IAM)**.
+   - Assign the **Cost Management Reader** role to the Azure AD App.
+
+This configuration is crucial for integrating the Azure Cost Management API with Grafana, allowing us to efficiently monitor and analyze our cloud expenditures.
+
+Please let me know if there are any prerequisites we need to fulfill or if you need further information.
+
+Thank you for considering this request.
 
 Best regards,  
 [Your Name]
 
 ---
 
-Subject: Request for HDMI to HDMI Cable for Laptop
-
-Dear IT Helpdesk Team,
-
-I hope you're doing well. With my manager's approval (see below), I would like to request an HDMI to HDMI cable for my laptop. This cable is needed for presentations and extending displays.
-
-Please let me know the next steps or if any additional information is required.
-
-Thank you for your support.
-
-Best regards,  
-[Your Name]  
-[Your Position]  
-[Your Department]  
-
----
-
-Forwarded Message:
-
-[Include the email with your manager's approval here]
+This version makes it clear that the configuration is for a Grafana-related project.
