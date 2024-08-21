@@ -1,37 +1,39 @@
-input {
-  udp {
-    port => 514
-    type => "fortigate"
-  }
-}
+1. Enable ILM (Index Lifecycle Management)
 
-filter {
-  if [type] == "fortigate" {
-    grok {
-      match => {
-        "message" => "<%{NUMBER}>date=%{TIMESTAMP_ISO8601:date} time=%{TIME:time} devname=\"%{DATA:devname}\" type=\"%{WORD:type}\" level=\"%{WORD:level}\" srcip=%{IP:srcip} srcport=%{NUMBER:srcport} srcintf=\"%{DATA:srcintf}\" dstip=%{IP:dstip} dstport=%{NUMBER:dstport} dstintf=\"%{DATA:dstintf}\" action=\"%{WORD:action}\" policyid=%{NUMBER:policyid} sentbyte=%{NUMBER:sentbyte} rcvdbyte=%{NUMBER:rcvdbyte}"
-      }
-    }
-    kv {
-      source => "message"
-      field_split => " "
-      value_split => "="
-    }
+ILM allows you to automate the process of managing indices, including deleting old indices after a certain period.
+2. Create an ILM Policy
 
-    date {
-      match => ["date", "yyyy-MM-dd HH:mm:ss,SSS"]
-      target => "@timestamp"
-    }
-  }
-}
+    Access Kibana:
+        Go to Management > Stack Management > Index Lifecycle Policies.
 
-output {
-  elasticsearch {
-    hosts => ["https://192.168.31.191:9200"]
-    user => "admin"
-    password => "yash2002"
-    index => "fortigate-logs-%{+YYYY.MM.dd}"
-    cacert => "/home/yash/ELK/kibana-8.15.0/data/ca_1723784452001.crt"
-  }
-  stdout { codec => rubydebug }
-}
+    Create a New Policy:
+        Click on Create Policy.
+        Name the policy something like fortigate-log-retention-policy.
+
+    Configure the Policy Phases:
+        Hot Phase: This is where your data is actively being written.
+        Delete Phase:
+            Enable the Delete phase.
+            Set Minimum age to 30 days (or the retention period you prefer).
+            Configure the Action to Delete.
+
+    Save the Policy.
+
+3. Apply the ILM Policy to Your Index
+
+    Update Index Template:
+        Go to Management > Stack Management > Index Management > Index Templates.
+        Find the template used for your fortigate-logs-* index pattern.
+        Edit the template and under the Index Lifecycle Management section, choose the fortigate-log-retention-policy you created.
+
+    Apply to Existing Indices (Optional):
+        You can apply the policy to existing indices by going to Management > Index Management.
+        Select your existing indices and click Manage ILM.
+        Choose the fortigate-log-retention-policy.
+
+4. Verify the Policy is Working
+
+After applying the policy, Elasticsearch will automatically manage your indices according to the lifecycle rules. The indices will be deleted after 30 days, keeping only the latest data.
+5. Rolling Over Indices
+
+If your index is large, consider setting up a rollover in the ILM policy so that after a certain size or number of documents, a new index is created, and the old index can be safely deleted after it reaches the age limit.
