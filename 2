@@ -1,39 +1,17 @@
-1. Enable ILM (Index Lifecycle Management)
+{
+  "index": {
+    "lifecycle": {
+      "name": "fortigate-log-retention-policy",  // The ILM policy name you created
+      "rollover_alias": "fortigate-logs-alias"   // The alias for rollover
+    },
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  }
+}
 
-ILM allows you to automate the process of managing indices, including deleting old indices after a certain period.
-2. Create an ILM Policy
 
-    Access Kibana:
-        Go to Management > Stack Management > Index Lifecycle Policies.
-
-    Create a New Policy:
-        Click on Create Policy.
-        Name the policy something like fortigate-log-retention-policy.
-
-    Configure the Policy Phases:
-        Hot Phase: This is where your data is actively being written.
-        Delete Phase:
-            Enable the Delete phase.
-            Set Minimum age to 30 days (or the retention period you prefer).
-            Configure the Action to Delete.
-
-    Save the Policy.
-
-3. Apply the ILM Policy to Your Index
-
-    Update Index Template:
-        Go to Management > Stack Management > Index Management > Index Templates.
-        Find the template used for your fortigate-logs-* index pattern.
-        Edit the template and under the Index Lifecycle Management section, choose the fortigate-log-retention-policy you created.
-
-    Apply to Existing Indices (Optional):
-        You can apply the policy to existing indices by going to Management > Index Management.
-        Select your existing indices and click Manage ILM.
-        Choose the fortigate-log-retention-policy.
-
-4. Verify the Policy is Working
-
-After applying the policy, Elasticsearch will automatically manage your indices according to the lifecycle rules. The indices will be deleted after 30 days, keeping only the latest data.
-5. Rolling Over Indices
-
-If your index is large, consider setting up a rollover in the ILM policy so that after a certain size or number of documents, a new index is created, and the old index can be safely deleted after it reaches the age limit.
+{
+  "fortigate-logs-alias": {
+    "is_write_index": true
+  }
+}
