@@ -6,4 +6,27 @@ cd elasticsearch-8.14.3
 bin/elasticsearch-users useradd admin -p 2002 -r superuser
 
 
+trigger:
+  - main  # or your default branch
+
+pool:
+  name: 'Default'  # This should match the agent pool name where your self-hosted agent is registered
+  demands:
+    - agent.name -equals [your-agent-name]  # Optional, but useful if you have multiple agents
+
+steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.x'  # Ensure Python 3 is available
+      addToPath: true
+
+  - script: |
+      pip install paramiko  # Install necessary Python packages
+      python your_script.py  # Replace with your actual script name
+    displayName: 'Run Python Script'
+    env:
+      SFTP_HOST: $(host)
+      SFTP_USERNAME: $(username)
+      SFTP_PASSWORD: $(password)
+
 
