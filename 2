@@ -33,3 +33,25 @@ POST /fortigate-logs-alias/_rollover
     "max_docs": 1000
   }
 }
+PUT /_data_stream/fortigate-logs
+
+
+PUT _ilm/policy/fortigate-log-retention-policy
+{
+  "phases": {
+    "hot": {
+      "actions": {
+        "rollover": {
+          "max_age": "15m",
+          "max_size": "50mb"  
+        }
+      }
+    },
+    "delete": {
+      "min_age": "15m",
+      "actions": {
+        "delete": {}
+      }
+    }
+  }
+}
