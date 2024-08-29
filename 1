@@ -1,67 +1,58 @@
 import pandas as pd
-import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import numpy as np
 
-# Load the CSV data
-data = pd.read_csv('your_data.csv')
+# Step 1: Load the CSV with the correct header row
+data = pd.read_csv('your_data.csv', header=3)  # Adjust the header row if necessary
 
-# Replace 'Interval' with the actual date column name
-date_column = 'your_actual_date_column_name'  # Replace this with the correct name
-data[date_column] = pd.to_datetime(data[date_column], format='%m/%d/%Y')
+# Step 2: Filter for the required data
+# Assuming we're interested in the 'Processor % Processor Time Total' for CPU and 'Percent Memory Used' for Memory
 
-# Filter CPU and Memory data based on 'Rule' or 'Name' column
 cpu_data = data[data['Rule'].str.contains('Processor % Processor Time Total', na=False)]
 memory_data = data[data['Rule'].str.contains('Percent Memory Used', na=False)]
 
-# Set the date column as the index and ensure the frequency is daily
-cpu_data.set_index(date_column, inplace=True)
-memory_data.set_index(date_column, inplace=True)
+# Step 3: Data Preprocessing
+# Convert the 'Interval' column to datetime
+cpu_data['Interval'] = pd.to_datetime(cpu_data['Interval'], format='%m/%d/%Y')
+memory_data['Interval'] = pd.to_datetime(memory_data['Interval'], format='%m/%d/%Y')
 
-cpu_data = cpu_data.asfreq('D').fillna(method='ffill')
-memory_data = memory_data.asfreq('D').fillna(method='ffill')
+# Set the 'Interval' as the index
+cpu_data.set_index('Interval', inplace=True)
+memory_data.set_index('Interval', inplace=True)
 
-# Fit ARIMA models
-cpu_model = ARIMA(cpu_data['Average'], order=(1, 1, 1))
-memory_model = ARIMA(memory_data['Average'], order=(1, 1, 1))
+# Select the 'Average' column for modeling
+cpu_ts = cpu_data['Average']
+memory_ts = memory_data['Average']
 
-cpu_fit = cpu_model.fit()
-memory_fit = memory_model.fit()
+# Step 4: Forecasting using ARIMA
+def forecast_arima(ts, order=(5, 1, 0), steps=1):
+    model = ARIMA(ts, order=order)
+    model_fit = model.fit()
+    forecast = model_fit.forecast(steps=steps)
+    return forecast, model_fit
 
-# Make predictions for the next day
-cpu_forecast = cpu_fit.forecast(steps=1)
-memory_forecast = memory_fit.forecast(steps=1)
+# Forecast CPU usage
+cpu_forecast, cpu_model = forecast_arima(cpu_ts)
 
-# Calculate Accuracy Metrics for CPU
-cpu_actual = cpu_data['Average'].iloc[-1]
-cpu_predicted = cpu_forecast.iloc[0]
-cpu_mae = mean_absolute_error([cpu_actual], [cpu_predicted])
-cpu_mse = mean_squared_error([cpu_actual], [cpu_predicted])
-cpu_rmse = np.sqrt(cpu_mse)
+# Forecast Memory usage
+memory_forecast, memory_model = forecast_arima(memory_ts)
 
-# Calculate Accuracy Metrics for Memory
-memory_actual = memory_data['Average'].iloc[-1]
-memory_predicted = memory_forecast.iloc[0]
-memory_mae = mean_absolute_error([memory_actual], [memory_predicted])
-memory_mse = mean_squared_error([memory_actual], [memory_predicted])
-memory_rmse = np.sqrt(memory_mse)
+# Step 5: Calculate Accuracy
+def calculate_accuracy(ts, model):
+    forecast = model.forecast(steps=1)[0]
+    actual = ts[-1]  # Last known value
+    mae = mean_absolute_error([actual], [forecast])
+    mse = mean_squared_error([actual], [forecast])
+    rmse = np.sqrt(mse)
+    return forecast, mae, mse, rmse
 
-print(f"Forecasted CPU Usage: {cpu_forecast.iloc[0]:.2f}")
-print(f"CPU MAE: {cpu_mae:.2f}, MSE: {cpu_mse:.2f}, RMSE: {cpu_rmse:.2f}")
+# Calculate accuracy for CPU
+cpu_pred, cpu_mae, cpu_mse, cpu_rmse = calculate_accuracy(cpu_ts, cpu_model)
+print(f"Forecasted CPU Usage: {cpu_pred}")
+print(f"CPU MAE: {cpu_mae}, MSE: {cpu_mse}, RMSE: {cpu_rmse}")
 
-print(f"Forecasted Memory Usage: {memory_forecast.iloc[0]:.2f}")
-print(f"Memory MAE: {memory_mae:.2f}, MSE: {memory_mse:.2f}, RMSE: {memory_rmse:.2f}")
-
-# Visualization of actual vs predicted
-cpu_data['Average'].plot(label='CPU Actual')
-plt.axhline(y=cpu_forecast.iloc[0], color='r', linestyle='--', label='CPU Forecast')
-plt.title('CPU Usage Forecast')
-plt.legend()
-plt.show()
-
-memory_data['Average'].plot(label='Memory Actual')
-plt.axhline(y=memory_forecast.iloc[0], color='r', linestyle='--', label='Memory Forecast')
-plt.title('Memory Usage Forecast')
-plt.legend()
-plt.show()
+# Calculate accuracy for Memory
+memory_pred, memory_mae, memory_mse, memory_rmse = calculate_accuracy(memory_ts, memory_model)
+print(f"Forecasted Memory Usage: {memory_pred}")
+print(f"Memory MAE: {memory_mae}, MSE: {memory_mse}, RMSE: {memory_rmse}")
