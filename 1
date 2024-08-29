@@ -6,12 +6,14 @@ from fbprophet import Prophet
 data = pd.read_csv('cpu_memory_usage.csv')
 
 # Data Preprocessing
-# Select relevant columns for CPU and Memory (assuming they are differentiated by 'Name' or similar)
-cpu_data = data[data['Name'].str.contains('CPU')]  # Filter for CPU usage data
-memory_data = data[data['Name'].str.contains('Memory')]  # Filter for Memory usage data
+# Assuming 'Interval' column has the timestamps and 'Average' column has the usage values
+# Filter for CPU and Memory data based on 'Name' or 'Rule' as per the dataset
+
+# Example filtering (modify as per your actual column names):
+cpu_data = data[data['Name'].str.contains('CPU')]  # Adjust this filter based on your actual data
+memory_data = data[data['Name'].str.contains('Memory')]  # Adjust this filter based on your actual data
 
 # Create a time series dataframe suitable for Prophet
-# Assuming 'Interval' column has the timestamps, and 'Average' column has the usage values
 cpu_ts = cpu_data[['Interval', 'Average']].rename(columns={'Interval': 'ds', 'Average': 'y'})
 memory_ts = memory_data[['Interval', 'Average']].rename(columns={'Interval': 'ds', 'Average': 'y'})
 
