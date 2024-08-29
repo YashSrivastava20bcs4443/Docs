@@ -4,25 +4,26 @@ from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import numpy as np
 
-# Load the CSV data (replace 'your_data.csv' with your actual file name)
+# Load the CSV data
 data = pd.read_csv('your_data.csv')
 
-# Convert 'Interval' to datetime
-data['Interval'] = pd.to_datetime(data['Interval'], format='%m/%d/%Y')
+# Replace 'Interval' with the actual date column name
+date_column = 'your_actual_date_column_name'  # Replace this with the correct name
+data[date_column] = pd.to_datetime(data[date_column], format='%m/%d/%Y')
 
 # Filter CPU and Memory data based on 'Rule' or 'Name' column
 cpu_data = data[data['Rule'].str.contains('Processor % Processor Time Total', na=False)]
 memory_data = data[data['Rule'].str.contains('Percent Memory Used', na=False)]
 
-# Set 'Interval' as index and ensure the frequency is daily
-cpu_data.set_index('Interval', inplace=True)
-memory_data.set_index('Interval', inplace=True)
+# Set the date column as the index and ensure the frequency is daily
+cpu_data.set_index(date_column, inplace=True)
+memory_data.set_index(date_column, inplace=True)
 
 cpu_data = cpu_data.asfreq('D').fillna(method='ffill')
 memory_data = memory_data.asfreq('D').fillna(method='ffill')
 
 # Fit ARIMA models
-cpu_model = ARIMA(cpu_data['Average'], order=(1, 1, 1))  # Adjust (p, d, q) as needed
+cpu_model = ARIMA(cpu_data['Average'], order=(1, 1, 1))
 memory_model = ARIMA(memory_data['Average'], order=(1, 1, 1))
 
 cpu_fit = cpu_model.fit()
@@ -33,14 +34,14 @@ cpu_forecast = cpu_fit.forecast(steps=1)
 memory_forecast = memory_fit.forecast(steps=1)
 
 # Calculate Accuracy Metrics for CPU
-cpu_actual = cpu_data['Average'].iloc[-1]  # Use the last actual value
+cpu_actual = cpu_data['Average'].iloc[-1]
 cpu_predicted = cpu_forecast.iloc[0]
 cpu_mae = mean_absolute_error([cpu_actual], [cpu_predicted])
 cpu_mse = mean_squared_error([cpu_actual], [cpu_predicted])
 cpu_rmse = np.sqrt(cpu_mse)
 
 # Calculate Accuracy Metrics for Memory
-memory_actual = memory_data['Average'].iloc[-1]  # Use the last actual value
+memory_actual = memory_data['Average'].iloc[-1]
 memory_predicted = memory_forecast.iloc[0]
 memory_mae = mean_absolute_error([memory_actual], [memory_predicted])
 memory_mse = mean_squared_error([memory_actual], [memory_predicted])
