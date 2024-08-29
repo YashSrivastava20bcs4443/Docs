@@ -1,32 +1,57 @@
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.14.3-linux-x86_64.tar.gz
-tar -xzf elasticsearch-8.14.3-linux-x86_64.tar.gz
-cd elasticsearch-8.14.3
+import pandas as pd
+import matplotlib.pyplot as plt
+from fbprophet import Prophet
 
+# Load the CSV data
+data = pd.read_csv('cpu_memory_usage.csv')
 
-bin/elasticsearch-users useradd admin -p 2002 -r superuser
+# Data Preprocessing
+# Select relevant columns for CPU and Memory (assuming they are differentiated by 'Name' or similar)
+cpu_data = data[data['Name'].str.contains('CPU')]  # Filter for CPU usage data
+memory_data = data[data['Name'].str.contains('Memory')]  # Filter for Memory usage data
 
+# Create a time series dataframe suitable for Prophet
+# Assuming 'Interval' column has the timestamps, and 'Average' column has the usage values
+cpu_ts = cpu_data[['Interval', 'Average']].rename(columns={'Interval': 'ds', 'Average': 'y'})
+memory_ts = memory_data[['Interval', 'Average']].rename(columns={'Interval': 'ds', 'Average': 'y'})
 
-trigger:
-  - main  # or your default branch
+# Convert 'ds' column to datetime
+cpu_ts['ds'] = pd.to_datetime(cpu_ts['ds'])
+memory_ts['ds'] = pd.to_datetime(memory_ts['ds'])
 
-pool:
-  name: 'Default'  # This should match the agent pool name where your self-hosted agent is registered
-  demands:
-    - agent.name -equals [your-agent-name]  # Optional, but useful if you have multiple agents
+# Prophet expects daily data; if data is more granular, you might need to aggregate it
+# Example: Aggregating to daily average
+cpu_ts = cpu_ts.resample('D', on='ds').mean().reset_index()
+memory_ts = memory_ts.resample('D', on='ds').mean().reset_index()
 
-steps:
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '3.x'  # Ensure Python 3 is available
-      addToPath: true
+# Initialize Prophet models
+cpu_model = Prophet()
+memory_model = Prophet()
 
-  - script: |
-      pip install paramiko  # Install necessary Python packages
-      python your_script.py  # Replace with your actual script name
-    displayName: 'Run Python Script'
-    env:
-      SFTP_HOST: $(host)
-      SFTP_USERNAME: $(username)
-      SFTP_PASSWORD: $(password)
+# Fit the models
+cpu_model.fit(cpu_ts)
+memory_model.fit(memory_ts)
 
+# Make future dataframe for predictions (1 day into the future)
+cpu_future = cpu_model.make_future_dataframe(periods=1)
+memory_future = memory_model.make_future_dataframe(periods=1)
 
+# Predict the future usage
+cpu_forecast = cpu_model.predict(cpu_future)
+memory_forecast = memory_model.predict(memory_future)
+
+# Extract the forecasted values
+cpu_prediction = cpu_forecast[['ds', 'yhat']].iloc[-1]
+memory_prediction = memory_forecast[['ds', 'yhat']].iloc[-1]
+
+print(f"Forecasted CPU Usage for {cpu_prediction['ds']}: {cpu_prediction['yhat']}")
+print(f"Forecasted Memory Usage for {memory_prediction['ds']}: {memory_prediction['yhat']}")
+
+# Visualization
+cpu_model.plot(cpu_forecast)
+plt.title('CPU Usage Forecast')
+plt.show()
+
+memory_model.plot(memory_forecast)
+plt.title('Memory Usage Forecast')
+plt.show()
