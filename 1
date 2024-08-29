@@ -1,58 +1,59 @@
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-import numpy as np
+from sklearn.metrics import mean_squared_error, r2_score
+import matplotlib.pyplot as plt
 
-# Step 1: Load the CSV with the correct header row
-data = pd.read_csv('your_data.csv', header=3)  # Adjust the header row if necessary
+# CSV file ko load karna
+df = pd.read_csv('cpu_memory_data.csv', parse_dates=['Date'], index_col='Date')
 
-# Step 2: Filter for the required data
-# Assuming we're interested in the 'Processor % Processor Time Total' for CPU and 'Percent Memory Used' for Memory
+# CPU usage ke liye model train karna
+cpu_df = df[['CPU_Usage']].dropna()
+cpu_model = ARIMA(cpu_df, order=(5,1,0))
+cpu_model_fit = cpu_model.fit()
 
-cpu_data = data[data['Rule'].str.contains('Processor % Processor Time Total', na=False)]
-memory_data = data[data['Rule'].str.contains('Percent Memory Used', na=False)]
+# Memory usage ke liye model train karna
+memory_df = df[['Memory_Usage']].dropna()
+memory_model = ARIMA(memory_df, order=(5,1,0))
+memory_model_fit = memory_model.fit()
 
-# Step 3: Data Preprocessing
-# Convert the 'Interval' column to datetime
-cpu_data['Interval'] = pd.to_datetime(cpu_data['Interval'], format='%m/%d/%Y')
-memory_data['Interval'] = pd.to_datetime(memory_data['Interval'], format='%m/%d/%Y')
+# Forecast karna (next 10 days)
+cpu_forecast = cpu_model_fit.forecast(steps=10)
+memory_forecast = memory_model_fit.forecast(steps=10)
 
-# Set the 'Interval' as the index
-cpu_data.set_index('Interval', inplace=True)
-memory_data.set_index('Interval', inplace=True)
+# Forecasting ko train data ke against predict karna
+cpu_train_pred = cpu_model_fit.predict(start=0, end=len(cpu_df) - 1)
+memory_train_pred = memory_model_fit.predict(start=0, end=len(memory_df) - 1)
 
-# Select the 'Average' column for modeling
-cpu_ts = cpu_data['Average']
-memory_ts = memory_data['Average']
+# MSE (Mean Squared Error) calculate karna
+cpu_mse = mean_squared_error(cpu_df['CPU_Usage'], cpu_train_pred)
+memory_mse = mean_squared_error(memory_df['Memory_Usage'], memory_train_pred)
 
-# Step 4: Forecasting using ARIMA
-def forecast_arima(ts, order=(5, 1, 0), steps=1):
-    model = ARIMA(ts, order=order)
-    model_fit = model.fit()
-    forecast = model_fit.forecast(steps=steps)
-    return forecast, model_fit
+# R2 Score calculate karna
+cpu_r2 = r2_score(cpu_df['CPU_Usage'], cpu_train_pred)
+memory_r2 = r2_score(memory_df['Memory_Usage'], memory_train_pred)
 
-# Forecast CPU usage
-cpu_forecast, cpu_model = forecast_arima(cpu_ts)
+# Results print karna
+print(f'CPU Usage Forecasting - MSE: {cpu_mse}, R2 Score: {cpu_r2}')
+print(f'Memory Usage Forecasting - MSE: {memory_mse}, R2 Score: {memory_r2}')
 
-# Forecast Memory usage
-memory_forecast, memory_model = forecast_arima(memory_ts)
+# Forecasting plots
+plt.figure(figsize=(14,7))
 
-# Step 5: Calculate Accuracy
-def calculate_accuracy(ts, model):
-    forecast = model.forecast(steps=1)[0]
-    actual = ts[-1]  # Last known value
-    mae = mean_absolute_error([actual], [forecast])
-    mse = mean_squared_error([actual], [forecast])
-    rmse = np.sqrt(mse)
-    return forecast, mae, mse, rmse
+# CPU plot
+plt.subplot(2, 1, 1)
+plt.plot(cpu_df.index, cpu_df['CPU_Usage'], label='Actual CPU Usage')
+plt.plot(cpu_df.index, cpu_train_pred, color='red', label='Predicted CPU Usage')
+plt.plot(pd.date_range(start=cpu_df.index[-1], periods=10, freq='D'), cpu_forecast, color='green', label='Forecast CPU Usage')
+plt.title('CPU Usage Forecasting')
+plt.legend()
 
-# Calculate accuracy for CPU
-cpu_pred, cpu_mae, cpu_mse, cpu_rmse = calculate_accuracy(cpu_ts, cpu_model)
-print(f"Forecasted CPU Usage: {cpu_pred}")
-print(f"CPU MAE: {cpu_mae}, MSE: {cpu_mse}, RMSE: {cpu_rmse}")
+# Memory plot
+plt.subplot(2, 1, 2)
+plt.plot(memory_df.index, memory_df['Memory_Usage'], label='Actual Memory Usage')
+plt.plot(memory_df.index, memory_train_pred, color='red', label='Predicted Memory Usage')
+plt.plot(pd.date_range(start=memory_df.index[-1], periods=10, freq='D'), memory_forecast, color='green', label='Forecast Memory Usage')
+plt.title('Memory Usage Forecasting')
+plt.legend()
 
-# Calculate accuracy for Memory
-memory_pred, memory_mae, memory_mse, memory_rmse = calculate_accuracy(memory_ts, memory_model)
-print(f"Forecasted Memory Usage: {memory_pred}")
-print(f"Memory MAE: {memory_mae}, MSE: {memory_mse}, RMSE: {memory_rmse}")
+plt.tight_layout()
+plt.show()
