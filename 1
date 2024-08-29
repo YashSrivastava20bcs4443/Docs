@@ -1,79 +1,66 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
-from pandas.plotting import autocorrelation_plot
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+import numpy as np
 
-# Load the CSV data
-data = pd.read_csv('cpu_memory_usage.csv')
+# Load the CSV data (replace 'your_data.csv' with your actual file name)
+data = pd.read_csv('your_data.csv')
 
-# Data Preprocessing
-# Filter the data based on 'Rule' column content
-cpu_data = data[data['Rule'].str.contains('Processor % Processor Time Total', case=False)]  # CPU Data
-memory_data = data[data['Rule'].str.contains('Percent Memory Used', case=False)]  # Memory Data
+# Convert 'Interval' to datetime
+data['Interval'] = pd.to_datetime(data['Interval'], format='%m/%d/%Y')
 
-# Create time series data
-cpu_ts = cpu_data[['Interval', 'Average']].rename(columns={'Interval': 'ds', 'Average': 'y'})
-memory_ts = memory_data[['Interval', 'Average']].rename(columns={'Interval': 'ds', 'Average': 'y'})
+# Filter CPU and Memory data based on 'Rule' or 'Name' column
+cpu_data = data[data['Rule'].str.contains('Processor % Processor Time Total', na=False)]
+memory_data = data[data['Rule'].str.contains('Percent Memory Used', na=False)]
 
-# Convert 'ds' column to datetime
-cpu_ts['ds'] = pd.to_datetime(cpu_ts['ds'])
-memory_ts['ds'] = pd.to_datetime(memory_ts['ds'])
+# Set 'Interval' as index and ensure the frequency is daily
+cpu_data.set_index('Interval', inplace=True)
+memory_data.set_index('Interval', inplace=True)
 
-# Set 'ds' as the index (required for ARIMA)
-cpu_ts.set_index('ds', inplace=True)
-memory_ts.set_index('ds', inplace=True)
+cpu_data = cpu_data.asfreq('D').fillna(method='ffill')
+memory_data = memory_data.asfreq('D').fillna(method='ffill')
 
-# Plot to see if the data looks stationary (optional)
-plt.figure(figsize=(10, 6))
-plt.plot(cpu_ts, label='CPU Usage')
-plt.plot(memory_ts, label='Memory Usage')
-plt.legend()
-plt.show()
-
-# Differencing to make data stationary (if necessary)
-cpu_diff = cpu_ts.diff().dropna()
-memory_diff = memory_ts.diff().dropna()
-
-# Autocorrelation plot to help determine ARIMA parameters (optional)
-plt.figure(figsize=(10, 6))
-autocorrelation_plot(cpu_diff)
-plt.title('CPU Usage Autocorrelation')
-plt.show()
-
-plt.figure(figsize=(10, 6))
-autocorrelation_plot(memory_diff)
-plt.title('Memory Usage Autocorrelation')
-plt.show()
-
-# Fit ARIMA model
-cpu_model = ARIMA(cpu_diff, order=(5, 1, 0))  # Example parameters (p=5, d=1, q=0)
-memory_model = ARIMA(memory_diff, order=(5, 1, 0))  # Example parameters
+# Fit ARIMA models
+cpu_model = ARIMA(cpu_data['Average'], order=(1, 1, 1))  # Adjust (p, d, q) as needed
+memory_model = ARIMA(memory_data['Average'], order=(1, 1, 1))
 
 cpu_fit = cpu_model.fit()
 memory_fit = memory_model.fit()
 
-# Make predictions (1 step ahead)
+# Make predictions for the next day
 cpu_forecast = cpu_fit.forecast(steps=1)
 memory_forecast = memory_fit.forecast(steps=1)
 
-# Since the data was differenced, invert the differencing to get the actual forecasted value
-cpu_forecast = cpu_forecast.iloc[0] + cpu_ts.iloc[-1]['y']
-memory_forecast = memory_forecast.iloc[0] + memory_ts.iloc[-1]['y']
+# Calculate Accuracy Metrics for CPU
+cpu_actual = cpu_data['Average'].iloc[-1]  # Use the last actual value
+cpu_predicted = cpu_forecast.iloc[0]
+cpu_mae = mean_absolute_error([cpu_actual], [cpu_predicted])
+cpu_mse = mean_squared_error([cpu_actual], [cpu_predicted])
+cpu_rmse = np.sqrt(cpu_mse)
 
-print(f"Forecasted CPU Usage for next period: {cpu_forecast}")
-print(f"Forecasted Memory Usage for next period: {memory_forecast}")
+# Calculate Accuracy Metrics for Memory
+memory_actual = memory_data['Average'].iloc[-1]  # Use the last actual value
+memory_predicted = memory_forecast.iloc[0]
+memory_mae = mean_absolute_error([memory_actual], [memory_predicted])
+memory_mse = mean_squared_error([memory_actual], [memory_predicted])
+memory_rmse = np.sqrt(memory_mse)
+
+print(f"Forecasted CPU Usage: {cpu_forecast.iloc[0]:.2f}")
+print(f"CPU MAE: {cpu_mae:.2f}, MSE: {cpu_mse:.2f}, RMSE: {cpu_rmse:.2f}")
+
+print(f"Forecasted Memory Usage: {memory_forecast.iloc[0]:.2f}")
+print(f"Memory MAE: {memory_mae:.2f}, MSE: {memory_mse:.2f}, RMSE: {memory_rmse:.2f}")
 
 # Visualization of actual vs predicted
-plt.figure(figsize=(10, 6))
-plt.plot(cpu_ts, label='CPU Actual')
-plt.axhline(y=cpu_forecast, color='r', linestyle='--', label='CPU Forecast')
+cpu_data['Average'].plot(label='CPU Actual')
+plt.axhline(y=cpu_forecast.iloc[0], color='r', linestyle='--', label='CPU Forecast')
 plt.title('CPU Usage Forecast')
 plt.legend()
 plt.show()
 
-plt.figure(figsize=(10, 6))
-plt.plot(memory_ts, label='Memory Actual')
-plt.axhline(y=memory_forecast, color='r', linestyle='--', label='Memory Forecast')
+memory_data['Average'].plot(label='Memory Actual')
+plt.axhline(y=memory_forecast.iloc[0], color='r', linestyle='--', label='Memory Forecast')
 plt.title('Memory Usage Forecast')
 plt.legend()
 plt.show()
