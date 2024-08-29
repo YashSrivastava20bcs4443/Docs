@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-from fbprophet import Prophet
+from statsmodels.tsa.arima.model import ARIMA
+from pandas.plotting import autocorrelation_plot
 
 # Load the CSV data
 data = pd.read_csv('cpu_memory_usage.csv')
@@ -10,8 +11,7 @@ data = pd.read_csv('cpu_memory_usage.csv')
 cpu_data = data[data['Rule'].str.contains('Processor % Processor Time Total', case=False)]  # CPU Data
 memory_data = data[data['Rule'].str.contains('Percent Memory Used', case=False)]  # Memory Data
 
-# Create a time series dataframe suitable for Prophet
-# Assuming 'Interval' has the timestamps and 'Average' has the usage values
+# Create time series data
 cpu_ts = cpu_data[['Interval', 'Average']].rename(columns={'Interval': 'ds', 'Average': 'y'})
 memory_ts = memory_data[['Interval', 'Average']].rename(columns={'Interval': 'ds', 'Average': 'y'})
 
@@ -19,39 +19,61 @@ memory_ts = memory_data[['Interval', 'Average']].rename(columns={'Interval': 'ds
 cpu_ts['ds'] = pd.to_datetime(cpu_ts['ds'])
 memory_ts['ds'] = pd.to_datetime(memory_ts['ds'])
 
-# Prophet expects daily data; if data is more granular, you might need to aggregate it
-# Example: Aggregating to daily average
-cpu_ts = cpu_ts.resample('D', on='ds').mean().reset_index()
-memory_ts = memory_ts.resample('D', on='ds').mean().reset_index()
+# Set 'ds' as the index (required for ARIMA)
+cpu_ts.set_index('ds', inplace=True)
+memory_ts.set_index('ds', inplace=True)
 
-# Initialize Prophet models
-cpu_model = Prophet()
-memory_model = Prophet()
-
-# Fit the models
-cpu_model.fit(cpu_ts)
-memory_model.fit(memory_ts)
-
-# Make future dataframe for predictions (1 day into the future)
-cpu_future = cpu_model.make_future_dataframe(periods=1)
-memory_future = memory_model.make_future_dataframe(periods=1)
-
-# Predict the future usage
-cpu_forecast = cpu_model.predict(cpu_future)
-memory_forecast = memory_model.predict(memory_future)
-
-# Extract the forecasted values
-cpu_prediction = cpu_forecast[['ds', 'yhat']].iloc[-1]
-memory_prediction = memory_forecast[['ds', 'yhat']].iloc[-1]
-
-print(f"Forecasted CPU Usage for {cpu_prediction['ds']}: {cpu_prediction['yhat']}")
-print(f"Forecasted Memory Usage for {memory_prediction['ds']}: {memory_prediction['yhat']}")
-
-# Visualization
-cpu_model.plot(cpu_forecast)
-plt.title('CPU Usage Forecast')
+# Plot to see if the data looks stationary (optional)
+plt.figure(figsize=(10, 6))
+plt.plot(cpu_ts, label='CPU Usage')
+plt.plot(memory_ts, label='Memory Usage')
+plt.legend()
 plt.show()
 
-memory_model.plot(memory_forecast)
+# Differencing to make data stationary (if necessary)
+cpu_diff = cpu_ts.diff().dropna()
+memory_diff = memory_ts.diff().dropna()
+
+# Autocorrelation plot to help determine ARIMA parameters (optional)
+plt.figure(figsize=(10, 6))
+autocorrelation_plot(cpu_diff)
+plt.title('CPU Usage Autocorrelation')
+plt.show()
+
+plt.figure(figsize=(10, 6))
+autocorrelation_plot(memory_diff)
+plt.title('Memory Usage Autocorrelation')
+plt.show()
+
+# Fit ARIMA model
+cpu_model = ARIMA(cpu_diff, order=(5, 1, 0))  # Example parameters (p=5, d=1, q=0)
+memory_model = ARIMA(memory_diff, order=(5, 1, 0))  # Example parameters
+
+cpu_fit = cpu_model.fit()
+memory_fit = memory_model.fit()
+
+# Make predictions (1 step ahead)
+cpu_forecast = cpu_fit.forecast(steps=1)
+memory_forecast = memory_fit.forecast(steps=1)
+
+# Since the data was differenced, invert the differencing to get the actual forecasted value
+cpu_forecast = cpu_forecast.iloc[0] + cpu_ts.iloc[-1]['y']
+memory_forecast = memory_forecast.iloc[0] + memory_ts.iloc[-1]['y']
+
+print(f"Forecasted CPU Usage for next period: {cpu_forecast}")
+print(f"Forecasted Memory Usage for next period: {memory_forecast}")
+
+# Visualization of actual vs predicted
+plt.figure(figsize=(10, 6))
+plt.plot(cpu_ts, label='CPU Actual')
+plt.axhline(y=cpu_forecast, color='r', linestyle='--', label='CPU Forecast')
+plt.title('CPU Usage Forecast')
+plt.legend()
+plt.show()
+
+plt.figure(figsize=(10, 6))
+plt.plot(memory_ts, label='Memory Actual')
+plt.axhline(y=memory_forecast, color='r', linestyle='--', label='Memory Forecast')
 plt.title('Memory Usage Forecast')
+plt.legend()
 plt.show()
