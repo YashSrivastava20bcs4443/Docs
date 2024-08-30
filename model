@@ -19,16 +19,16 @@ cleaned_data = cleaned_data.asfreq('D')  # Set frequency to daily, adjust if nee
 
 # Step 2: Combine CPU and Memory Data
 try:
-    cpu_data = cleaned_data[cleaned_data['Rule'].str.contains('Processor')]
-    memory_data = cleaned_data[cleaned_data['Rule'].str.contains('Memory')]
+    # Ensure 'Rule' column has no missing values
+    cleaned_data = cleaned_data.dropna(subset=['Rule'])
+    
+    # Filter CPU and Memory Data
+    cpu_data = cleaned_data[cleaned_data['Rule'].str.contains('Processor', na=False)]
+    memory_data = cleaned_data[cleaned_data['Rule'].str.contains('Memory', na=False)]
 
     # Ensure data is not empty
     if cpu_data.empty or memory_data.empty:
         raise ValueError("Filtered data is empty. Check if the 'Rule' column contains expected values.")
-
-    # Set index to 'Interval'
-    cpu_data = cpu_data.set_index('Interval')
-    memory_data = memory_data.set_index('Interval')
 
     # Remove duplicates and set frequency
     cpu_data = cpu_data[~cpu_data.index.duplicated(keep='last')]
