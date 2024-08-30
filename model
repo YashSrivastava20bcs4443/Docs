@@ -155,3 +155,42 @@ forecast_arima(cpu_df, label='CPU')
 print("Memory Forecast:")
 forecast_arima(memory_df, label='Memory')
 
+
+##################################################
+
+import pandas as pd
+import numpy as np
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.seasonal import seasonal_decompose
+from sklearn.metrics import mean_squared_error
+import matplotlib.pyplot as plt
+
+# Load data
+df = pd.read_csv('your_data.csv', index_col='Date', parse_dates=True)
+ts = df['value']  # Assuming 'value' is the column to analyze
+
+# Data preprocessing
+ts_log = np.log(ts)  # Log transformation for stationarity
+decomposition = seasonal_decompose(ts_log, model='additive')
+
+# Model fitting
+model = ARIMA(ts_log, order=(1, 1, 1))  # Adjust order as needed
+model_fit = model.fit()
+
+# Forecasting
+forecast_log = model_fit.forecast(steps=12)
+forecast = np.exp(forecast_log)
+
+# Evaluation
+mse = mean_squared_error(ts[-12:], forecast)
+print("Mean Squared Error:", mse)
+
+# Visualization
+plt.figure(figsize=(12, 8))
+plt.plot(ts)
+plt.plot(forecast, color='red')
+plt.title('Time Series Analysis')
+plt.xlabel('Date')
+plt.ylabel('Value')
+plt.legend(['Actual', 'Forecast'])
+plt.show()
