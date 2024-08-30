@@ -117,22 +117,30 @@ memory_df = df[df['Rule'].str.contains('memory', case=False)]
 
 # Function to prepare and forecast data
 def forecast_arima(dataframe, label, order=(5, 1, 0), steps=30):
-    dataframe = dataframe.copy()  # Make a copy to avoid modifying the original dataframe
+    # Prepare data
+    dataframe = dataframe.copy()
     dataframe.set_index('Interval', inplace=True)
+    
+    # Fit ARIMA model
     model = ARIMA(dataframe['Average'], order=order)
     model_fit = model.fit()
-
+    
     # Forecast
     forecast = model_fit.forecast(steps=steps)
+    
+    # Create future dates for plotting
+    future_dates = pd.date_range(start=dataframe.index[-1] + pd.Timedelta(days=1), periods=steps, freq='D')
     
     # Plot the forecast
     plt.figure(figsize=(10, 5))
     plt.plot(dataframe.index, dataframe['Average'], label='Observed')
-    plt.plot(pd.date_range(start=dataframe.index[-1], periods=steps+1, freq='D')[1:], forecast, label='Forecast')
+    plt.plot(future_dates, forecast, label='Forecast')
     plt.legend()
     plt.title(f'{label} Usage Forecast')
+    plt.xlabel('Date')
+    plt.ylabel('Average')
     plt.show()
-
+    
     # Evaluate model accuracy on historical data
     y_true = dataframe['Average']
     y_pred = model_fit.predict(start=0, end=len(dataframe)-1)
@@ -141,9 +149,9 @@ def forecast_arima(dataframe, label, order=(5, 1, 0), steps=30):
 
 # Forecast for CPU
 print("CPU Forecast:")
-forecast_arima(cpu_df.copy(), label='CPU')
+forecast_arima(cpu_df, label='CPU')
 
 # Forecast for Memory
 print("Memory Forecast:")
-forecast_arima(memory_df.copy(), label='Memory')
+forecast_arima(memory_df, label='Memory')
 
