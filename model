@@ -117,6 +117,7 @@ memory_df = df[df['Rule'].str.contains('memory', case=False)]
 
 # Function to prepare and forecast data
 def forecast_arima(dataframe, label, order=(5, 1, 0), steps=30):
+    dataframe = dataframe.copy()  # Make a copy to avoid modifying the original dataframe
     dataframe.set_index('Interval', inplace=True)
     model = ARIMA(dataframe['Average'], order=order)
     model_fit = model.fit()
