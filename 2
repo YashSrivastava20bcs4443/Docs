@@ -128,70 +128,70 @@ df_forecast.to_csv('forecast_results.csv')
 ###################################################
 
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
-from sklearn.metrics import mean_absolute_error
 from statsmodels.tsa.stattools import adfuller
+from sklearn.metrics import mean_absolute_error
 
-# Load and clean data
-df = pd.read_csv('your_data.csv', skiprows=3)  # Adjust if the header row is not in the first line
-df = df[['Rule', 'Interval', 'Average', 'Max', 'Min', 'StandardDeviation']]
+# Load data
+df = pd.read_csv('your_data.csv', skiprows=3)  # Adjust the skiprows to the correct header row
 df['Interval'] = pd.to_datetime(df['Interval'])
-df = df.sort_values('Interval')
 
 # Separate CPU and Memory data
 cpu_data = df[df['Rule'].str.contains('processor', case=False)]
 memory_data = df[df['Rule'].str.contains('memory', case=False)]
 
 def test_stationarity(timeseries):
-    # Perform Augmented Dickey-Fuller test:
-    adf_test = adfuller(timeseries, autolag='AIC')
+    adf_test = adfuller(timeseries.dropna(), autolag='AIC')
     p_value = adf_test[1]
-    print(f'ADF Test p-value: {p_value}')
     return p_value < 0.05
 
 def forecast_and_plot(data, title):
+    data = data.set_index('Interval')
+    
     # Test for stationarity
-    if not test_stationarity(data['Average']):
+    is_stationary = test_stationarity(data['Average'])
+    
+    if not is_stationary:
         data['Average'] = data['Average'].diff().dropna()
-        print(f'{title} data differenced to achieve stationarity')
-
+    
     # Train ARIMA model
     try:
         model = ARIMA(data['Average'], order=(5, 1, 0))
         model_fit = model.fit()
-
+        
         # Forecast the next day
         forecast = model_fit.forecast(steps=1)[0]
         
         # Calculate MAE
-        predictions = model_fit.predict(start=0, end=len(data) - 1, dynamic=False)
-        mae = mean_absolute_error(data['Average'], predictions)
-        print(f'Mean Absolute Error: {mae}')
-
+        predictions = model_fit.predict(start=0, end=len(data)-1, dynamic=False)
+        mae = mean_absolute_error(data['Average'].iloc[1:], predictions[1:])
+        print(f'Mean Absolute Error for {title}: {mae}')
+        
         # Plot actual vs forecast
         plt.figure(figsize=(10, 6))
-        plt.plot(data['Interval'], data['Average'], label='Actual')
-        plt.plot(data['Interval'], predictions, color='red', label='Forecast')
+        plt.plot(data.index, data['Average'], label='Actual')
+        plt.plot(data.index, predictions, color='red', label='Forecast')
         plt.title(f'{title} Usage: Actual vs Forecast')
         plt.xlabel('Date')
         plt.ylabel('Usage')
         plt.legend()
         plt.show()
-
-        print(f'Next Day Forecast: {forecast}')
-
+        
+        print(f'Next Day Forecast for {title}: {forecast}')
+        
     except Exception as e:
-        print(f'Error with ARIMA model: {e}')
-        print('Falling back to moving average model.')
+        print(f'ARIMA model error for {title}: {e}')
+        print('Using Moving Average as fallback.')
         
         # Fallback: Simple Moving Average
         moving_avg = data['Average'].rolling(window=3).mean().dropna()
         forecast = moving_avg.iloc[-1]
-        print(f'Next Day Forecast (Moving Avg): {forecast}')
+        print(f'Next Day Forecast (Moving Avg) for {title}: {forecast}')
         plt.figure(figsize=(10, 6))
-        plt.plot(data['Interval'], data['Average'], label='Actual')
-        plt.plot(data['Interval'][2:], moving_avg, color='red', label='Moving Average')
+        plt.plot(data.index, data['Average'], label='Actual')
+        plt.plot(moving_avg.index, moving_avg, color='red', label='Moving Average')
         plt.title(f'{title} Usage: Actual vs Moving Average')
         plt.xlabel('Date')
         plt.ylabel('Usage')
@@ -203,5 +203,6 @@ forecast_and_plot(cpu_data, 'CPU')
 
 # Forecast and plot for Memory
 forecast_and_plot(memory_data, 'Memory')
+
 
 
