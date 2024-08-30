@@ -98,3 +98,66 @@ plt.xlabel('Date')
 plt.ylabel('Usage (%)')
 plt.legend()
 plt.show()
+###########################
+
+import pandas as pd
+from prophet import Prophet
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+import matplotlib.pyplot as plt
+
+# Load the data
+df = pd.read_csv('your_file.csv')
+
+# Ensure 'Interval' is in datetime format
+df['Interval'] = pd.to_datetime(df['Interval'])
+
+# Filter for CPU and Memory usage (adjust based on your actual metric names)
+cpu_df = df[df['Rule'].str.contains('cpu', case=False)]
+memory_df = df[df['Rule'].str.contains('memory', case=False)]
+
+# Function to prepare data for Prophet
+def prepare_data(dataframe):
+    # Rename columns for Prophet
+    prophet_df = dataframe[['Interval', 'Average']].rename(columns={'Interval': 'ds', 'Average': 'y'})
+    return prophet_df
+
+# Prepare data for forecasting
+cpu_prophet_df = prepare_data(cpu_df)
+memory_prophet_df = prepare_data(memory_df)
+
+# Initialize Prophet model
+model = Prophet()
+
+# Fit the model
+model.fit(cpu_prophet_df)
+model.fit(memory_prophet_df)
+
+# Create a dataframe for future dates
+future_cpu = model.make_future_dataframe(periods=30)  # Forecast for the next 30 days
+future_memory = model.make_future_dataframe(periods=30)
+
+# Forecast the future values
+forecast_cpu = model.predict(future_cpu)
+forecast_memory = model.predict(future_memory)
+
+# Evaluate model accuracy on historical data
+y_true_cpu = cpu_prophet_df['y'].values
+y_pred_cpu = model.predict(cpu_prophet_df)['yhat'].values
+
+y_true_memory = memory_prophet_df['y'].values
+y_pred_memory = model.predict(memory_prophet_df)['yhat'].values
+
+mae_cpu = mean_absolute_error(y_true_cpu, y_pred_cpu)
+mae_memory = mean_absolute_error(y_true_memory, y_pred_memory)
+
+print(f'Mean Absolute Error (CPU): {mae_cpu}')
+print(f'Mean Absolute Error (Memory): {mae_memory}')
+
+# Plot the forecast
+model.plot(forecast_cpu)
+plt.title('CPU Usage Forecast')
+plt.show()
+
+model.plot(forecast_memory)
+plt.title('Memory Usage Forecast')
+plt.show()
