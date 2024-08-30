@@ -124,3 +124,52 @@ df_forecast, future_forecast = train_and_forecast(df, target_column='Average', f
 
 # Optional: Save the forecast results to a CSV file
 df_forecast.to_csv('forecast_results.csv')
+
+###################################################
+
+import pandas as pd
+import matplotlib.pyplot as plt
+from statsmodels.tsa.arima.model import ARIMA
+from sklearn.metrics import mean_absolute_error
+
+# Load and clean data
+df = pd.read_csv('your_data.csv', skiprows=3)  # Adjust if the header row is not in the first line
+df = df[['Rule', 'Interval', 'Average', 'Max', 'Min', 'StandardDeviation']]
+df['Interval'] = pd.to_datetime(df['Interval'])
+df = df.sort_values('Interval')
+
+# Separate CPU and Memory data
+cpu_data = df[df['Rule'].str.contains('processor', case=False)]
+memory_data = df[df['Rule'].str.contains('memory', case=False)]
+
+def forecast_and_plot(data, title):
+    # Train ARIMA model
+    model = ARIMA(data['Average'], order=(5, 1, 0))
+    model_fit = model.fit()
+
+    # Forecast the next day
+    forecast = model_fit.forecast(steps=1)[0]
+    
+    # Calculate MAE
+    predictions = model_fit.predict(start=0, end=len(data) - 1, dynamic=False)
+    mae = mean_absolute_error(data['Average'], predictions)
+    print(f'Mean Absolute Error: {mae}')
+
+    # Plot actual vs forecast
+    plt.figure(figsize=(10, 6))
+    plt.plot(data['Interval'], data['Average'], label='Actual')
+    plt.plot(data['Interval'], predictions, color='red', label='Forecast')
+    plt.title(f'{title} Usage: Actual vs Forecast')
+    plt.xlabel('Date')
+    plt.ylabel('Usage')
+    plt.legend()
+    plt.show()
+
+    print(f'Next Day Forecast: {forecast}')
+
+# Forecast and plot for CPU
+forecast_and_plot(cpu_data, 'CPU')
+
+# Forecast and plot for Memory
+forecast_and_plot(memory_data, 'Memory')
+
