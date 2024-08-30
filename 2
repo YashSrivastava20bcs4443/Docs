@@ -1,57 +1,41 @@
-{
-  "index": {
-    "lifecycle": {
-      "name": "fortigate-log-retention-policy",  // The ILM policy name you created
-      "rollover_alias": "fortigate-logs-alias"   // The alias for rollover
-    },
-    "number_of_shards": 1,
-    "number_of_replicas": 1
-  }
-}
+import pandas as pd
+from fbprophet import Prophet
+import matplotlib.pyplot as plt
 
+# Load the dataset
+df = pd.read_csv('your_dataset.csv')
 
-{
-  "fortigate-logs-alias": {
-    "is_write_index": true
-  }
-}
+# Preprocess the data
+df['Interval'] = pd.to_datetime(df['Interval'])
+df.rename(columns={'Interval': 'ds', 'Average Max': 'y'}, inplace=True)
 
+# Prepare the data for Prophet
+prophet_df = df[['ds', 'y']]
 
-PUT /fortigate-logs-alias-000001
-{
-  "aliases": {
-    "fortigate-logs-alias": {
-      "is_write_index": true
-    }
-  }
-}
+# Initialize and fit the model
+model = Prophet()
+model.fit(prophet_df)
 
-POST /fortigate-logs-alias/_rollover
-{
-  "conditions": {
-    "max_age": "1d",
-    "max_docs": 1000
-  }
-}
-PUT /_data_stream/fortigate-logs
+# Make future dataframe for predictions
+future = model.make_future_dataframe(periods=30)  # Predicting for the next 30 days
+forecast = model.predict(future)
 
+# Plot the forecast
+fig = model.plot(forecast)
+plt.xlabel('Date')
+plt.ylabel('Average Max')
+plt.title('Forecast of Average Max CPU and Memory Usage')
+plt.show()
 
-PUT _ilm/policy/fortigate-log-retention-policy
-{
-  "phases": {
-    "hot": {
-      "actions": {
-        "rollover": {
-          "max_age": "15m",
-          "max_size": "50mb"  
-        }
-      }
-    },
-    "delete": {
-      "min_age": "15m",
-      "actions": {
-        "delete": {}
-      }
-    }
-  }
-}
+# Evaluate the model (optional)
+from sklearn.metrics import mean_squared_error, r2_score
+
+# Only evaluate on the historical part
+y_true = prophet_df['y']
+y_pred = forecast.loc[forecast['ds'].isin(prophet_df['ds']), 'yhat']
+
+mse = mean_squared_error(y_true, y_pred)
+r2 = r2_score(y_true, y_pred)
+
+print(f'Mean Squared Error: {mse}')
+print(f'R-squared: {r2}')
