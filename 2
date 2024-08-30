@@ -1,45 +1,55 @@
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score
 
-# Load the dataset
-df = pd.read_csv('your_dataset.csv')
+# Load the CSV data
+df = pd.read_csv('your_filtered_data.csv', skiprows=2)  # Adjust skiprows if needed
 
-# Preprocess the data
+# Convert the 'Interval' column to datetime format
 df['Interval'] = pd.to_datetime(df['Interval'])
-df.set_index('Interval', inplace=True)
 
-# Define features and target
-X = df[['Processor % Processor Time Total', 'Percent Memory Used']]
-y = df['Average Max']
+# Sort the data by 'Interval' just in case it is not sorted
+df = df.sort_values('Interval')
 
-# Split the data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Check for missing values and handle them (if any)
+df = df.fillna(method='ffill')
 
-# Train the model
-model = RandomForestRegressor(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
+print(df.head())
 
-# Make predictions
-y_pred = model.predict(X_test)
 
-# Evaluate the model
-mse = mean_squared_error(y_test, y_pred)
-r2 = r2_score(y_test, y_pred)
-accuracy = model.score(X_test, y_test)
 
-print(f'Mean Squared Error: {mse}')
-print(f'R-squared: {r2}')
-print(f'Accuracy: {accuracy}')
+from statsmodels.tsa.arima.model import ARIMA
+import numpy as np
 
-# Plot the time series graph
-plt.figure(figsize=(14, 7))
-plt.plot(df.index, df['Average Max'], label='Actual')
-plt.plot(X_test.index, y_pred, label='Predicted', linestyle='--')
-plt.xlabel('Time')
-plt.ylabel('Average Max')
-plt.title('Time Series of Actual vs Predicted Values')
-plt.legend()
-plt.show()
+# We will focus on the 'Average' column for the time series prediction
+series = df.set_index('Interval')['Average']
+
+# Split the data into training and testing sets
+train_size = int(len(series) * 0.8)
+train, test = series[:train_size], series[train_size:]
+
+# Fit the ARIMA model (you can adjust the order based on ACF/PACF analysis)
+model = ARIMA(train, order=(5,1,0))
+model_fit = model.fit()
+
+# Summary of the model
+print(model_fit.summary())
+
+
+
+from sklearn.metrics import mean_absolute_error
+
+# Forecast the test set
+forecast = model_fit.forecast(steps=len(test))
+
+# Calculate accuracy
+mae = mean_absolute_error(test, forecast)
+print(f'Mean Absolute Error: {mae}')
+
+# Combine the actual and predicted values for comparison
+df_forecast = pd.DataFrame({'Actual': test, 'Forecast': forecast}, index=test.index)
+
+print(df_forecast.head())
+
+
+# Forecast the next day's average value
+next_day_forecast = model_fit.forecast(steps=1)
+print(f'Next Day Forecast: {next_day_forecast[0]}')
