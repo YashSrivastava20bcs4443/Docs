@@ -16,14 +16,35 @@ cleaned_data = cleaned_data[~cleaned_data.index.duplicated(keep='last')]
 # Set frequency to daily
 cleaned_data = cleaned_data.asfreq('D')  # Set frequency to daily, adjust if needed
 
-# Step 2: Combine CPU and Memory Data
-cpu_data = cleaned_data[cleaned_data['Rule'].str.contains('Processor')]
-memory_data = cleaned_data[cleaned_data['Rule'].str.contains('Memory')]
 
-combined_data = pd.DataFrame({
-    'CPU_Average': cpu_data['Average'],
-    'Memory_Average': memory_data['Average']
-}).dropna()
+# Step 2: Combine CPU and Memory Data
+try:
+    cpu_data = cleaned_data[cleaned_data['Rule'].str.contains('Processor')]
+    memory_data = cleaned_data[cleaned_data['Rule'].str.contains('Memory')]
+
+    # Ensure data is not empty
+    if cpu_data.empty or memory_data.empty:
+        raise ValueError("Filtered data is empty. Check if the 'Rule' column contains expected values.")
+
+    # Set index to 'Interval'
+    cpu_data = cpu_data.set_index('Interval')
+    memory_data = memory_data.set_index('Interval')
+
+    # Remove duplicates and set frequency
+    cpu_data = cpu_data[~cpu_data.index.duplicated(keep='last')]
+    memory_data = memory_data[~memory_data.index.duplicated(keep='last')]
+
+    # Combine data into a single DataFrame
+    combined_data = pd.DataFrame({
+        'CPU_Average': cpu_data['Average'],
+        'Memory_Average': memory_data['Average']
+    }).dropna()
+
+    print("Combined data:")
+    print(combined_data.head())
+
+except Exception as e:
+    print(f"Error in combining CPU and Memory data: {e}")
 
 # Step 3: Split Data into Training and Testing Sets
 train_size = int(len(combined_data) * 0.8)
