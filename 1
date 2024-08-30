@@ -1,17 +1,45 @@
 import pandas as pd
+
+# Step 1: Load the Original CSV File
+# Replace 'your_original_data.csv' with the path to your actual CSV file
+original_data = pd.read_csv('your_original_data.csv')
+
+# Step 2: Filter and Clean the Data
+# Drop rows where 'Interval' (date) is missing
+cleaned_data = original_data.dropna(subset=['Interval'])
+
+# Convert 'Interval' to datetime format using .loc to avoid SettingWithCopyWarning
+cleaned_data.loc[:, 'Interval'] = pd.to_datetime(cleaned_data['Interval'], format='%m/%d/%Y')
+
+# Keep only relevant columns
+cleaned_data = cleaned_data[['Rule', 'Interval', 'Average', 'Max', 'Min', 'StandardDeviation']]
+
+# Optional: Reset the index if needed
+cleaned_data.reset_index(drop=True, inplace=True)
+
+# Step 3: Save the Cleaned Data to a New CSV File
+# Replace 'cleaned_data.csv' with the desired name and path for your new CSV file
+cleaned_data.to_csv('cleaned_data.csv', index=False)
+
+print("Cleaned data has been saved to 'cleaned_data.csv'.")
+
+
+import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_squared_error
 
-# Step 1: Load and Clean Data
+# Step 1: Load the Data
 # Load the CSV file
 data = pd.read_csv('your_data.csv')
 
 # Drop rows where 'Interval' (date) is missing
 data_cleaned = data.dropna(subset=['Interval'])
 
-# Keep relevant columns and convert 'Interval' to datetime
-data_cleaned['Interval'] = pd.to_datetime(data_cleaned['Interval'], format='%m/%d/%Y')
+# Use .loc to convert 'Interval' to datetime format
+data_cleaned.loc[:, 'Interval'] = pd.to_datetime(data_cleaned['Interval'], format='%m/%d/%Y')
+
+# Keep only relevant columns
 data_cleaned = data_cleaned[['Rule', 'Interval', 'Average', 'Max', 'Min', 'StandardDeviation']]
 
 # Step 2: Combine CPU and Memory Data
