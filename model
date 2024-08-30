@@ -159,38 +159,39 @@ forecast_arima(memory_df, label='Memory')
 ##################################################
 
 import pandas as pd
-import numpy as np
 from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.seasonal import seasonal_decompose
-from sklearn.metrics import mean_squared_error
 import matplotlib.pyplot as plt
 
 # Load data
-df = pd.read_csv('your_data.csv', index_col='Date', parse_dates=True)
-ts = df['value']  # Assuming 'value' is the column to analyze
+df = pd.read_csv('your_data.csv', index_col='Interval', parse_dates=True)
 
-# Data preprocessing
-ts_log = np.log(ts)  # Log transformation for stationarity
-decomposition = seasonal_decompose(ts_log, model='additive')
+# Create separate DataFrames for each metric
+df_processor = df[df['Rule'] == 'Processor % Processor Time Total']
+df_memory = df[df['Rule'] == 'Percent Memory Used']
 
-# Model fitting
-model = ARIMA(ts_log, order=(1, 1, 1))  # Adjust order as needed
-model_fit = model.fit()
+# Forecast for Processor Time
+ts_processor = df_processor['Average']
+model_processor = ARIMA(ts_processor, order=(1,1,1))  # Adjust order as needed
+model_fit_processor = model_processor.fit()
+forecast_processor = model_fit_processor.forecast(steps=30)  # Forecast for 30 days
 
-# Forecasting
-forecast_log = model_fit.forecast(steps=12)
-forecast = np.exp(forecast_log)
+# Forecast for Memory Usage
+ts_memory = df_memory['Average']
+model_memory = ARIMA(ts_memory, order=(1,1,1))
+model_fit_memory = model_memory.fit()
+forecast_memory = model_fit_memory.forecast(steps=30)
 
-# Evaluation
-mse = mean_squared_error(ts[-12:], forecast)
-print("Mean Squared Error:", mse)
+# Plot forecasts
+plt.figure(figsize=(12, 6))
+plt.subplot(2, 1, 1)
+plt.plot(ts_processor)
+plt.plot(forecast_processor, color='red')
+plt.title('Processor Time Forecast')
 
-# Visualization
-plt.figure(figsize=(12, 8))
-plt.plot(ts)
-plt.plot(forecast, color='red')
-plt.title('Time Series Analysis')
-plt.xlabel('Date')
-plt.ylabel('Value')
-plt.legend(['Actual', 'Forecast'])
+plt.subplot(2, 1, 2)
+plt.plot(ts_memory)
+plt.plot(forecast_memory, color='red')
+plt.title('Memory Usage Forecast')
+
+plt.tight_layout()
 plt.show()
