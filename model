@@ -101,8 +101,8 @@ plt.show()
 ###########################
 
 import pandas as pd
-from statsmodels.tsa.arima.model import ARIMA
 import matplotlib.pyplot as plt
+from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_absolute_error
 
 # Load the data
@@ -115,18 +115,19 @@ df['Interval'] = pd.to_datetime(df['Interval'])
 cpu_df = df[df['Rule'].str.contains('cpu', case=False)]
 memory_df = df[df['Rule'].str.contains('memory', case=False)]
 
-# Function to forecast using ARIMA
+# Function to prepare and forecast data
 def forecast_arima(dataframe, label, order=(5, 1, 0), steps=30):
     dataframe.set_index('Interval', inplace=True)
     model = ARIMA(dataframe['Average'], order=order)
     model_fit = model.fit()
-    
+
     # Forecast
     forecast = model_fit.forecast(steps=steps)
     
     # Plot the forecast
+    plt.figure(figsize=(10, 5))
     plt.plot(dataframe.index, dataframe['Average'], label='Observed')
-    plt.plot(forecast.index, forecast, label='Forecast')
+    plt.plot(pd.date_range(start=dataframe.index[-1], periods=steps+1, freq='D')[1:], forecast, label='Forecast')
     plt.legend()
     plt.title(f'{label} Usage Forecast')
     plt.show()
@@ -138,12 +139,10 @@ def forecast_arima(dataframe, label, order=(5, 1, 0), steps=30):
     print(f'Mean Absolute Error ({label}): {mae}')
 
 # Forecast for CPU
-forecast_arima(cpu_df, label='CPU')
+print("CPU Forecast:")
+forecast_arima(cpu_df.copy(), label='CPU')
 
 # Forecast for Memory
-forecast_arima(memory_df, label='Memory')
+print("Memory Forecast:")
+forecast_arima(memory_df.copy(), label='Memory')
 
-
-model.plot(forecast_memory)
-plt.title('Memory Usage Forecast')
-plt.show()
