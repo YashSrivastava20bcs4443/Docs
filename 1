@@ -1,59 +1,80 @@
 import pandas as pd
-from statsmodels.tsa.arima.model import ARIMA
-from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
+from statsmodels.tsa.arima.model import ARIMA
+from sklearn.metrics import mean_squared_error
 
-# CSV file ko load karna
-df = pd.read_csv('cpu_memory_data.csv', parse_dates=['Date'], index_col='Date')
+# Step 1: Load and Clean Data
+# Load the CSV file
+data = pd.read_csv('your_data.csv')
 
-# CPU usage ke liye model train karna
-cpu_df = df[['CPU_Usage']].dropna()
-cpu_model = ARIMA(cpu_df, order=(5,1,0))
+# Drop rows where 'Interval' (date) is missing
+data_cleaned = data.dropna(subset=['Interval'])
+
+# Keep relevant columns and convert 'Interval' to datetime
+data_cleaned['Interval'] = pd.to_datetime(data_cleaned['Interval'], format='%m/%d/%Y')
+data_cleaned = data_cleaned[['Rule', 'Interval', 'Average', 'Max', 'Min', 'StandardDeviation']]
+
+# Step 2: Combine CPU and Memory Data
+# Filter CPU and Memory Data
+cpu_data = data_cleaned[data_cleaned['Rule'].str.contains('Processor')].set_index('Interval')
+memory_data = data_cleaned[data_cleaned['Rule'].str.contains('Memory')].set_index('Interval')
+
+# Combine data into a single DataFrame (optional: align data by dates)
+combined_data = pd.DataFrame({
+    'CPU_Average': cpu_data['Average'],
+    'Memory_Average': memory_data['Average']
+})
+
+# Step 3: Visualization
+plt.figure(figsize=(14, 7))
+plt.plot(combined_data.index, combined_data['CPU_Average'], label='CPU Usage')
+plt.plot(combined_data.index, combined_data['Memory_Average'], label='Memory Usage')
+plt.title('CPU and Memory Usage Over Time')
+plt.xlabel('Date')
+plt.ylabel('Usage (%)')
+plt.legend()
+plt.show()
+
+# Step 4: Forecasting Model
+# Using ARIMA for CPU
+cpu_model = ARIMA(combined_data['CPU_Average'].dropna(), order=(5, 1, 0))
 cpu_model_fit = cpu_model.fit()
 
-# Memory usage ke liye model train karna
-memory_df = df[['Memory_Usage']].dropna()
-memory_model = ARIMA(memory_df, order=(5,1,0))
+# Forecast next day CPU usage
+cpu_forecast = cpu_model_fit.forecast(steps=1)
+
+# Using ARIMA for Memory
+memory_model = ARIMA(combined_data['Memory_Average'].dropna(), order=(5, 1, 0))
 memory_model_fit = memory_model.fit()
 
-# Forecast karna (next 10 days)
-cpu_forecast = cpu_model_fit.forecast(steps=10)
-memory_forecast = memory_model_fit.forecast(steps=10)
+# Forecast next day Memory usage
+memory_forecast = memory_model_fit.forecast(steps=1)
 
-# Forecasting ko train data ke against predict karna
-cpu_train_pred = cpu_model_fit.predict(start=0, end=len(cpu_df) - 1)
-memory_train_pred = memory_model_fit.predict(start=0, end=len(memory_df) - 1)
+print(f'Forecasted CPU Usage for next day: {cpu_forecast[0]:.2f}%')
+print(f'Forecasted Memory Usage for next day: {memory_forecast[0]:.2f}%')
 
-# MSE (Mean Squared Error) calculate karna
-cpu_mse = mean_squared_error(cpu_df['CPU_Usage'], cpu_train_pred)
-memory_mse = mean_squared_error(memory_df['Memory_Usage'], memory_train_pred)
+# Step 5: Evaluate the Model
+# Assuming you have actual values for the next day
+actual_cpu_value = 3.5  # Replace with the actual value if available
+actual_memory_value = 46.5  # Replace with the actual value if available
 
-# R2 Score calculate karna
-cpu_r2 = r2_score(cpu_df['CPU_Usage'], cpu_train_pred)
-memory_r2 = r2_score(memory_df['Memory_Usage'], memory_train_pred)
+# Calculate RMSE for CPU
+cpu_rmse = mean_squared_error([actual_cpu_value], cpu_forecast, squared=False)
+print(f'CPU Usage RMSE: {cpu_rmse:.2f}')
 
-# Results print karna
-print(f'CPU Usage Forecasting - MSE: {cpu_mse}, R2 Score: {cpu_r2}')
-print(f'Memory Usage Forecasting - MSE: {memory_mse}, R2 Score: {memory_r2}')
+# Calculate RMSE for Memory
+memory_rmse = mean_squared_error([actual_memory_value], memory_forecast, squared=False)
+print(f'Memory Usage RMSE: {memory_rmse:.2f}')
 
-# Forecasting plots
-plt.figure(figsize=(14,7))
-
-# CPU plot
-plt.subplot(2, 1, 1)
-plt.plot(cpu_df.index, cpu_df['CPU_Usage'], label='Actual CPU Usage')
-plt.plot(cpu_df.index, cpu_train_pred, color='red', label='Predicted CPU Usage')
-plt.plot(pd.date_range(start=cpu_df.index[-1], periods=10, freq='D'), cpu_forecast, color='green', label='Forecast CPU Usage')
-plt.title('CPU Usage Forecasting')
+# Visualization of Forecast vs Actual (if actual values are available)
+plt.figure(figsize=(14, 7))
+plt.plot(combined_data.index, combined_data['CPU_Average'], label='CPU Usage (Actual)')
+plt.axvline(x=combined_data.index[-1] + pd.Timedelta(days=1), color='r', linestyle='--')
+plt.scatter(combined_data.index[-1] + pd.Timedelta(days=1), cpu_forecast[0], color='r', label='CPU Forecast')
+plt.plot(combined_data.index, combined_data['Memory_Average'], label='Memory Usage (Actual)')
+plt.scatter(combined_data.index[-1] + pd.Timedelta(days=1), memory_forecast[0], color='g', label='Memory Forecast')
+plt.title('CPU and Memory Usage Forecast')
+plt.xlabel('Date')
+plt.ylabel('Usage (%)')
 plt.legend()
-
-# Memory plot
-plt.subplot(2, 1, 2)
-plt.plot(memory_df.index, memory_df['Memory_Usage'], label='Actual Memory Usage')
-plt.plot(memory_df.index, memory_train_pred, color='red', label='Predicted Memory Usage')
-plt.plot(pd.date_range(start=memory_df.index[-1], periods=10, freq='D'), memory_forecast, color='green', label='Forecast Memory Usage')
-plt.title('Memory Usage Forecasting')
-plt.legend()
-
-plt.tight_layout()
 plt.show()
