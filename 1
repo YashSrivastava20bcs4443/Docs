@@ -86,3 +86,15 @@ plt.xlabel('Date')
 plt.ylabel('Usage (%)')
 plt.legend()
 plt.show()
+
+
+# Test data
+actual = [3, 5, 2.5, 7]
+predicted = [2.5, 5, 4, 8]
+
+# Calculate errors
+mae = mean_absolute_error(actual, predicted)
+rmse = mean_squared_error(actual, predicted, squared=False)
+
+print(f'MAE: {mae}')
+print(f'RMSE: {rmse}')
