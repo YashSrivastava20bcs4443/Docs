@@ -7,13 +7,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
-from PIL import Image
 
 # Function to sign in to Microsoft account
 def sign_in(driver, email, password):
@@ -36,19 +34,44 @@ def sign_in(driver, email, password):
     except:
         pass
 
-# Function to log in to the second site
+# Function to log in to the second site with advanced and proceed options
 def login_to_site(driver, site_url, site_username, site_password):
     driver.get(site_url)
+    
+    # Handle advanced and proceed links for bypassing security warnings
+    try:
+        advanced_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "details-button"))
+        )
+        advanced_button.click()
+
+        proceed_link = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "proceed-link"))
+        )
+        proceed_link.click()
+    except Exception as e:
+        print(f"No advanced option found or proceed (unsafe) link: {e}")
+
+    # Handle accept button if any pop-up appears
+    try:
+        accept_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[@name='accept']"))
+        )
+        accept_button.click()
+    except Exception as e:
+        print(f"No accept button found: {e}")
+
+    # Log in to the site
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "username"))).send_keys(site_username)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "password"))).send_keys(site_password)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "submit"))).click()
 
-# Function to take screenshots at specific positions
-def take_screenshot_at_position(driver, filename, x, y):
+# Function to move the mouse to a specific position without clicking and take a full-page screenshot
+def move_mouse_and_screenshot(driver, filename, x, y):
     actions = ActionChains(driver)
-    actions.move_by_offset(x, y).click().perform()
-    time.sleep(30)
-    driver.save_screenshot(filename)
+    actions.move_by_offset(x, y).perform()  # Move the mouse without clicking
+    time.sleep(30)  # Wait for 30 seconds
+    driver.save_screenshot(filename)  # Take a full-page screenshot
 
 # Function to send email with inline screenshots
 def send_email(app_name, owner_email, screenshot_filenames, severity, alert_description, smtp_server, smtp_port, sender_email, sender_password):
@@ -119,7 +142,7 @@ def main():
         # Login to the second site
         login_to_site(driver, site_url, site_username, site_password)
 
-        # Take screenshots
+        # Move mouse and take screenshots
         screenshots = [
             ("599,540", f"{temp_dir}/used_screenshot.png"),
             ("615,540", f"{temp_dir}/preallocated_screenshot.png"),
@@ -128,7 +151,7 @@ def main():
         
         for position, filename in screenshots:
             x, y = map(int, position.split(","))
-            take_screenshot_at_position(driver, filename, x, y)
+            move_mouse_and_screenshot(driver, filename, x, y)
 
         # Click on Performance and Service and take screenshots
         performance_xpath = "//span[@class='x-tree-node-text'][text()='Performance']"
