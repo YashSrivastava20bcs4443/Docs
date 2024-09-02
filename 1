@@ -13,40 +13,90 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 
+# Function to sign in to Microsoft account
+def sign_in(driver, email, password):
+    EMAILFIELD = (By.ID, "10116")
+    PASSWORDFIELD = (By.ID, "ie118")
+    NEXTBUTTON = (By.ID, "idSIButton9")
+
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EMAILFIELD)).send_keys(email)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(PASSWORDFIELD)).send_keys(password)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+
+    try:
+        stay_signed_in_popup = WebDriverWait(driver, 10).until(
+            EC.visibility_of_element_located((By.XPATH, "//div[contains(text(), 'Stay signed in?')]"))
+        )
+        if stay_signed_in_popup:
+            no_button = driver.find_element(By.XPATH, "//input[@value='No']")
+            no_button.click()
+    except:
+        pass
+
+# Function to log in to the second site with advanced and proceed options
+def login_to_site(driver, site_url, site_username, site_password):
+    driver.get(site_url)
+    
+    # Handle advanced and proceed links for bypassing security warnings
+    try:
+        advanced_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "details-button"))
+        )
+        advanced_button.click()
+
+        proceed_link = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "proceed-link"))
+        )
+        proceed_link.click()
+    except Exception as e:
+        print(f"No advanced option found or proceed (unsafe) link: {e}")
+
+    # Handle accept button if any pop-up appears
+    try:
+        accept_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[@name='accept']"))
+        )
+        accept_button.click()
+    except Exception as e:
+        print(f"No accept button found: {e}")
+
+    # Log in to the site
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "username"))).send_keys(site_username)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "password"))).send_keys(site_password)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "submit"))).click()
+
 # Function to move the mouse to a specific position without clicking and take a full-page screenshot
-def move_mouse_and_screenshot(driver, filename, x, y, wait_time=30):
+def move_mouse_and_screenshot(driver, filename, x, y):
+    element = driver.find_element(By.TAG_NAME, "body")  # Using body as a reference element
     actions = ActionChains(driver)
-    actions.move_by_offset(x, y).perform()  # Move the mouse without clicking
-    time.sleep(wait_time)  # Wait for the specified time
+    actions.move_to_element_with_offset(element, x, y).perform()  # Move the mouse to the offset position
+    time.sleep(30)  # Wait for 30 seconds
     driver.save_screenshot(filename)  # Take a full-page screenshot
 
 # Function to send email with inline screenshots
-def send_email(owner_email, screenshot_filenames, smtp_server, smtp_port, sender_email, sender_password):
+def send_email(app_name, owner_email, screenshot_filenames, severity, alert_description, smtp_server, smtp_port, sender_email, sender_password):
     msg = MIMEMultipart()
     msg["From"] = sender_email
     msg["To"] = owner_email
-    msg["Subject"] = "Automated screenshots"
+    msg["Subject"] = f"Automated screenshot"
 
-    body = """
+    body = f"""
     <html>
         <body>
             <p>Hi Team,</p>
             <p>Please find the attached screenshots:</p>
-    """
-    for screenshot in screenshot_filenames:
-        body += f'<p><img src="cid:{os.path.basename(screenshot)}"></p>'
-    
-    body += """
+            {"".join([f'<p><img src="cid:{os.path.basename(filename)}"></p>' for filename in screenshot_filenames])}
             <p>Thanks & Regards,<br>EMS Team</p>
         </body>
     </html>
     """
     msg.attach(MIMEText(body, "html"))
 
-    for screenshot in screenshot_filenames:
-        with open(screenshot, "rb") as f:
+    for filename in screenshot_filenames:
+        with open(filename, "rb") as f:
             img = MIMEImage(f.read())
-            img.add_header("Content-ID", f"<{os.path.basename(screenshot)}>")
+            img.add_header("Content-ID", f"<{os.path.basename(filename)}>")
             msg.attach(img)
 
     with smtplib.SMTP(smtp_server, smtp_port) as server:
@@ -59,16 +109,23 @@ def main():
     # Setup Chrome options
     chrome_options = Options()
     chrome_options.add_argument("--start-maximized")
-    chrome_options.add_argument("window-size=1024,768")  # Adjust window size to 55% of the screen
-    chrome_options.add_argument("window-position=0,0")
-
+    
     # Path to your ChromeDriver
     driver_path = "path_to_chromedriver"
 
     # Initialize the WebDriver
     driver = webdriver.Chrome(service=Service(driver_path), options=chrome_options)
 
+    # Resize the browser to 55% of screen width and height
+    screen_width = driver.execute_script("return window.screen.availWidth;")
+    screen_height = driver.execute_script("return window.screen.availHeight;")
+    driver.set_window_size(int(screen_width * 0.55), int(screen_height * 0.55))
+
     try:
+        # Microsoft login details
+        email = "your_email@example.com"
+        password = "your_password"
+
         # Site login details
         site_url = "https://10.1.3.96/"
         site_username = "your_site_username"
@@ -85,30 +142,40 @@ def main():
         temp_dir = "Temp"
         os.makedirs(temp_dir, exist_ok=True)
 
-        # Login to the site
-        driver.get(site_url)
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "username"))).send_keys(site_username)
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "password"))).send_keys(site_password)
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "submit"))).click()
+        # Sign in to Microsoft
+        sign_in(driver, email, password)
 
-        # Preallocated position screenshot
-        preallocated_position = (615, 540)
-        preallocated_screenshot = f"{temp_dir}/preallocated_screenshot.png"
-        move_mouse_and_screenshot(driver, preallocated_screenshot, *preallocated_position)
+        # Login to the second site
+        login_to_site(driver, site_url, site_username, site_password)
 
-        # Performance position screenshot
-        performance_position = (655, 534)
+        # Move mouse and take screenshots
+        screenshots = [
+            ("599,540", f"{temp_dir}/used_screenshot.png"),
+            ("615,540", f"{temp_dir}/preallocated_screenshot.png"),
+            ("655,534", f"{temp_dir}/free_screenshot.png"),
+        ]
+        
+        for position, filename in screenshots:
+            x, y = map(int, position.split(","))
+            move_mouse_and_screenshot(driver, filename, x, y)
+
+        # Click on Performance and Service and take screenshots
+        performance_xpath = "//span[@class='x-tree-node-text'][text()='Performance']"
+        service_xpath = "//span[@class='x-tree-node-text'][text()='Service']"
+
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, performance_xpath))).click()
+        time.sleep(50)
         performance_screenshot = f"{temp_dir}/performance_screenshot.png"
-        move_mouse_and_screenshot(driver, performance_screenshot, *performance_position, wait_time=50)
+        driver.save_screenshot(performance_screenshot)
 
-        # Service position screenshot
-        service_position = (700, 560)
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, service_xpath))).click()
+        time.sleep(50)
         service_screenshot = f"{temp_dir}/service_screenshot.png"
-        move_mouse_and_screenshot(driver, service_screenshot, *service_position, wait_time=50)
+        driver.save_screenshot(service_screenshot)
 
-        # Send email with the screenshots
-        send_email(owner_email, [preallocated_screenshot, performance_screenshot, service_screenshot], 
-                   smtp_server, smtp_port, sender_email, sender_password)
+        # Send email with screenshots
+        screenshot_filenames = [filename for _, filename in screenshots] + [performance_screenshot, service_screenshot]
+        send_email("App Name", owner_email, screenshot_filenames, "High", "Alert Description", smtp_server, smtp_port, sender_email, sender_password)
 
     finally:
         driver.quit()
