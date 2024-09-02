@@ -183,3 +183,26 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.chrome.service import Service
+from pyautogui import moveTo
+
+# Initialize the WebDriver and open the page
+driver = webdriver.Chrome(service=Service("path_to_chromedriver"))
+driver.get("https://10.1.3.96/")
+
+# Zoom the page to 50%
+driver.execute_script("document.body.style.zoom='50%'")
+
+# Example: Scroll to and move the mouse to an element
+element = driver.find_element(By.XPATH, "//span[text()='Your Element Text']")
+driver.execute_script("arguments[0].scrollIntoView(true);", element)
+actions = ActionChains(driver)
+actions.move_to_element(element).perform()
+
+# Or move mouse to specific screen coordinates
+moveTo(600, 540)  # Example coordinates
