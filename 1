@@ -12,12 +12,20 @@ base_url = f'https://{unity_ip}/api/types/systemCapacity/instances'
 # Make the API call with SSL verification disabled
 response = requests.get(base_url, auth=HTTPBasicAuth(username, password), verify=False)
 
+# Print the raw response content
+print("Raw Response Content:")
+print(response.text)
+
 # Check if the request was successful
 if response.status_code == 200:
-    # Parse the JSON response
-    data = response.json()
-    print("System Capacity Data:")
-    print(data)
+    try:
+        # Try to parse the JSON response
+        data = response.json()
+        print("System Capacity Data:")
+        print(data)
+    except requests.exceptions.JSONDecodeError as e:
+        print("Failed to parse JSON response:")
+        print(str(e))
 else:
     print(f"Failed to fetch data. Status code: {response.status_code}")
     print(response.text)
