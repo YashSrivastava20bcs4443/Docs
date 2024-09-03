@@ -54,8 +54,14 @@ def access_site(driver, site_username, site_password):
 
 # Function to move the mouse and take screenshots
 def take_screenshots(driver):
-    # Use JavaScript to set the zoom level to 50%
-    driver.execute_script("document.body.style.zoom='50%'")
+    # Set zoom level to 50% using Chrome DevTools Protocol (CDP)
+    driver.execute_cdp_cmd('Page.setDeviceMetricsOverride', {
+        'width': 1920,
+        'height': 1080,
+        'deviceScaleFactor': 1,
+        'mobile': False,
+        'scale': 0.5  # This effectively zooms out the page to 50%
+    })
     time.sleep(2)  # Give the browser some time to apply the zoom
 
     # Move mouse to specific positions and take screenshots
