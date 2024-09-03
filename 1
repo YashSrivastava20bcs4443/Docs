@@ -1,28 +1,26 @@
+import os
+import shutil
+import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-import time
-import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 import config
-import shutil
 
 # Function to sign in to the Microsoft account
 def sign_in(driver, email, password):
     EMAILFIELD = (By.ID, "i0116")
     PASSWORDFIELD = (By.ID, "i0118")
     NEXTBUTTON = (By.ID, "idSIButton9")
-    
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EMAILFIELD)).send_keys(email)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(PASSWORDFIELD)).send_keys(password)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
-    
     try:
         stay_signed_in_popup = WebDriverWait(driver, 10).until(
             EC.visibility_of_element_located((By.XPATH, "//div[contains(text(), 'Stay signed in?')]"))
@@ -42,52 +40,71 @@ def access_site(driver, site_username, site_password):
         proceed_link.click()
     except Exception as e:
         print(f"No advanced option found or proceed (unsafe) link: {e}")
-        
+
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "username"))).send_keys(site_username)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "password"))).send_keys(site_password)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "submit"))).click()
 
-# Function to open the 'Performance' and 'System View' tabs and take screenshots
-def take_screenshots(driver):
-    # Set zoom level to 50% using Chrome DevTools Protocol
+# Function to set zoom level using Chrome DevTools Protocol (CDP)
+def set_zoom(driver, zoom_level):
     driver.execute_cdp_cmd('Page.setDeviceMetricsOverride', {
         'width': 1920,
         'height': 1080,
         'deviceScaleFactor': 1,
         'mobile': False,
-        'scale': 0.5  # Set zoom to 50%
+        'scale': zoom_level
     })
-    time.sleep(2)  # Wait for zoom to apply
+    time.sleep(2)  # Give the browser some time to apply the zoom
+
+# Function to take screenshots with zoom adjustments
+def take_screenshots(driver):
+    # Zoom out to 50% and take a screenshot of the opened page
+    set_zoom(driver, 0.5)
+    driver.save_screenshot("Temp/opened_page_screenshot.png")
     
-    # Click on the 'Performance' tab and take a screenshot
+    # Reset zoom to 100%
+    set_zoom(driver, 1)
+
+    # Click on the 'Performance' tab
     try:
-        performance_tab = WebDriverWait(driver, 20).until(
+        performance_tab = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-tree-node-text') and text()='Performance']"))
         )
         performance_tab.click()
-        time.sleep(5)  # Wait for the content to load
+        time.sleep(10)  # Wait for the content to load
+        
+        # Zoom out to 50% and take a screenshot of the Performance tab
+        set_zoom(driver, 0.5)
         driver.save_screenshot("Temp/Performance_screenshot.png")
+        
+        # Reset zoom to 100%
+        set_zoom(driver, 1)
     except Exception as e:
         print(f"Failed to click on 'Performance' tab: {e}")
-    
-    # Click on the 'System View' tab and take a screenshot
+
+    # Click on the 'System View' tab
     try:
-        system_view_tab = WebDriverWait(driver, 20).until(
+        system_view_tab = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-tree-node-text') and text()='System View']"))
         )
         system_view_tab.click()
-        time.sleep(5)  # Wait for the content to load
+        time.sleep(10)  # Wait for the content to load
+        
+        # Zoom out to 50% and take a screenshot of the System View tab
+        set_zoom(driver, 0.5)
         driver.save_screenshot("Temp/System_screenshot.png")
+        
+        # Reset zoom to 100%
+        set_zoom(driver, 1)
     except Exception as e:
         print(f"Failed to click on 'System View' tab: {e}")
 
 # Function to send email with screenshots
-def send_email(owner_email, screenshot_filename):
+def send_email(owner_email, screenshot_filenames):
     smtp_server = "smtp-mail.outlook.com"
     smtp_port = 25
     sender_email = config.SENDER_EMAIL
     password = config.SENDER_PASSWORD
-    
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = owner_email
@@ -96,20 +113,23 @@ def send_email(owner_email, screenshot_filename):
     body = """
     <html>
     <body>
-    <p>Hi team,</p>
-    <p><img src="cid:screenshot"></p>
-    <p>Thanks & Regards,<br> Yash Srivastava</p>
+        <p>Hi team,</p>
+        <p>Please find the screenshots attached below:</p>
+        {}
+        <p>Thanks & Regards,<br> Yash Srivastava</p>
     </body>
     </html>
-    """
+    """.format(''.join([f'<p><img src="cid:{os.path.basename(filename)}"></p>' for filename in screenshot_filenames]))
+    
     msg.attach(MIMEText(body, "html"))
-    
-    with open(screenshot_filename, "rb") as f:
-        img = MIMEImage(f.read())
-        img.add_header("Content-Disposition", "inline", filename=os.path.basename(screenshot_filename))
-        img.add_header("Content-ID", "<screenshot>")
-        msg.attach(img)
-    
+
+    for filename in screenshot_filenames:
+        with open(filename, "rb") as f:
+            img = MIMEImage(f.read())
+            img.add_header("Content-Disposition", "inline", filename=os.path.basename(filename))
+            img.add_header("Content-ID", f"<{os.path.basename(filename)}>")
+            msg.attach(img)
+
     with smtplib.SMTP(smtp_server, smtp_port) as server:
         server.starttls()
         server.login(sender_email, password)
@@ -120,25 +140,26 @@ if __name__ == "__main__":
     # Ensure Temp directory exists
     if not os.path.exists("Temp"):
         os.makedirs("Temp")
-    
+
     driver = webdriver.Chrome(service=Service("C:\\Users\\y.s.va22\\Downloads\\syseng_automation\\chromedriver.exe"))
-    # Maximize the browser window
     driver.maximize_window()
+
+    # Sign in to Microsoft
     driver.get('https://login.microsoftonline.com/')
-    
     sign_in(driver, config.LOGIN_USER, config.LOGIN_PASSWORD)
-    
-    driver.get("https://10.1.3.96/")
+
+    # Access the site
+    driver.get("https://80.1.1.1/")
     access_site(driver, config.SITE_USER, config.SITE_PASSWORD)
     
-    time.sleep(20)
+    time.sleep(60)  # Wait for the site to fully load
     
+    # Take screenshots with zoom adjustments
     take_screenshots(driver)
     
     # Send screenshots via email
-    screenshots = ["Temp/Performance_screenshot.png", "Temp/System_screenshot.png"]
-    for screenshot in screenshots:
-        send_email("yash.srivastava@fareportal.com", screenshot)
+    screenshots = ["Temp/opened_page_screenshot.png", "Temp/Performance_screenshot.png", "Temp/System_screenshot.png"]
+    send_email("yash.srivastava@fareportal.com", screenshots)
     
     # Clean up
     driver.quit()
