@@ -3,7 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-from pyautogui import moveTo, click
+from pyautogui import moveTo
 import time
 import os
 import smtplib
@@ -12,6 +12,7 @@ from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 import config
 import shutil
+from selenium.webdriver.common.keys import Keys
 
 # Function to sign in to the Microsoft account
 def sign_in(driver, email, password):
@@ -50,16 +51,12 @@ def access_site(driver, site_username, site_password):
 
 # Function to move the mouse and take screenshots
 def take_screenshots(driver):
-    # Set zoom level to 50% using Chrome DevTools Protocol (CDP)
-    driver.execute_cdp_cmd('Page.setDeviceMetricsOverride', {
-        'width': 1920,
-        'height': 1080,
-        'deviceScaleFactor': 1,
-        'mobile': False,
-        'scale': 0.5  # This effectively zooms out the page to 50%
-    })
-    time.sleep(2)  # Give the browser some time to apply the zoom
-
+    # Set zoom level to 50% using keyboard shortcuts
+    html = driver.find_element(By.TAG_NAME, 'html')
+    for _ in range(4):  # Usually 4 presses of Ctrl + "-" zoom out to around 50%
+        html.send_keys(Keys.chord(Keys.CONTROL, Keys.SUBTRACT))
+        time.sleep(0.5)  # Short delay between key presses
+    
     # Move mouse to specific positions and take screenshots
     positions = [
         (315, 533, "Temp/preallocated_screenshot.png")
@@ -93,34 +90,33 @@ def take_screenshots(driver):
         print(f"Failed to click on 'System View' tab: {e}")
 
 # Function to send email with screenshots
-def send_email(owner_email, screenshot_filename):
+def send_email(owner_email, screenshot_filenames):
     smtp_server = "smtp-mail.outlook.com"
     smtp_port = 25
     sender_email = config.SENDER_EMAIL
     password = config.SENDER_PASSWORD
-    
+
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = owner_email
-    msg['Subject'] = "Automated Screenshot"
+    msg['Subject'] = "Automated Screenshots"
+
+    body = """<html><body><p>Hi team,</p>"""
     
-    body = """
-    <html>
-    <body>
-    <p>Hi team,</p>
-    <p><img src="cid:screenshot"></p>
-    <p>Thanks & Regards,<br> Yash Srivastava</p>
-    </body>
-    </html>
-    """
+    # Attach all screenshots to the email
+    for i, screenshot_filename in enumerate(screenshot_filenames):
+        with open(screenshot_filename, "rb") as f:
+            img = MIMEImage(f.read())
+            img.add_header("Content-Disposition", "inline", filename=os.path.basename(screenshot_filename))
+            img.add_header(f"Content-ID", f"<screenshot{i}>")
+            msg.attach(img)
+            # Embed the image in the email body
+            body += f'<p><img src="cid:screenshot{i}"></p>'
+    
+    body += "<p>Thanks & Regards,<br>Yash Srivastava</p></body></html>"
     msg.attach(MIMEText(body, "html"))
-    
-    with open(screenshot_filename, "rb") as f:
-        img = MIMEImage(f.read())
-        img.add_header("Content-Disposition", "inline", filename=os.path.basename(screenshot_filename))
-        img.add_header("Content-ID", "<screenshot>")
-        msg.attach(img)
-    
+
+    # Send the email
     with smtplib.SMTP(smtp_server, smtp_port) as server:
         server.starttls()
         server.login(sender_email, password)
@@ -146,10 +142,9 @@ if __name__ == "__main__":
     
     take_screenshots(driver)
     
-    # Send screenshots via email
+    # Send all screenshots via a single email
     screenshots = ["Temp/preallocated_screenshot.png", "Temp/Performance_screenshot.png", "Temp/System_screenshot.png"]
-    for screenshot in screenshots:
-        send_email("yash.srivastava@fareportal.com", screenshot)
+    send_email("yash.srivastava@fareportal.com", screenshots)
     
     # Clean up
     driver.quit()
