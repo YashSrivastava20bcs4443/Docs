@@ -1,22 +1,21 @@
-
-import os
-import shutil
-import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+from pyautogui import moveTo
+import time
+import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
+import config
 
-# Function to sign in to Microsoft account
+# Function to sign in to the Microsoft account
 def sign_in(driver, email, password):
-    EMAILFIELD = (By.ID, "10116")
-    PASSWORDFIELD = (By.ID, "ie118")
+    EMAILFIELD = (By.ID, "i0116")
+    PASSWORDFIELD = (By.ID, "i0118")
     NEXTBUTTON = (By.ID, "idSIButton9")
 
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EMAILFIELD)).send_keys(email)
@@ -34,146 +33,111 @@ def sign_in(driver, email, password):
     except:
         pass
 
-# Function to log in to the second site with advanced and proceed options
-def login_to_site(driver, site_url, site_username, site_password):
-    driver.get(site_url)
-    
-    # Handle advanced and proceed links for bypassing security warnings
+# Function to access the site and log in
+def access_site(driver, site_username, site_password):
     try:
-        advanced_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.ID, "details-button"))
-        )
+        advanced_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "details-button")))
         advanced_button.click()
-
-        proceed_link = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.ID, "proceed-link"))
-        )
+        proceed_link = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "proceed-link")))
         proceed_link.click()
     except Exception as e:
         print(f"No advanced option found or proceed (unsafe) link: {e}")
-
-    # Handle accept button if any pop-up appears
     try:
-        accept_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//button[@name='accept']"))
-        )
+        accept_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[@name='accept']")))
         accept_button.click()
     except Exception as e:
         print(f"No accept button found: {e}")
 
-    # Log in to the site
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "username"))).send_keys(site_username)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "password"))).send_keys(site_password)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "submit"))).click()
 
-# Function to move the mouse to a specific position without clicking and take a full-page screenshot
-def moveTo(x, y):
-    actions = ActionChains(driver)
-    actions.move_by_offset(x, y).perform()
+# Function to move the mouse and take screenshots
+def take_screenshots(driver):
+    # Zoom the page to 50%
+    driver.execute_script("document.body.style.zoom='50%'")
+    time.sleep(1)  # Give the browser some time to apply the zoom
 
-# Function to send email with inline screenshots
-def send_email(app_name, owner_email, screenshot_filenames, severity, alert_description, smtp_server, smtp_port, sender_email, sender_password):
+    # Move mouse to specific positions and take screenshots
+    positions = [
+        (315, 533, "Temp/preallocated_screenshot.png")
+    ]
+
+    for (x, y, filename) in positions:
+        moveTo(x, y)
+        time.sleep(30)  # Wait for 30 seconds
+        driver.save_screenshot(filename)
+
+    # Navigate to Performance and Service tabs and take screenshots
+    tabs = [
+        ("//span[contains(text(), 'Performance')]", "Temp/Performance_screenshot.png"),
+        ("//span[contains(text(), 'System View')]", "Temp/System_screenshot.png")
+    ]
+
+    for (xpath, filename) in tabs:
+        tab_element = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, xpath)))
+        tab_element.click()
+        time.sleep(50)  # Wait for 50 seconds
+        driver.save_screenshot(filename)
+
+# Function to send email with screenshots
+def send_email(owner_email, screenshot_filename):
+    smtp_server = "smtp-mail.outlook.com"
+    smtp_port = 25
+    sender_email = config.SENDER_EMAIL
+    password = config.SENDER_PASSWORD
+
     msg = MIMEMultipart()
-    msg["From"] = sender_email
-    msg["To"] = owner_email
-    msg["Subject"] = f"Automated screenshot"
+    msg['From'] = sender_email
+    msg['To'] = owner_email
+    msg['Subject'] = "Automated Screenshot"
 
-    body = f"""
+    body = """
     <html>
         <body>
-            <p>Hi Team,</p>
-            <p>Please find the attached screenshots:</p>
-            {"".join([f'<p><img src="cid:{os.path.basename(filename)}"></p>' for filename in screenshot_filenames])}
-            <p>Thanks & Regards,<br>EMS Team</p>
+            <p>Hi team,</p>
+            <p><img src="cid:screenshot"></p>
+            <p>Thanks & Regards,<br> Yash Srivastava</p>
         </body>
     </html>
     """
     msg.attach(MIMEText(body, "html"))
 
-    for filename in screenshot_filenames:
-        with open(filename, "rb") as f:
-            img = MIMEImage(f.read())
-            img.add_header("Content-ID", f"<{os.path.basename(filename)}>")
-            msg.attach(img)
+    with open(screenshot_filename, "rb") as f:
+        img = MIMEImage(f.read())
+        img.add_header("Content-Disposition", "inline", filename=os.path.basename(screenshot_filename))
+        img.add_header("Content-ID", "<screenshot>")
+        msg.attach(img)
 
     with smtplib.SMTP(smtp_server, smtp_port) as server:
         server.starttls()
-        server.login(sender_email, sender_password)
+        server.login(sender_email, password)
         server.send_message(msg)
 
-# Main script
-def main():
-    # Setup Chrome options
-    chrome_options = Options()
-    chrome_options.add_argument("--start-maximized")
-    chrome_options.add_argument("--force-device-scale-factor=0.5")  # Set Chrome page zoom to 50%
-
-    # Path to your ChromeDriver
-    driver_path = "path_to_chromedriver"
-
-    # Initialize the WebDriver
-    driver = webdriver.Chrome(service=Service(driver_path), options=chrome_options)
-
-    try:
-        # Microsoft login details
-        email = "your_email@example.com"
-        password = "your_password"
-
-        # Site login details
-        site_url = "https://10.1.3.96/"
-        site_username = "your_site_username"
-        site_password = "your_site_password"
-
-        # Email details
-        smtp_server = "smtp.example.com"
-        smtp_port = 587
-        sender_email = "your_email@example.com"
-        sender_password = "your_email_password"
-        owner_email = "recipient@example.com"
-
-        # Temp directory to store screenshots
-        temp_dir = "Temp"
-        os.makedirs(temp_dir, exist_ok=True)
-
-        # Sign in to Microsoft
-        sign_in(driver, email, password)
-
-        # Login to the second site
-        login_to_site(driver, site_url, site_username, site_password)
-
-        # Move mouse and take screenshots
-        positions = [
-            (599, 540, f"{temp_dir}/used_screenshot.png"),
-            (615, 540, f"{temp_dir}/preallocated_screenshot.png"),
-            (655, 534, f"{temp_dir}/free_screenshot.png")
-        ]
-
-        for (x, y, filename) in positions:
-            moveTo(x, y)
-            time.sleep(30)  # Wait for 30 seconds
-            driver.save_screenshot(filename)
-
-        # Click on Performance and Service and take screenshots
-        performance_xpath = "//span[@class='x-tree-node-text'][text()='Performance']"
-        service_xpath = "//span[@class='x-tree-node-text'][text()='Service']"
-
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, performance_xpath))).click()
-        time.sleep(50)
-        performance_screenshot = f"{temp_dir}/performance_screenshot.png"
-        driver.save_screenshot(performance_screenshot)
-
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, service_xpath))).click()
-        time.sleep(50)
-        service_screenshot = f"{temp_dir}/service_screenshot.png"
-        driver.save_screenshot(service_screenshot)
-
-        # Send email with screenshots
-        screenshot_filenames = [filename for _, _, filename in positions] + [performance_screenshot, service_screenshot]
-        send_email("App Name", owner_email, screenshot_filenames, "High", "Alert Description", smtp_server, smtp_port, sender_email, sender_password)
-
-    finally:
-        driver.quit()
-        shutil.rmtree(temp_dir)
-
+# Main execution
 if __name__ == "__main__":
-    main()
+    # Ensure Temp directory exists
+    if not os.path.exists("Temp"):
+        os.makedirs("Temp")
+
+    driver = webdriver.Chrome(service=Service("C:\\Users\\y.s.va22\\Downloads\\syseng_automation\\chromedriver.exe"))
+
+    # Maximize the browser window
+    driver.maximize_window()
+
+    driver.get('https://login.microsoftonline.com/')
+    sign_in(driver, config.LOGIN_USER, config.LOGIN_PASSWORD)
+
+    driver.get("https://10.1.3.96/")
+    access_site(driver, config.SITE_USER, config.SITE_PASSWORD)
+
+    time.sleep(60)
+    take_screenshots(driver)
+
+    # Send screenshots via email
+    screenshots = ["Temp/preallocated_screenshot.png", "Temp/Performance_screenshot.png", "Temp/System_screenshot.png"]
+    for screenshot in screenshots:
+        send_email("yash.srivastava@fareportal.com", screenshot)
+
+    # Clean up
+    driver.quit()
