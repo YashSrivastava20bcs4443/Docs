@@ -3,7 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-from pyautogui import moveTo
+from pyautogui import moveTo, keyDown, keyUp, scroll
 import time
 import os
 import smtplib
@@ -54,9 +54,11 @@ def access_site(driver, site_username, site_password):
 
 # Function to move the mouse and take screenshots
 def take_screenshots(driver):
-    # Zoom the page to 50%
-    driver.execute_script("document.body.style.zoom='50%'")
-    time.sleep(1)  # Give the browser some time to apply the zoom
+    # Simulate Ctrl + scroll to zoom out to 50%
+    keyDown('ctrl')
+    scroll(-500)  # Adjust this value if needed to reach 50% zoom level
+    keyUp('ctrl')
+    time.sleep(2)  # Give the browser some time to apply the zoom
 
     # Move mouse to specific positions and take screenshots
     positions = [
