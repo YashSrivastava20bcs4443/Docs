@@ -3,7 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-from pyautogui import moveTo
+from pyautogui import moveTo, click
 import time
 import os
 import smtplib
@@ -71,20 +71,30 @@ def take_screenshots(driver):
 
     for (x, y, filename) in positions:
         moveTo(x, y)
-        time.sleep(30)  # Wait for 30 seconds
+        time.sleep(2)  # Wait for 2 seconds after moving the mouse
         driver.save_screenshot(filename)
 
-    # Navigate to Performance and Service tabs and take screenshots
-    tabs = [
-        ("//span[contains(text(), 'Performance')]", "Temp/Performance_screenshot.png"),
-        ("//span[contains(text(), 'System View')]", "Temp/System_screenshot.png")
-    ]
+    # Click on the 'Performance' tab and take a screenshot
+    try:
+        performance_tab = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-tree-node-text') and text()='Performance']"))
+        )
+        performance_tab.click()
+        time.sleep(5)  # Wait for the content to load
+        driver.save_screenshot("Temp/Performance_screenshot.png")
+    except Exception as e:
+        print(f"Failed to click on 'Performance' tab: {e}")
 
-    for (xpath, filename) in tabs:
-        tab_element = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, xpath)))
-        tab_element.click()
-        time.sleep(50)  # Wait for 50 seconds
-        driver.save_screenshot(filename)
+    # Click on the 'System View' tab and take a screenshot
+    try:
+        system_view_tab = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-tree-node-text') and text()='System View']"))
+        )
+        system_view_tab.click()
+        time.sleep(5)  # Wait for the content to load
+        driver.save_screenshot("Temp/System_screenshot.png")
+    except Exception as e:
+        print(f"Failed to click on 'System View' tab: {e}")
 
 # Function to send email with screenshots
 def send_email(owner_email, screenshot_filename):
