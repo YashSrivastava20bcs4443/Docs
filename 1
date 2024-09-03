@@ -11,18 +11,19 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 import config
+import shutil
 
 # Function to sign in to the Microsoft account
 def sign_in(driver, email, password):
     EMAILFIELD = (By.ID, "i0116")
     PASSWORDFIELD = (By.ID, "i0118")
     NEXTBUTTON = (By.ID, "idSIButton9")
-
+    
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EMAILFIELD)).send_keys(email)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(PASSWORDFIELD)).send_keys(password)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
-
+    
     try:
         stay_signed_in_popup = WebDriverWait(driver, 10).until(
             EC.visibility_of_element_located((By.XPATH, "//div[contains(text(), 'Stay signed in?')]"))
@@ -42,12 +43,7 @@ def access_site(driver, site_username, site_password):
         proceed_link.click()
     except Exception as e:
         print(f"No advanced option found or proceed (unsafe) link: {e}")
-    try:
-        accept_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[@name='accept']")))
-        accept_button.click()
-    except Exception as e:
-        print(f"No accept button found: {e}")
-
+        
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "username"))).send_keys(site_username)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "password"))).send_keys(site_password)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "submit"))).click()
@@ -68,15 +64,15 @@ def take_screenshots(driver):
     positions = [
         (315, 533, "Temp/preallocated_screenshot.png")
     ]
-
+    
     for (x, y, filename) in positions:
         moveTo(x, y)
         time.sleep(2)  # Wait for 2 seconds after moving the mouse
         driver.save_screenshot(filename)
-
+    
     # Click on the 'Performance' tab and take a screenshot
     try:
-        performance_tab = WebDriverWait(driver, 10).until(
+        performance_tab = WebDriverWait(driver, 20).until(
             EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-tree-node-text') and text()='Performance']"))
         )
         performance_tab.click()
@@ -84,10 +80,10 @@ def take_screenshots(driver):
         driver.save_screenshot("Temp/Performance_screenshot.png")
     except Exception as e:
         print(f"Failed to click on 'Performance' tab: {e}")
-
+    
     # Click on the 'System View' tab and take a screenshot
     try:
-        system_view_tab = WebDriverWait(driver, 10).until(
+        system_view_tab = WebDriverWait(driver, 20).until(
             EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-tree-node-text') and text()='System View']"))
         )
         system_view_tab.click()
@@ -102,29 +98,29 @@ def send_email(owner_email, screenshot_filename):
     smtp_port = 25
     sender_email = config.SENDER_EMAIL
     password = config.SENDER_PASSWORD
-
+    
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = owner_email
     msg['Subject'] = "Automated Screenshot"
-
+    
     body = """
     <html>
-        <body>
-            <p>Hi team,</p>
-            <p><img src="cid:screenshot"></p>
-            <p>Thanks & Regards,<br> Yash Srivastava</p>
-        </body>
+    <body>
+    <p>Hi team,</p>
+    <p><img src="cid:screenshot"></p>
+    <p>Thanks & Regards,<br> Yash Srivastava</p>
+    </body>
     </html>
     """
     msg.attach(MIMEText(body, "html"))
-
+    
     with open(screenshot_filename, "rb") as f:
         img = MIMEImage(f.read())
         img.add_header("Content-Disposition", "inline", filename=os.path.basename(screenshot_filename))
         img.add_header("Content-ID", "<screenshot>")
         msg.attach(img)
-
+    
     with smtplib.SMTP(smtp_server, smtp_port) as server:
         server.starttls()
         server.login(sender_email, password)
@@ -135,25 +131,26 @@ if __name__ == "__main__":
     # Ensure Temp directory exists
     if not os.path.exists("Temp"):
         os.makedirs("Temp")
-
+    
     driver = webdriver.Chrome(service=Service("C:\\Users\\y.s.va22\\Downloads\\syseng_automation\\chromedriver.exe"))
-
     # Maximize the browser window
     driver.maximize_window()
-
     driver.get('https://login.microsoftonline.com/')
+    
     sign_in(driver, config.LOGIN_USER, config.LOGIN_PASSWORD)
-
-    driver.get("https://10.1.3.96/")
+    
+    driver.get("https://80.1.1.1/")
     access_site(driver, config.SITE_USER, config.SITE_PASSWORD)
-
+    
     time.sleep(60)
+    
     take_screenshots(driver)
-
+    
     # Send screenshots via email
     screenshots = ["Temp/preallocated_screenshot.png", "Temp/Performance_screenshot.png", "Temp/System_screenshot.png"]
     for screenshot in screenshots:
         send_email("yash.srivastava@fareportal.com", screenshot)
-
+    
     # Clean up
     driver.quit()
+    shutil.rmtree("Temp")
