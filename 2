@@ -60,15 +60,22 @@ def extract_capacity_details(data):
         # Access the content part of the response
         entries = data.get('entries', [])
         if entries:
-            content = entries[0].get('content', {})
-            free_space = content.get('sizeFree', 'N/A')
-            preallocated_space = content.get('sizePreallocated', 'N/A')
-            used_space = content.get('sizeUsed', 'N/A')
+            for entry in entries:
+                content = entry.get('content', {})
+                print("Entry Content Keys and Values:")
+                for key, value in content.items():
+                    print(f"{key}: {value}")
 
-            print(f"System Capacity Details:")
-            print(f"Free Space: {free_space}")
-            print(f"Preallocated Space: {preallocated_space}")
-            print(f"Used Space: {used_space}")
+                # Extract specific fields
+                free_space = content.get('sizeFree', 'N/A')
+                preallocated_space = content.get('sizePreallocated', 'N/A')
+                used_space = content.get('sizeUsed', 'N/A')
+
+                print(f"\nSystem Capacity Details:")
+                print(f"Free Space: {free_space}")
+                print(f"Preallocated Space: {preallocated_space}")
+                print(f"Used Space: {used_space}")
+
         else:
             print("No entries found in the response.")
 
