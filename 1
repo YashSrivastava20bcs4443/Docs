@@ -45,3 +45,50 @@ if response.status_code == 200:
 else:
     print(f"Failed to fetch data, status code: {response.status_code}")
     print("Response content:", response.text)
+
+
+import requests
+
+# Replace with your Unity system details
+unity_ip = "10.1.3.96"
+username = "your_username"
+password = "your_password"
+
+# API endpoint for login (example, may vary)
+login_url = f"https://{unity_ip}/api/login/"
+
+# Data to be sent for login (this will vary depending on the API)
+login_data = {
+    "username": username,
+    "password": password
+}
+
+# Disable SSL warnings
+requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
+
+# Login request
+response = requests.post(login_url, json=login_data, verify=False)
+
+if response.status_code == 200:
+    # Assuming the token is in the JSON response
+    token = response.json().get('token')
+
+    # Use the token in subsequent requests
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json"
+    }
+
+    # Example API request with token
+    api_url = f"https://{unity_ip}/api/types/"
+    api_response = requests.get(api_url, headers=headers, verify=False)
+
+    if api_response.status_code == 200:
+        print("API Data:", api_response.json())
+    else:
+        print(f"Failed to fetch data, status code: {api_response.status_code}")
+        print("Response content:", api_response.text)
+else:
+    print(f"Login failed, status code: {response.status_code}")
+    print("Response content:", response.text)
+
