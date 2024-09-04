@@ -1,72 +1,59 @@
-import requests
-import json
+# Function to send email with screenshots and API data
+def send_email(owner_email, screenshot_filenames, api_data, ip):
+    smtp_server = "smtp-mail.outlook.com"
+    smtp_port = 25
+    sender_email = config.SENDER_EMAIL
+    password = config.SENDER_PASSWORD
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = owner_email
+    msg['Subject'] = f"Automated Screenshot and API Data for IP: {ip}"
+    
+    # Format the API data as a table with bold labels
+    api_data_html = """
+    <table border="1" cellpadding="5" cellspacing="0">
+        <tr>
+            <th><b>Free Space (TB)</b></th>
+            <th><b>Total Space (TB)</b></th>
+            <th><b>Used Space (TB)</b></th>
+            <th><b>Preallocated Space (TB)</b></th>
+        </tr>
+    """
+    for data in api_data:
+        free_space, total_space, used_space, preallocated_space = [item.split(": ")[1] for item in data.split(", ")]
+        api_data_html += f"""
+        <tr>
+            <td>{free_space}</td>
+            <td>{total_space}</td>
+            <td>{used_space}</td>
+            <td>{preallocated_space}</td>
+        </tr>
+        """
+    api_data_html += "</table>"
 
-# Connection details
-unity_ip = "10.245.83.44"
-username = "admin"  # Replace with your username
-password = "your_password"  # Replace with your password
+    # Add the table and screenshots to the email body
+    body = f"""
+    <html>
+    <body>
+        <p>Hi team,</p>
+        <p>Please find the screenshots and API data attached below for IP: {ip}:</p>
+        {api_data_html}
+        {''.join([f'<p><img src="cid:{os.path.basename(filename)}"></p>' for filename in screenshot_filenames])}
+        <p>Thanks & Regards,<br> Yash Srivastava</p>
+    </body>
+    </html>
+    """
+    
+    msg.attach(MIMEText(body, "html"))
 
-# Base URL and endpoint
-base_url = f"https://{unity_ip}/api/types/pool/instances"
-query_params = {
-    "compact": "True",
-    "fields": "sizeFree,sizeTotal,sizeUsed,sizePreallocated"
-}
+    for filename in screenshot_filenames:
+        with open(filename, "rb") as f:
+            img = MIMEImage(f.read())
+            img.add_header("Content-Disposition", "inline", filename=os.path.basename(filename))
+            img.add_header("Content-ID", f"<{os.path.basename(filename)}>")
+            msg.attach(img)
 
-# Headers for Unity REST API
-headers = {
-    "X-EMC-REST-CLIENT": "true",
-    "Accept": "application/json",
-    "Content-Type": "application/json",
-}
-
-# Create a session
-session = requests.Session()
-session.auth = (username, password)
-session.headers.update(headers)
-
-# Disable warnings about insecure requests
-requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
-
-def fetch_pool_data():
-    response = session.get(base_url, params=query_params, verify=False)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        response.raise_for_status()
-
-# Fetch pool information
-pool_info = fetch_pool_data()
-
-# Extract specific capacity details
-def extract_capacity_details(data):
-    try:
-        # Print full response to inspect available fields
-        print("Full Response:")
-        print(json.dumps(data, indent=4))
-
-        # Access the content part of the response
-        entries = data.get('entries', [])
-        if entries:
-            for entry in entries:
-                content = entry.get('content', {})
-                # Extract and print the desired fields
-                free_space = content.get('sizeFree', 'N/A')
-                total_space = content.get('sizeTotal', 'N/A')
-                used_space = content.get('sizeUsed', 'N/A')
-                preallocated_space = content.get('sizePreallocated', 'N/A')
-
-                print(f"\nPool Capacity Details:")
-                print(f"Free Space: {free_space}")
-                print(f"Total Space: {total_space}")
-                print(f"Used Space: {used_space}")
-                print(f"Preallocated Space: {preallocated_space}")
-
-        else:
-            print("No entries found in the response.")
-
-    except KeyError as e:
-        print("Error extracting capacity details:", e)
-
-# Extract and print capacity details
-extract_capacity_details(pool_info)
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(sender_email, password)
+        server.send_message(msg)
