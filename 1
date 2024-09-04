@@ -1,9 +1,8 @@
 import os
 import shutil
 import time
-import requests
 import smtplib
-import json
+import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -34,9 +33,8 @@ def sign_in(driver, email, password):
         pass
 
 # Function to access the site and log in
-def access_site(driver, site_username, site_password, url):
+def access_site(driver, site_username, site_password):
     try:
-        driver.get(url)
         advanced_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "details-button")))
         advanced_button.click()
         proceed_link = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "proceed-link")))
@@ -60,13 +58,15 @@ def set_zoom(driver, zoom_level):
     time.sleep(2)  # Give the browser some time to apply the zoom
 
 # Function to take screenshots with zoom adjustments
-def take_screenshots(driver, site_name):
-    if not os.path.exists(f"Temp/{site_name}"):
-        os.makedirs(f"Temp/{site_name}")
-
+def take_screenshots(driver, ip):
+    # Create a unique directory for the current IP's screenshots
+    screenshot_dir = f"Temp/{ip.replace('.', '_')}"
+    os.makedirs(screenshot_dir, exist_ok=True)
+    
     # Zoom out to 50% and take a screenshot of the opened page
     set_zoom(driver, 0.5)
-    driver.save_screenshot(f"Temp/{site_name}/opened_page_screenshot.png")
+    opened_page_screenshot = f"{screenshot_dir}/opened_page_screenshot.png"
+    driver.save_screenshot(opened_page_screenshot)
     
     # Reset zoom to 100%
     set_zoom(driver, 1)
@@ -80,8 +80,9 @@ def take_screenshots(driver, site_name):
         time.sleep(10)  # Wait for the content to load
         
         # Zoom out to 50% and take a screenshot of the Performance tab
+        performance_screenshot = f"{screenshot_dir}/Performance_screenshot.png"
         set_zoom(driver, 0.5)
-        driver.save_screenshot(f"Temp/{site_name}/Performance_screenshot.png")
+        driver.save_screenshot(performance_screenshot)
         
         # Reset zoom to 100%
         set_zoom(driver, 1)
@@ -97,71 +98,64 @@ def take_screenshots(driver, site_name):
         time.sleep(10)  # Wait for the content to load
         
         # Zoom out to 50% and take a screenshot of the System View tab
+        system_screenshot = f"{screenshot_dir}/System_screenshot.png"
         set_zoom(driver, 0.5)
-        driver.save_screenshot(f"Temp/{site_name}/System_screenshot.png")
+        driver.save_screenshot(system_screenshot)
         
         # Reset zoom to 100%
         set_zoom(driver, 1)
     except Exception as e:
         print(f"Failed to click on 'System View' tab: {e}")
 
-# Function to fetch API data
-def fetch_api_data(unity_ip, username, password):
-    # Base URL and endpoint
-    base_url = f"https://{unity_ip}/api/types/pool/instances"
+    return [opened_page_screenshot, performance_screenshot, system_screenshot]
+
+# Function to convert bytes to terabytes
+def convert_to_tb(size_in_bytes):
+    return round(size_in_bytes / (1024 ** 4), 2)  # Converts bytes to terabytes and rounds to 2 decimal places
+
+# Function to fetch API data and extract capacity details in TB
+def fetch_api_data(ip, username, password):
+    base_url = f"https://{ip}/api/types/pool/instances"
     query_params = {
         "compact": "True",
         "fields": "sizeFree,sizeTotal,sizeUsed,sizePreallocated"
     }
 
-    # Headers for Unity REST API
     headers = {
         "X-EMC-REST-CLIENT": "true",
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
 
-    # Create a session
     session = requests.Session()
     session.auth = (username, password)
     session.headers.update(headers)
 
-    # Disable warnings about insecure requests
     requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
-    # Fetch pool information
     response = session.get(base_url, params=query_params, verify=False)
     if response.status_code == 200:
-        return response.json()
-    else:
-        response.raise_for_status()
-
-# Function to extract capacity details from API data
-def extract_capacity_details(data):
-    try:
+        data = response.json()
         entries = data.get('entries', [])
         if entries:
+            capacity_details = []
             for entry in entries:
                 content = entry.get('content', {})
-                free_space = content.get('sizeFree', 'N/A')
-                total_space = content.get('sizeTotal', 'N/A')
-                used_space = content.get('sizeUsed', 'N/A')
-                preallocated_space = content.get('sizePreallocated', 'N/A')
-
-                return f"""
-                Pool Capacity Details:
-                Free Space: {free_space}
-                Total Space: {total_space}
-                Used Space: {used_space}
-                Preallocated Space: {preallocated_space}
-                """
+                free_space = convert_to_tb(content.get('sizeFree', 0))
+                total_space = convert_to_tb(content.get('sizeTotal', 0))
+                used_space = convert_to_tb(content.get('sizeUsed', 0))
+                preallocated_space = convert_to_tb(content.get('sizePreallocated', 0))
+                capacity_details.append(
+                    f"Free Space: {free_space} TB, Total Space: {total_space} TB, Used Space: {used_space} TB, Preallocated Space: {preallocated_space} TB"
+                )
+            return capacity_details
         else:
-            return "No entries found in the response."
-    except KeyError as e:
-        return f"Error extracting capacity details: {e}"
+            return ["No entries found in the response."]
+    else:
+        return [f"Failed to fetch data: {response.status_code} - {response.text}"]
 
 # Function to send email with screenshots and API data
-def send_email(owner_email, screenshot_filenames, api_data, site_name):
+def send_email(owner_email, screenshot_filenames, api_data, ip):
     smtp_server = "smtp-mail.outlook.com"
     smtp_port = 25
     sender_email = config.SENDER_EMAIL
@@ -169,19 +163,20 @@ def send_email(owner_email, screenshot_filenames, api_data, site_name):
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = owner_email
-    msg['Subject'] = f"Automated Screenshot and API Data for {site_name}"
+    msg['Subject'] = f"Automated Screenshot and API Data for IP: {ip}"
     
+    api_data_html = '<br>'.join([f'<p>{data}</p>' for data in api_data])
     body = f"""
     <html>
     <body>
         <p>Hi team,</p>
-        <p>Please find the screenshots and API data for {site_name} below:</p>
-        {api_data}
-        {}
+        <p>Please find the screenshots and API data attached below for IP: {ip}:</p>
+        {api_data_html}
+        {''.join([f'<p><img src="cid:{os.path.basename(filename)}"></p>' for filename in screenshot_filenames])}
         <p>Thanks & Regards,<br> Yash Srivastava</p>
     </body>
     </html>
-    """.format(''.join([f'<p><img src="cid:{os.path.basename(filename)}"></p>' for filename in screenshot_filenames]))
+    """
     
     msg.attach(MIMEText(body, "html"))
 
@@ -200,35 +195,30 @@ def send_email(owner_email, screenshot_filenames, api_data, site_name):
 # Main execution
 if __name__ == "__main__":
     sites = [
-        {"url": "https://10.1.3.96/", "unity_ip": "10.1.3.96", "name": "Site_1"},
-        {"url": "https://10.1.3.95/", "unity_ip": "10.1.3.95", "name": "Site_2"}
+        {"ip": "10.1.3.96", "site_user": config.SITE_USER, "site_password": config.SITE_PASSWORD},
+        {"ip": "10.1.3.97", "site_user": config.SITE_USER, "site_password": config.SITE_PASSWORD},
+        # Add more sites as needed
     ]
 
-    driver = webdriver.Chrome(service=Service("C:\\Users\\y.s.va22\\Downloads\\syseng_automation\\chromedriver.exe"))
-    driver.maximize_window()
-
-    # Sign in to Microsoft
-    driver.get('https://login.microsoftonline.com/')
-    sign_in(driver, config.LOGIN_USER, config.LOGIN_PASSWORD)
-
     for site in sites:
-        # Access the site
-        access_site(driver, config.SITE_USER, config.SITE_PASSWORD, site["url"])
+        # Ensure Temp directory exists
+        if not os.path.exists("Temp"):
+            os.makedirs("Temp")
+
+        driver = webdriver.Chrome(service=Service("C:\\Users\\y.s.va22\\Downloads\\chromedriver-win64 (2)\\chromedriver.exe"))
+        driver.maximize_window()
+
+        try:
+            ip = site["ip"]
+            api_data = fetch_api_data(ip, config.SITE_USER, config.SITE_PASSWORD)
+            driver.get(f"https://{ip}/")
+            access_site(driver, site["site_user"], site["site_password"])
+            screenshot_filenames = take_screenshots(driver, ip)
+            send_email(config.OWNER_EMAIL, screenshot_filenames, api_data, ip)
+        except Exception as e:
+            print(f"An error occurred for IP {site['ip']}: {e}")
+        finally:
+            driver.quit()
         
-        time.sleep(30)  # Wait for the site to fully load
-        
-        # Take screenshots with zoom adjustments
-        take_screenshots(driver, site["name"])
-        
-        # Fetch API data
-        api_data = fetch_api_data(site["unity_ip"], config.SITE_USER, config.SITE_PASSWORD)
-        api_data_text = extract_capacity_details(api_data)
-        
-        # Send email with screenshots and API data
-        screenshot_files = [f"Temp/{site['name']}/{img}" for img in os.listdir(f"Temp/{site['name']}")]
-        send_email(config.OWNER_EMAIL, screenshot_files, api_data_text, site["name"])
-        
-        # Clear the Temp directory for the next site
-        shutil.rmtree(f"Temp/{site['name']}")
-    
-    driver.quit()
+        # Clean up the Temp directory after each site
+        shutil.rmtree("Temp")
