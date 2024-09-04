@@ -1,58 +1,47 @@
-import json
 import requests
 from requests.auth import HTTPBasicAuth
+import json
 
-# Replace with your Unity system details
-unity_ip = "10.1.3.96"
-username = "your_username"
-password = "your_password"
+# Unity system details
+unity_ip = "10.1.3.96"  # Replace with your system's IP address
+username = "your_username"  # Replace with your username
+password = "your_password"  # Replace with your password
 
-# Define headers
+# API endpoint for system capacity (example endpoint, adjust as needed)
+resource = "systemCapacity"
+url = f"https://{unity_ip}/api/types/{resource}?compact=True"
+
+# Authentication
+auth = HTTPBasicAuth(username, password)
+
+# Headers required by the Unity API
 headers = {
     "Accept": "application/json",
     "Content-type": "application/json",
     "X-EMC-REST-CLIENT": "true"
 }
 
-# API endpoint to list all available types
-url_types = f"https://{unity_ip}/api/types/?compact=True&fields=attributes.name"
-
 # Disable SSL warnings
 requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
-# Make the GET request
-response = requests.get(url_types, headers=headers, auth=HTTPBasicAuth(username, password), verify=False)
+# Send GET request
+response = requests.get(url, headers=headers, auth=auth, verify=False)
 
 # Check if the request was successful
 if response.status_code == 200:
-    try:
-        # Parse the JSON response
-        data = response.json()
-
-        # Extract attribute names
-        attrs = [x["name"] for x in data["content"]["attributes"]]
-        str_attrs = ",".join(attrs)
-
-        # API endpoint to get a specific instance of the resource by ID
-        resource = "pool"
-        url_instance = f"https://{unity_ip}/api/instances/{resource}/pool_1?compact=True&fields={str_attrs}"
-
-        # Uncomment the following line to get instance by name instead of ID
-        # url_instance = f"https://{unity_ip}/api/instances/{resource}/name:Cinder_Pool?compact=True&fields={str_attrs}"
-
-        # Make the GET request for the specific instance
-        response_instance = requests.get(url_instance, headers=headers, auth=HTTPBasicAuth(username, password), verify=False)
-
-        if response_instance.status_code == 200:
-            # Parse and print the JSON response
-            instance_data = response_instance.json()
-            print(json.dumps(instance_data, indent=4))
-        else:
-            print(f"Failed to fetch instance data. Status code: {response_instance.status_code}")
-            print("Response content:", response_instance.text)
-
-    except ValueError:
-        print("Response content is not in JSON format:", response.text)
+    data = response.json()
+    # Parse and extract system capacity details
+    if 'entries' in data:
+        for entry in data['entries']:
+            content = entry['content']
+            free_space = content.get('freeSpace', 'N/A')
+            preallocated_space = content.get('preallocatedSpace', 'N/A')
+            used_space = content.get('usedSpace', 'N/A')
+            print(f"Free Space: {free_space}")
+            print(f"Preallocated Space: {preallocated_space}")
+            print(f"Used Space: {used_space}")
+    else:
+        print("No entries found in the response.")
 else:
-    print(f"Failed to fetch types. Status code: {response.status_code}")
+    print(f"Failed to fetch data, status code: {response.status_code}")
     print("Response content:", response.text)
