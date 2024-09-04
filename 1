@@ -47,9 +47,23 @@ def fetch_data(endpoint):
     else:
         response.raise_for_status()
 
-endpoints = ["system", "storageResource", "pool", "lun", "nasServer", "fileSystem"]
+# Fetch system information
+system_info = fetch_data("system")
 
-for endpoint in endpoints:
-    print(f"Fetching data from {endpoint}...")
-    data = fetch_data(endpoint)
-    print(json.dumps(data, indent=4))
+# Extract specific capacity details
+def extract_capacity_details(data):
+    try:
+        system_content = data['entries'][0]['content']
+        free_space = system_content.get('freeSize', 'N/A')
+        preallocated_space = system_content.get('preallocatedSize', 'N/A')
+        used_space = system_content.get('usedSize', 'N/A')
+
+        print(f"System Capacity Details:")
+        print(f"Free Space: {free_space}")
+        print(f"Preallocated Space: {preallocated_space}")
+        print(f"Used Space: {used_space}")
+
+    except (KeyError, IndexError) as e:
+        print("Error extracting system capacity details:", e)
+
+extract_capacity_details(system_info)
