@@ -2,11 +2,16 @@ import requests
 import json
 
 # Connection details
-unity_ip = "192.168.x.x"
-username = "admin"
-password = "your_password"
+unity_ip = "10.245.83.44"
+username = "admin"  # Replace with your username
+password = "your_password"  # Replace with your password
 
-base_url = f"https://{unity_ip}/api/types"
+# Base URL and endpoint
+base_url = f"https://{unity_ip}/api/types/pool/instances"
+query_params = {
+    "compact": "True",
+    "fields": "dataReductionRatio,snapSpaceHarvestLowThreshold,sizeUsed,hasCompressionEnabledLuns,poolSpaceHarvestLowThreshold,sizePreallocated,snapSizeSubscribed,sizeFree,health,name,nonBaseSizeSubscribed,compressionPercent,isAllFlash,snapSpaceHarvestHighThreshold,hasCompressionEnabledFs,alertThreshold,creationTime,id,metadataSizeSubscribed,isSnapHarvestEnabled,isEmpty,dataReductionSizeSaved,hasDataReductionEnabledLuns,compressionRatio,raidType,hasDataReductionEnabledFs,type,snapSizeUsed,harvestState,poolSpaceHarvestHighThreshold,rebalanceProgress,sizeTotal,dataReductionPercent,metadataSizeUsed,nonBaseSizeUsed,tiers,isFASTCacheEnabled,sizeSubscribed,compressionSizeSaved,poolFastVP,description,isHarvestEnabled"
+}
 
 # Headers for Unity REST API
 headers = {
@@ -23,32 +28,15 @@ session.headers.update(headers)
 # Disable warnings about insecure requests
 requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
-def get_csrf_token():
-    url = f"{base_url}/systemCapacity/instances"
-    response = session.get(url, verify=False)
-    if response.status_code == 200:
-        csrf_token = response.headers.get("EMC-CSRF-TOKEN")
-        if csrf_token:
-            session.headers.update({"EMC-CSRF-TOKEN": csrf_token})
-            print("CSRF token retrieved and added to session headers.")
-        else:
-            print("CSRF token not found in response headers.")
-    else:
-        response.raise_for_status()
-
-# Fetch CSRF token
-get_csrf_token()
-
-def fetch_capacity_data():
-    url = f"{base_url}/systemCapacity/instances"
-    response = session.get(url, verify=False)
+def fetch_pool_data():
+    response = session.get(base_url, params=query_params, verify=False)
     if response.status_code == 200:
         return response.json()
     else:
         response.raise_for_status()
 
-# Fetch system capacity information
-capacity_info = fetch_capacity_data()
+# Fetch pool information
+pool_info = fetch_pool_data()
 
 # Extract specific capacity details
 def extract_capacity_details(data):
@@ -68,13 +56,15 @@ def extract_capacity_details(data):
 
                 # Extract specific fields
                 free_space = content.get('sizeFree', 'N/A')
-                preallocated_space = content.get('sizePreallocated', 'N/A')
+                total_space = content.get('sizeTotal', 'N/A')
                 used_space = content.get('sizeUsed', 'N/A')
+                preallocated_space = content.get('sizePreallocated', 'N/A')
 
-                print(f"\nSystem Capacity Details:")
+                print(f"\nPool Capacity Details:")
                 print(f"Free Space: {free_space}")
-                print(f"Preallocated Space: {preallocated_space}")
+                print(f"Total Space: {total_space}")
                 print(f"Used Space: {used_space}")
+                print(f"Preallocated Space: {preallocated_space}")
 
         else:
             print("No entries found in the response.")
@@ -83,4 +73,4 @@ def extract_capacity_details(data):
         print("Error extracting capacity details:", e)
 
 # Extract and print capacity details
-extract_capacity_details(capacity_info)
+extract_capacity_details(pool_info)
