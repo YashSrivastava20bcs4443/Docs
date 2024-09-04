@@ -1,8 +1,0 @@
-# Source VHDX file path
-$sourceVHDXPath = "C:\Users\sriva\Downloads\18_07\fortios-converted.vhdx" 
-
-# Destination VHD file path
-$destinationVHDPath = "C:\Users\sriva\Downloads\18_07\converted-file.vhd"
-
-# Convert the VHDX to VHD
-Convert-VHD -Path $sourceVHDXPath -DestinationPath $destinationVHDPath -VHDType Fixed
