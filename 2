@@ -1,77 +1,79 @@
 import requests
 import json
 
-# Define the base URL
-base_url = "https://10.1.3.96/api"
+# Connection details
+unity_ip = "192.168.x.x"
+username = "admin"
+password = "your_password"
 
-# Set the credentials for basic authentication
-username = 'your_username'
-password = 'your_password'
+base_url = f"https://{unity_ip}/api/types"
 
-# Step 1: Retrieve the CSRF Token
-csrf_endpoint = "/types/system/instances"
-csrf_headers = {
-    "X-EMC-REST-CLIENT": "true",
-    "Accept": "application/json"
-}
-
-# Make the initial GET request to retrieve the CSRF token
-csrf_response = requests.get(
-    base_url + csrf_endpoint,
-    headers=csrf_headers,
-    auth=HTTPBasicAuth(username, password),
-    verify=False  # Bypass SSL verification if necessary
-)
-
-if csrf_response.status_code == 200:
-    csrf_token = csrf_response.headers.get('EMC-CSRF-TOKEN')
-    print("CSRF token retrieved and added to session headers.")
-else:
-    print(f"Failed to retrieve CSRF token. Status Code: {csrf_response.status_code}")
-    exit()
-
-# Step 2: Query the capability profile by name
-capability_profile_name = "YourCapabilityProfileName"
-profile_endpoint = f"/instances/capabilityProfile/name:{capability_profile_name}"
-
-# Set the headers for the capability profile request, including the CSRF token
-profile_headers = {
+# Headers for Unity REST API
+headers = {
     "X-EMC-REST-CLIENT": "true",
     "Accept": "application/json",
-    "Content-type": "application/json",
-    "EMC-CSRF-TOKEN": csrf_token
+    "Content-Type": "application/json",
 }
 
-# Make the GET request to retrieve the capability profile details
-profile_response = requests.get(
-    base_url + profile_endpoint,
-    headers=profile_headers,
-    auth=HTTPBasicAuth(username, password),
-    verify=False  # Bypass SSL verification if necessary
-)
+# Create a session
+session = requests.Session()
+session.auth = (username, password)
+session.headers.update(headers)
 
-# Step 3: Save the unfiltered data to a file
-if profile_response.status_code == 200:
-    profile_data = profile_response.json()
+# Disable warnings about insecure requests
+requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
-    # Save the unfiltered data to a JSON file
-    with open("unfiltered_data.json", "w") as outfile:
-        json.dump(profile_data, outfile, indent=4)
-    print("Unfiltered data saved to 'unfiltered_data.json'.")
+def get_csrf_token():
+    url = f"{base_url}/systemCapacity/instances"
+    response = session.get(url, verify=False)
+    if response.status_code == 200:
+        csrf_token = response.headers.get("EMC-CSRF-TOKEN")
+        if csrf_token:
+            session.headers.update({"EMC-CSRF-TOKEN": csrf_token})
+            print("CSRF token retrieved and added to session headers.")
+        else:
+            print("CSRF token not found in response headers.")
+    else:
+        response.raise_for_status()
 
-    # Now filter the data
+# Fetch CSRF token
+get_csrf_token()
+
+def fetch_capacity_data():
+    url = f"{base_url}/systemCapacity/instances"
+    response = session.get(url, verify=False)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        response.raise_for_status()
+
+# Fetch system capacity information
+capacity_info = fetch_capacity_data()
+
+# Extract specific capacity details
+def extract_capacity_details(data):
     try:
-        content = profile_data.get("content", {})
-        free_space = content.get("free_space", "N/A")
-        preallocated_space = content.get("preallocated_space", "N/A")
-        used_space = content.get("used_space", "N/A")
+        # Print full response to inspect available fields
+        print("Full Response:")
+        print(json.dumps(data, indent=4))
 
-        print("\nSystem Capacity Details (Filtered):")
-        print(f"Free Space: {free_space}")
-        print(f"Preallocated Space: {preallocated_space}")
-        print(f"Used Space: {used_space}")
+        # Access the content part of the response
+        entries = data.get('entries', [])
+        if entries:
+            content = entries[0].get('content', {})
+            free_space = content.get('sizeFree', 'N/A')
+            preallocated_space = content.get('sizePreallocated', 'N/A')
+            used_space = content.get('sizeUsed', 'N/A')
 
-    except KeyError:
-        print("Failed to extract system capacity details from response.")
-else:
-    print(f"Failed to retrieve capability profile. Status Code: {profile_response.status_code}")
+            print(f"System Capacity Details:")
+            print(f"Free Space: {free_space}")
+            print(f"Preallocated Space: {preallocated_space}")
+            print(f"Used Space: {used_space}")
+        else:
+            print("No entries found in the response.")
+
+    except KeyError as e:
+        print("Error extracting capacity details:", e)
+
+# Extract and print capacity details
+extract_capacity_details(capacity_info)
