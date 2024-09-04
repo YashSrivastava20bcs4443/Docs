@@ -10,7 +10,7 @@ password = "your_password"  # Replace with your password
 base_url = f"https://{unity_ip}/api/types/pool/instances"
 query_params = {
     "compact": "True",
-    "fields": "dataReductionRatio,snapSpaceHarvestLowThreshold,sizeUsed,hasCompressionEnabledLuns,poolSpaceHarvestLowThreshold,sizePreallocated,snapSizeSubscribed,sizeFree,health,name,nonBaseSizeSubscribed,compressionPercent,isAllFlash,snapSpaceHarvestHighThreshold,hasCompressionEnabledFs,alertThreshold,creationTime,id,metadataSizeSubscribed,isSnapHarvestEnabled,isEmpty,dataReductionSizeSaved,hasDataReductionEnabledLuns,compressionRatio,raidType,hasDataReductionEnabledFs,type,snapSizeUsed,harvestState,poolSpaceHarvestHighThreshold,rebalanceProgress,sizeTotal,dataReductionPercent,metadataSizeUsed,nonBaseSizeUsed,tiers,isFASTCacheEnabled,sizeSubscribed,compressionSizeSaved,poolFastVP,description,isHarvestEnabled"
+    "fields": "sizeFree,sizeTotal,sizeUsed,sizePreallocated"
 }
 
 # Headers for Unity REST API
@@ -50,11 +50,7 @@ def extract_capacity_details(data):
         if entries:
             for entry in entries:
                 content = entry.get('content', {})
-                print("Entry Content Keys and Values:")
-                for key, value in content.items():
-                    print(f"{key}: {value}")
-
-                # Extract specific fields
+                # Extract and print the desired fields
                 free_space = content.get('sizeFree', 'N/A')
                 total_space = content.get('sizeTotal', 'N/A')
                 used_space = content.get('sizeUsed', 'N/A')
