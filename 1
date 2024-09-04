@@ -1,1 +1,26 @@
 
+# azure-pipelines.yml
+pool:
+  name: Default
+
+jobs:
+- job: SetupAndRun
+  displayName: 'Set up ChromeDriver and run Python script'
+  steps:
+  - script: |
+      sudo apt-get update
+      sudo apt-get install -y wget unzip python3 python3-pip
+      wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+      sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -f
+      wget https://storage.googleapis.com/chrome-for-testing-public/128.0.6613.119/linux64/chromedriver-linux64.zip
+      unzip chromedriver-linux64.zip
+      sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
+    displayName: 'Install Chrome and ChromeDriver'
+  
+  - script: |
+      python3 automation_script.py
+    displayName: 'Run Python Script'
+
+
+
+ driver = webdriver.Chrome(service=Service("/usr/local/bin/chromedriver"))
