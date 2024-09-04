@@ -7,3 +7,10 @@ def print_content(data):
 
 # Call this function to print the system content
 print_content(system_info)
+
+def print_full_response(data):
+    print("Full Response:")
+    print(json.dumps(data, indent=4))
+
+# Call this function to print the full response
+print_full_response(system_info)
