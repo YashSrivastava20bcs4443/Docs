@@ -1,26 +1,30 @@
+Here is the diagram representing the process your code follows, as requested. Let me summarize the steps of the process:
 
-# azure-pipelines.yml
-pool:
-  name: Default
+Start:
 
-jobs:
-- job: SetupAndRun
-  displayName: 'Set up ChromeDriver and run Python script'
-  steps:
-  - script: |
-      sudo apt-get update
-      sudo apt-get install -y wget unzip python3 python3-pip
-      wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-      sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get install -f
-      wget https://storage.googleapis.com/chrome-for-testing-public/128.0.6613.119/linux64/chromedriver-linux64.zip
-      unzip chromedriver-linux64.zip
-      sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
-    displayName: 'Install Chrome and ChromeDriver'
-  
-  - script: |
-      python3 automation_script.py
-    displayName: 'Run Python Script'
+The process begins with setting up the environment, including preparing dependencies like ChromeDriver and initializing the Selenium WebDriver.
+Selenium Web Driver Initialization:
 
+The Selenium WebDriver is initialized to allow interaction with a website.
+ChromeDriver Setup:
 
+ChromeDriver is configured to work with the installed version of Google Chrome on the machine.
+Sign-In to Website:
 
- driver = webdriver.Chrome(service=Service("/usr/local/bin/chromedriver"))
+Using Selenium, the script performs a login by inputting credentials, handling any pop-ups during sign-in.
+Zoom Adjustment & Screenshot Capture:
+
+The zoom level is adjusted for better visibility, and screenshots are taken at various stages.
+API Data Fetching:
+
+API requests are sent to gather capacity data (free space, used space, etc.) from a Dell EMC Unity system.
+Email Composition:
+
+The screenshots and API data are combined and formatted to create a detailed email with inline images and structured data.
+Send Email via SMTP:
+
+The email is sent through an SMTP server (in this case, an Outlook server), including all the screenshots and data.
+Pipeline Execution in Azure DevOps:
+
+The process is then executed in an Azure DevOps pipeline, automating the full end-to-end process, including error handling and cleanup. If any issues occur, the errors are captured, and the necessary corrective actions are taken.
+The diagram visually represents these steps along with error handling and system cleanup mechanisms.
