@@ -1,36 +1,25 @@
-# Click on the 'Performance' tab
+# Click on the duration button first
 try:
-    performance_tab = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-tree-node-text') and text()='Performance']"))
+    duration_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-btn duration-button no-shadow-link-button x-unselectable x-box-item x-toolbar-item x-btn-plain-small link-button no-padding')]"))
     )
-    performance_tab.click()
-    time.sleep(10)  # Wait for the content to load
+    duration_button.click()
+    time.sleep(3)  # Wait for the drop-down to appear
 
-    # Click on the 'btnIconEl' first
-    try:
-        btn_icon_el = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//span[@id='core-LinkButton-1235-btnIconEl']"))
-        )
-        btn_icon_el.click()
-        time.sleep(3)
+    # Click on the 'Last 30 Days' option
+    last_30_days_option = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'Last 30 Days')]"))
+    )
+    last_30_days_option.click()
+    time.sleep(5)  # Wait for the data to load
 
-        # Now, click on the 'Last 30 Days' option
-        last_30_days_option = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[text()='Last 30 Days']"))
-        )
-        last_30_days_option.click()
-        time.sleep(5)  # Wait for the action to complete
+    # Proceed with the zoom and screenshot
+    performance_screenshot = f"{screenshot_dir}/Performance_screenshot.png"
+    set_zoom(driver, 0.5)
+    driver.save_screenshot(performance_screenshot)
 
-        # Zoom out to 50% and take a screenshot of the Performance tab with 'Last 30 Days' data
-        performance_screenshot = f"{screenshot_dir}/Performance_screenshot.png"
-        set_zoom(driver, 0.5)
-        driver.save_screenshot(performance_screenshot)
-
-        # Reset zoom to 100%
-        set_zoom(driver, 1)
-
-    except Exception as e:
-        print(f"Failed to click on 'Last 30 Days' or 'btnIconEl': {e}")
+    # Reset zoom to 100%
+    set_zoom(driver, 1)
 
 except Exception as e:
-    print(f"Failed to click on 'Performance' tab: {e}")
+    print(f"Failed to click on 'duration button' or 'Last 30 Days': {e}")
