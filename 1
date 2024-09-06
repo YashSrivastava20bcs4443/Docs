@@ -1,28 +1,29 @@
-# Click on the 'Alerts' tab
-    try:
-        alerts_tab = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-tree-node-text') and text()='Alerts']"))
-        )
-        alerts_tab.click()
-        time.sleep(10)  # Wait for the content to load
+# Click on the 'Performance' tab
+try:
+    performance_tab = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-tree-node-text') and text()='Performance']"))
+    )
+    performance_tab.click()
+    time.sleep(10)  # Wait for the content to load
 
-        # Zoom out to 50% and take a screenshot of the Alerts tab
-        alerts_screenshot = f"{screenshot_dir}/alerts_screenshot.png"
+    # Now, click on the 'Last 30 Days' button
+    try:
+        last_30_days_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-btn-inner') and text()='Last 30 Days']"))
+        )
+        last_30_days_button.click()
+        time.sleep(5)  # Wait for the action to complete
+        
+        # Zoom out to 50% and take a screenshot of the Performance tab with 'Last 30 Days' data
+        performance_screenshot = f"{screenshot_dir}/Performance_screenshot.png"
         set_zoom(driver, 0.5)
-        driver.save_screenshot(alerts_screenshot)
+        driver.save_screenshot(performance_screenshot)
 
         # Reset zoom to 100%
         set_zoom(driver, 1)
+
     except Exception as e:
-        print(f"Failed to click on 'Alerts' tab: {e}")
+        print(f"Failed to click 'Last 30 Days' button: {e}")
 
-
-    return [opened_page_screenshot, performance_screenshot, system_screenshot, alerts_screenshot]
-
-
-    for filename in screenshot_filenames:
-        with open(filename, "rb") as f:
-            img = MIMEImage(f.read())
-            img.add_header("Content-Disposition", "inline", filename=os.path.basename(filename))
-            img.add_header("Content-ID", f"<{os.path.basename(filename)}>")
-            msg.attach(img)
+except Exception as e:
+    print(f"Failed to click on 'Performance' tab: {e}")
