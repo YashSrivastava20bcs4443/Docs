@@ -1,30 +1,28 @@
-Here is the diagram representing the process your code follows, as requested. Let me summarize the steps of the process:
+    # Click on the 'Alerts' tab
+    try:
+        alerts_tab = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-tree-node-text') and text()='Alerts']"))
+        )
+        alerts_tab.click()
+        time.sleep(10)  # Wait for the content to load
 
-Start:
+        # Zoom out to 50% and take a screenshot of the Alerts tab
+        alerts_screenshot = f"{screenshot_dir}/alerts_screenshot.png"
+        set_zoom(driver, 0.5)
+        driver.save_screenshot(alerts_screenshot)
 
-The process begins with setting up the environment, including preparing dependencies like ChromeDriver and initializing the Selenium WebDriver.
-Selenium Web Driver Initialization:
+        # Reset zoom to 100%
+        set_zoom(driver, 1)
+    except Exception as e:
+        print(f"Failed to click on 'Alerts' tab: {e}")
 
-The Selenium WebDriver is initialized to allow interaction with a website.
-ChromeDriver Setup:
 
-ChromeDriver is configured to work with the installed version of Google Chrome on the machine.
-Sign-In to Website:
+    return [opened_page_screenshot, performance_screenshot, system_screenshot, alerts_screenshot]
 
-Using Selenium, the script performs a login by inputting credentials, handling any pop-ups during sign-in.
-Zoom Adjustment & Screenshot Capture:
 
-The zoom level is adjusted for better visibility, and screenshots are taken at various stages.
-API Data Fetching:
-
-API requests are sent to gather capacity data (free space, used space, etc.) from a Dell EMC Unity system.
-Email Composition:
-
-The screenshots and API data are combined and formatted to create a detailed email with inline images and structured data.
-Send Email via SMTP:
-
-The email is sent through an SMTP server (in this case, an Outlook server), including all the screenshots and data.
-Pipeline Execution in Azure DevOps:
-
-The process is then executed in an Azure DevOps pipeline, automating the full end-to-end process, including error handling and cleanup. If any issues occur, the errors are captured, and the necessary corrective actions are taken.
-The diagram visually represents these steps along with error handling and system cleanup mechanisms.
+    for filename in screenshot_filenames:
+        with open(filename, "rb") as f:
+            img = MIMEImage(f.read())
+            img.add_header("Content-Disposition", "inline", filename=os.path.basename(filename))
+            img.add_header("Content-ID", f"<{os.path.basename(filename)}>")
+            msg.attach(img)
