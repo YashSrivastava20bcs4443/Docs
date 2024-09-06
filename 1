@@ -1,4 +1,4 @@
-    # Click on the 'Alerts' tab
+# Click on the 'Alerts' tab
     try:
         alerts_tab = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'x-tree-node-text') and text()='Alerts']"))
