@@ -1,35 +1,20 @@
-https://storage.googleapis.com/chrome-for-testing-public/128.0.6613.137/win64/chrome-win64.zip
-
-
-
 trigger:
 - main
 
 pool:
-  vmImage: 'windows-latest'  # Use a Windows-based agent
+  name: 'Default'
 
 steps:
-- task: UsePythonVersion@0
-  inputs:
-    versionSpec: '3.x'
-    addToPath: true
+  - script: |
+      Invoke-WebRequest -Uri https://storage.googleapis.com/chrome-for-testing-public/128.0.6613.137/win64/chromedriver-win64.zip -OutFile chromedriver.zip
+      Expand-Archive chromedriver.zip -DestinationPath .\chromedriver
+      $env:PATH += ";$PWD\chromedriver"
+    displayName: 'Install ChromeDriver'
 
-- script: |
-    python -m pip install --upgrade pip
-    pip install selenium
-  displayName: 'Install Python dependencies'
-
-- script: |
-    curl -o chrome-win64.zip https://storage.googleapis.com/chrome-for-testing-public/128.0.6613.137/win64/chrome-win64.zip
-    tar -xf chrome-win64.zip
-    move chrome-win64/chrome.exe "C:\Program Files\Google\Chrome\Application\chrome.exe"
-    move chrome-win64/chromedriver.exe "C:\Program Files\Google\Chrome\Application\chromedriver.exe"
-  displayName: 'Install Chrome and ChromeDriver'
-
-- script: |
-    python main.py
-  displayName: 'Run Python Script'
+  - script: |
+      python main.py
+    displayName: 'Run Python Script'
 
 
-
-  chrome_driver_path = "C:\\Program Files\\Google\\Chrome\\Application\\chromedriver.exe"
+    # Specify the path to chromedriver
+chrome_driver_path = "./chromedriver/chromedriver.exe"
