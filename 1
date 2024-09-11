@@ -1,11 +1,35 @@
-# Wait and click the button with the class 'x-btn-icon-el x-btn-icon-el-plain-small'
-button = WebDriverWait(driver, 10).until(
-    EC.element_to_be_clickable((By.CLASS_NAME, "x-btn-icon-el-plain-small"))
-)
-button.click()
+https://storage.googleapis.com/chrome-for-testing-public/128.0.6613.137/win64/chrome-win64.zip
 
-# Wait for the 'Last 30 Days' option and click it
-last_30_days_option = WebDriverWait(driver, 10).until(
-    EC.element_to_be_clickable((By.XPATH, "//div[text()='Last 30 Days']"))
-)
-last_30_days_option.click()
+
+
+trigger:
+- main
+
+pool:
+  vmImage: 'windows-latest'  # Use a Windows-based agent
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.x'
+    addToPath: true
+
+- script: |
+    python -m pip install --upgrade pip
+    pip install selenium
+  displayName: 'Install Python dependencies'
+
+- script: |
+    curl -o chrome-win64.zip https://storage.googleapis.com/chrome-for-testing-public/128.0.6613.137/win64/chrome-win64.zip
+    tar -xf chrome-win64.zip
+    move chrome-win64/chrome.exe "C:\Program Files\Google\Chrome\Application\chrome.exe"
+    move chrome-win64/chromedriver.exe "C:\Program Files\Google\Chrome\Application\chromedriver.exe"
+  displayName: 'Install Chrome and ChromeDriver'
+
+- script: |
+    python main.py
+  displayName: 'Run Python Script'
+
+
+
+  chrome_driver_path = "C:\\Program Files\\Google\\Chrome\\Application\\chromedriver.exe"
