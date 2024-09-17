@@ -1,21 +1,14 @@
-September 17, 2024
-
-This Week:
-
-Completed pipeline creation for Dell Unisphere screenshot automation. However, a bug is preventing it from functioning correctly, and I am actively troubleshooting this issue.
-
-Progressing on the second phase of the network automation project, focused on creating an Ansible backup script for switch backups.
-
-The Ansible script for Cisco IOS switches is written, and I am currently in the process of testing it.
-
-
-Next Week:
-
-Continue resolving the pipeline bug for Dell Unisphere screenshot automation.
-
-Test the Ansible script in the development environment and validate the switch backup process.
-
-Set up a pipeline for the switch backup project.
-
-Document the entire switch backup process.
-
+SELECT 
+    v.DisplayName AS 'ComputerName',
+    p.ObjectName AS 'ObjectType',
+    p.CounterName AS 'Counter',
+    p.InstanceName AS 'Instance',
+    p.SampleValue AS 'PerformanceValue',
+    p.TimeSampled AS 'TimeStamp'
+FROM 
+    dbo.Perf AS p
+JOIN 
+    dbo.vManagedEntity AS v
+    ON p.ManagedEntityID = v.ManagedEntityID
+ORDER BY 
+    p.TimeSampled DESC;
