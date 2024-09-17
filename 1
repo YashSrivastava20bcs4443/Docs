@@ -1,1 +1,29 @@
- ansible_network_os=ios ansible_connection=network_cli
+---
+- name: Backup Cisco Switches
+  hosts: switches
+  gather_facts: no
+  vars:
+    backup_base_dir: /home/ems_cyberark
+    ansible_network_os: ios
+    ansible_connection: network_cli
+  tasks:
+    - name: Get current datetime
+      set_fact:
+        current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
+
+    - name: Create backup directory for each switch if it doesn't exist
+      command: "mkdir -p {{ backup_base_dir }}/{{ inventory_hostname }}"
+      delegate_to: localhost
+
+    - name: Run 'terminal length 0' and 'show running-config' on the Cisco switch
+      ios_command:
+        commands:
+          - terminal length 0
+          - show running-config
+      register: running_config
+
+    - name: Save running configuration to file
+      copy:
+        content: "{{ running_config.stdout[1] }}"
+        dest: "{{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}.cfg"
+      delegate_to: localhost
