@@ -1,17 +1,15 @@
 ---
-- name: Backup Cisco IOS Switches
+- name: Backup Cisco Switches
   hosts: switches
   gather_facts: no
   vars:
-    backup_base_dir: 
-    sftp_server: 
-    sftp_user: 
-    sftp_password: 
+    backup_base_dir: /home/
+    ansible_ssh_extra_args: '-o KexAlgorithms=+diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1'
   tasks:
     - name: Get current datetime
       set_fact:
         current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
-
+    
     - name: Create backup directory for each switch if it doesn't exist
       command: "mkdir -p {{ backup_base_dir }}/{{ inventory_hostname }}"
       delegate_to: localhost
@@ -21,6 +19,7 @@
         command: "ssh {{ ansible_user }}@{{ ansible_host }} 'show running-config'"
         responses:
           "assword:": "{{ ansible_ssh_pass }}"
+          "(?i)continue connecting (yes/no)?": "yes"
         timeout: 60
       register: running_config
 
@@ -28,28 +27,4 @@
       copy:
         content: "{{ running_config.stdout }}"
         dest: "{{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}.cfg"
-      delegate_to: localhost
-
-    - name: Create corresponding directory on SFTP server
-      expect:
-        command: "sftp {{ sftp_user }}@{{ sftp_server }}"
-        responses:
-          "(?i)password:": "{{ sftp_password }}"
-          "sftp> ": "mkdir {{ inventory_hostname }}\nbye"
-        timeout: 60
-      delegate_to: localhost
-
-    - name: Transfer backups to SFTP server
-      expect:
-        command: "sftp {{ sftp_user }}@{{ sftp_server }}"
-        responses:
-          "(?i)password:": "{{ sftp_password }}"
-          "sftp> ": "lcd {{ backup_base_dir }}/{{ inventory_hostname }}\ncd {{ inventory_hostname }}\nput *.cfg\nbye"
-        timeout: 60
-      delegate_to: localhost
-
-    - name: Delete local backups
-      file:
-        path: "{{ backup_base_dir }}/{{ inventory_hostname }}"
-        state: absent
       delegate_to: localhost
