@@ -1,29 +1,21 @@
----
-- name: Backup Cisco Switches
-  hosts: switches
-  gather_facts: no
-  vars:
-    backup_base_dir: /home/
-    ansible_network_os: ios
-    ansible_connection: network_cli
-  tasks:
-    - name: Get current datetime
-      set_fact:
-        current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
+September 17, 2024
 
-    - name: Create backup directory for each switch if it doesn't exist
-      command: "mkdir -p {{ backup_base_dir }}/{{ inventory_hostname }}"
-      delegate_to: localhost
+This Week:
 
-    - name: Run 'terminal length 0' and 'show running-config' on the Cisco switch
-      ios_command:
-        commands:
-          - terminal length 0
-          - show running-config
-      register: running_config
+Completed pipeline creation for Dell Unisphere screenshot automation. However, a bug is preventing it from functioning correctly, and I am actively troubleshooting this issue.
 
-    - name: Save running configuration to file
-      copy:
-        content: "{{ running_config.stdout[1] }}"
-        dest: "{{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}.cfg"
-      delegate_to: localhost
+Progressing on the second phase of the network automation project, focused on creating an Ansible backup script for switch backups.
+
+The Ansible script for Cisco IOS switches is written, and I am currently in the process of testing it.
+
+
+Next Week:
+
+Continue resolving the pipeline bug for Dell Unisphere screenshot automation.
+
+Test the Ansible script in the development environment and validate the switch backup process.
+
+Set up a pipeline for the switch backup project.
+
+Document the entire switch backup process.
+
