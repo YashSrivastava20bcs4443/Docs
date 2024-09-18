@@ -1,1 +1,27 @@
-"Hi Aman Sir, I had taken a leave on September 10th, which has been approved by my manager. Kindly apply this in the ESS backend as earned leave."
+Here's the draft for you:
+
+
+---
+
+Subject: Request to Create Service Account for Network Automation - Switch Backup
+
+Dear [Recipient's Name],
+
+I hope this email finds you well.
+
+As part of the Network Automation Project, we had previously created a service account on the firewalls for backup automation purposes. We are now entering the second phase of the project, which involves automating backups for the network switches.
+
+In order to proceed with this phase, we request the creation of a service account on the switches as well, specifically for backup automation tasks. The account should have the necessary permissions to ensure smooth operation and access for the automation scripts.
+
+Please let us know once the service account is created so we can proceed with the required configurations.
+
+Thank you for your support.
+
+Best regards,
+Yash
+Network Automation Team
+
+
+---
+
+Let me know if you'd like any changes!
