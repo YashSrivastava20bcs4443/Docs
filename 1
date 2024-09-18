@@ -1,14 +1,17 @@
-SELECT 
-    v.DisplayName AS 'ComputerName',
-    p.ObjectName AS 'ObjectType',
-    p.CounterName AS 'Counter',
-    p.InstanceName AS 'Instance',
-    p.SampleValue AS 'PerformanceValue',
-    p.TimeSampled AS 'TimeStamp'
-FROM 
-    dbo.Perf AS p
-JOIN 
-    dbo.vManagedEntity AS v
-    ON p.ManagedEntityID = v.ManagedEntityID
-ORDER BY 
-    p.TimeSampled DESC;
+import pandas as pd
+
+# Pehli CSV file ko read karen
+csv1 = pd.read_csv('file1.csv')
+
+# Dusri CSV file ko read karen
+csv2 = pd.read_csv('file2.csv')
+
+# CSV1 aur CSV2 ke 'ID' column ke aadhar par unique IDs nikalna
+unique_ids_csv1 = csv1[~csv1['ID'].isin(csv2['ID'])]  # File1 ke unique IDs
+unique_ids_csv2 = csv2[~csv2['ID'].isin(csv1['ID'])]  # File2 ke unique IDs
+
+# Dono files ke unique IDs ko alag-alag CSV me save karna
+unique_ids_csv1.to_csv('unique_ids_in_file1.csv', index=False)
+unique_ids_csv2.to_csv('unique_ids_in_file2.csv', index=False)
+
+print("Unique IDs saved to CSV files successfully!")
