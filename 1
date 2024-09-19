@@ -1,17 +1,49 @@
-import pandas as pd
+import requests
+import csv
+import time
+from datetime import datetime
 
-# Pehli CSV file ko read karen
-csv1 = pd.read_csv('file1.csv')
+# Grafana server details
+grafana_url = ""
+api_key = "YOUR_GRAFANA_API_KEY"
 
-# Dusri CSV file ko read karen
-csv2 = pd.read_csv('file2.csv')
+# PromQL query to fetch CPU or memory data
+query = "rate(node_cpu_seconds_total[1m])"  # Example for CPU data
 
-# CSV1 aur CSV2 ke 'ID' column ke aadhar par unique IDs nikalna
-unique_ids_csv1 = csv1[~csv1['ID'].isin(csv2['ID'])]  # File1 ke unique IDs
-unique_ids_csv2 = csv2[~csv2['ID'].isin(csv1['ID'])]  # File2 ke unique IDs
+# Start and end time for 15 days in Unix timestamp
+end_time = int(time.time())  # current time
+start_time = end_time - 15 * 24 * 60 * 60  # 15 days ago
 
-# Dono files ke unique IDs ko alag-alag CSV me save karna
-unique_ids_csv1.to_csv('unique_ids_in_file1.csv', index=False)
-unique_ids_csv2.to_csv('unique_ids_in_file2.csv', index=False)
+# Request headers with authentication
+headers = {
+    "Authorization": f"Bearer " + api_key
+}
 
-print("Unique IDs saved to CSV files successfully!")
+# Query parameters
+params = {
+    "query": query,
+    "start": start_time,
+    "end": end_time,
+    "step": "60"  # 1 minute step
+}
+
+# Send the request to Grafana API
+response = requests.get(grafana_url, headers=headers, params=params)
+data = response.json()
+
+# Prepare the filename with current date
+current_date = datetime.now().strftime("%Y-%m-%d")
+filename = f"grafana_data_{current_date}.csv"
+
+# Write the result to a CSV file
+with open(filename, mode='w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(["Timestamp", "Value"])
+
+    # Loop through the data points and write to CSV
+    for result in data['data']['result']:
+        for value in result['values']:
+            timestamp, metric_value = value
+            writer.writerow([timestamp, metric_value])
+
+print(f"Data saved to {filename} successfully!")
