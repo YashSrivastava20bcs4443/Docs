@@ -1,5 +1,17 @@
+Here's how you can phrase that in your email:
+
+
+---
+
+Subject: Windows Servers Compliance Check Script Update
+
+Dear [Recipient's Name],
+
 I hope you're doing well. Apologies for the delayed response. Based on the explanation in the previous email, I have created a script that is specifically designed to work with the Windows servers listed. The script is set up to run from a centralized server where all the servers mentioned in the list are reachable.
 
-While the script is prepared, it hasn't been tested yet. The plan is to run the script from the centralized server, which will check the compliance of all the listed servers, and the report will be automatically generated in the same Excel file.
+While the script is prepared, it hasn't been tested yet. The plan is to run it from the centralized server, and the compliance report will be automatically generated in the same Excel file.
+
+Additionally, I’ll need some more time to think through how we can approach this for Linux servers, as the current setup is focused only on Windows servers.
 
 Please let me know when you'd like to proceed with the testing or if any adjustments are required.
+
