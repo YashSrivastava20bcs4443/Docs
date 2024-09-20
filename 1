@@ -1,49 +1,115 @@
-import requests
-import csv
-import time
-from datetime import datetime
+import subprocess
+import openpyxl
+from openpyxl import Workbook
 
-# Grafana server details
-grafana_url = ""
-api_key = "YOUR_GRAFANA_API_KEY"
 
-# PromQL query to fetch CPU or memory data
-query = "rate(node_cpu_seconds_total[1m])"  # Example for CPU data
+def run_powershell_command(command):
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    return stdout.decode().strip(), stderr.decode().strip()
 
-# Start and end time for 15 days in Unix timestamp
-end_time = int(time.time())  # current time
-start_time = end_time - 15 * 24 * 60 * 60  # 15 days ago
+# Function to check for security patches specifically
+def check_security_patches():
+    security_patches_command = f'powershell Get-HotFix | Where-Object {{"$_.Description -like \'*Security Update*\'"}}'
+    security_patch_status, _ = run_powershell_command(security_patches_command)
+    if security_patch_status:
+        return "Security Patches Installed"
+    else:
+        return "Security Patches Missing"
 
-# Request headers with authentication
-headers = {
-    "Authorization": f"Bearer " + api_key
-}
+# Function to check compliance on Windows servers
+def check_compliance_windows(ip_address):
+    compliance = {}
 
-# Query parameters
-params = {
-    "query": query,
-    "start": start_time,
-    "end": end_time,
-    "step": "60"  # 1 minute step
-}
+    # Check OS Version (End-of-Life status)
+    os_command = f'powershell (Get-WmiObject -Class Win32_OperatingSystem).Caption'
+    os_info, _ = run_powershell_command(os_command)
+    if 'Windows Server 2016' in os_info or 'Windows Server 2019' in os_info or 'Windows Server 2022' in os_info:
+        compliance['OS'] = "Non-EOL OS"
+    else:
+        compliance['OS'] = "EOL OS"
 
-# Send the request to Grafana API
-response = requests.get(grafana_url, headers=headers, params=params)
-data = response.json()
+    # Check if SentinelOne Antivirus (SentinelAgent) is installed and running
+    sentinel_command = f'powershell Get-Service -Name "SentinelAgent"'
+    sentinel_status, _ = run_powershell_command(sentinel_command)
+    if 'Running' in sentinel_status:
+        compliance['SentinelOne'] = "Installed and Running"
+    else:
+        compliance['SentinelOne'] = "Not Installed or Not Running"
 
-# Prepare the filename with current date
-current_date = datetime.now().strftime("%Y-%m-%d")
-filename = f"grafana_data_{current_date}.csv"
+    # Check if logging is enabled (Security Event Logs)
+    logging_command = f'powershell wevtutil qe Security /rd:true /c:1'
+    log_status, _ = run_powershell_command(logging_command)
+    if 'EventRecordID' in log_status:
+        compliance['Logging'] = "Enabled"
+    else:
+        compliance['Logging'] = "Not Enabled"
 
-# Write the result to a CSV file
-with open(filename, mode='w', newline='') as file:
-    writer = csv.writer(file)
-    writer.writerow(["Timestamp", "Value"])
+    # Check for security patches specifically
+    compliance['Patches'] = check_security_patches()
 
-    # Loop through the data points and write to CSV
-    for result in data['data']['result']:
-        for value in result['values']:
-            timestamp, metric_value = value
-            writer.writerow([timestamp, metric_value])
+    # Check NTP configuration
+    ntp_command = f'powershell w32tm /query /status'
+    ntp_status, _ = run_powershell_command(ntp_command)
+    if 'NtpServer' in ntp_status:
+        compliance['NTP'] = ntp_status.split('NtpServer: ')[1].split('\n')[0]
+    else:
+        compliance['NTP'] = "Not Configured"
 
-print(f"Data saved to {filename} successfully!")
+    # Check if SentinelOne service is running (SentinelAgent.exe)
+    sentinel_service_command = f'powershell Get-Service -Name "SentinelAgent"'
+    sentinel_service_status, _ = run_powershell_command(sentinel_service_command)
+    if 'Running' in sentinel_service_status:
+        compliance['SentinelAgent.exe'] = "Running"
+    else:
+        compliance['SentinelAgent.exe'] = "Not Running"
+
+    # Check if WinCollect service is running (WinCollect.exe)
+    wincollect_service_command = f'powershell Get-Service -Name "WinCollect"'
+    wincollect_service_status, _ = run_powershell_command(wincollect_service_command)
+    if 'Running' in wincollect_service_status:
+        compliance['WinCollect'] = "Running"
+    else:
+        compliance['WinCollect'] = "Not Running"
+
+    # Check if msrpc service is running
+    msrpc_service_command = f'powershell Get-Service -Name "RpcSs"' 
+    msrpc_service_status, _ = run_powershell_command(msrpc_service_command)
+    if 'Running' in msrpc_service_status:
+        compliance['msrpc'] = "Running"
+    else:
+        compliance['msrpc'] = "Not Running"
+
+    return compliance
+
+# Load the Excel file and add result columns
+def load_excel(file_path):
+    wb = openpyxl.load_workbook(file_path)
+    sheet = wb.active
+
+    headers = ['OS', 'SentinelOne', 'Logging', 'Patches', 'NTP', 'SentinelAgent.exe', 'WinCollect', 'msrpc']
+    for idx, header in enumerate(headers, start=3):  
+        sheet.cell(row=1, column=idx).value = header
+    return wb, sheet
+
+# Main function 
+def main():
+    file_path = 'D:\\VS CODE\\python\\comp\\servers_list.xlsx'
+    wb, sheet = load_excel(file_path)
+
+    
+    for row in sheet.iter_rows(min_row=2, max_col=2, values_only=False):
+        asset_name = row[0].value 
+        asset_ip = row[1].value    
+        print(f"Checking {asset_name} ({asset_ip})...")
+        
+        compliance_results = check_compliance_windows(asset_ip)
+        
+        for idx, (key, result) in enumerate(compliance_results.items(), start=2):  
+            sheet.cell(row=row[0].row, column=idx + 1).value = result
+    
+    wb.save(file_path)
+    print("Compliance report generated successfully.")
+
+if __name__ == '__main__':
+    main()
