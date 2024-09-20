@@ -1,14 +1,3 @@
-import subprocess
-import openpyxl
-from openpyxl import Workbook
-import datetime
-import re
-# Function to run a PowerShell command
-def run_powershell_command(command):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    return stdout.decode().strip(), stderr.decode().strip()
-
 # Function to check security patches using win32_quickfixengineering
 def check_security_patches(asset_name):
     # Command to fetch all installed patches
@@ -21,8 +10,8 @@ def check_security_patches(asset_name):
     patch_lines = output.splitlines()
     security_updates = []
 
-    # Regex to extract InstalledOn date and HotFixID
-    date_regex = r'(\d{2}-\d{2}-\d{4})'
+    # Regex to extract InstalledOn date and HotFixID (handles different date formats)
+    date_regex = r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})'  # Matches both DD/MM/YYYY and MM/DD/YYYY with either '-' or '/'
     hotfix_regex = r'(KB\d{7})'  # Regex for HotFixID like 'KB5012170'
 
     # Iterate through each line and find patches with "Security Update"
@@ -38,8 +27,18 @@ def check_security_patches(asset_name):
                 hotfix_id = hotfix_match.group(1)
 
                 try:
-                    # Parse date into datetime format
-                    installed_on_date = datetime.datetime.strptime(installed_on_str, '%d-%m-%Y').date()
+                    # Try multiple date formats
+                    for fmt in ('%d-%m-%Y', '%d/%m/%Y', '%m-%d-%Y', '%m/%d/%Y'):
+                        try:
+                            installed_on_date = datetime.datetime.strptime(installed_on_str, fmt).date()
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        # Skip if no valid date format is found
+                        continue
+                    
+                    # Add to security updates list
                     security_updates.append((installed_on_date, hotfix_id))
                 except ValueError:
                     continue  # Skip lines with invalid date formats
@@ -51,110 +50,3 @@ def check_security_patches(asset_name):
         return f"Latest Security Patch Installed On: {latest_date.strftime('%d-%m-%Y')} (HotFixID: {latest_hotfix_id})"
     else:
         return "No Security Updates Found"
-    
-    
-# Function to check NTP configuration
-def check_ntp(asset_name):
-    ntp_command = f'powershell w32tm /query /status'
-    output, _ = run_powershell_command(ntp_command)
-    
-    # Extract the NTP source
-    if "Source" in output:
-        ntp_source = output.split('Source: ')[1].split('\n')[0]
-        return ntp_source
-    else:
-        return "NTP Not Configured"
-
-# Function to check compliance on Windows servers
-def check_compliance_windows(asset_name):
-    compliance = {}
-
-    # Check OS Version (End-of-Life status)
-    os_command = f'powershell (Get-WmiObject -Class Win32_OperatingSystem).Caption'
-    os_info, _ = run_powershell_command(os_command)
-    if 'Windows Server 2016' in os_info or 'Windows Server 2019' in os_info or 'Windows Server 2022' in os_info:
-        compliance['OS'] = "Non-EOL OS"
-    else:
-        compliance['OS'] = "EOL OS"
-
-    # Check if SentinelOne Antivirus (SentinelAgent) is installed and running
-    sentinel_command = f'powershell Get-Service -Name "SentinelAgent"'
-    sentinel_status, _ = run_powershell_command(sentinel_command)
-    if 'Running' in sentinel_status:
-        compliance['SentinelOne'] = "Installed and Running"
-    else:
-        compliance['SentinelOne'] = "Not Installed or Not Running"
-
-    # Check if logging is enabled (Security Event Logs)
-    logging_command = f'powershell wevtutil qe Security /rd:true /c:1'
-    log_status, _ = run_powershell_command(logging_command)
-    if 'EventRecordID' in log_status:
-        compliance['Logging'] = "Enabled"
-    else:
-        compliance['Logging'] = "Not Enabled"
-
-    # Check for security patches
-    compliance['Patches'] = check_security_patches(asset_name)
-
-    # Check NTP configuration
-    compliance['NTP'] = check_ntp(asset_name)
-
-    # Check if SentinelOne service is running (SentinelAgent.exe)
-    sentinel_service_command = f'powershell Get-Service -Name "SentinelAgent"'
-    sentinel_service_status, _ = run_powershell_command(sentinel_service_command)
-    if 'Running' in sentinel_service_status:
-        compliance['SentinelAgent.exe'] = "Running"
-    else:
-        compliance['SentinelAgent.exe'] = "Not Running"
-
-    # Check if WinCollect service is running (WinCollect.exe)
-    wincollect_service_command = f'powershell Get-Service -Name "WinCollect"'
-    wincollect_service_status, _ = run_powershell_command(wincollect_service_command)
-    if 'Running' in wincollect_service_status:
-        compliance['WinCollect'] = "Running"
-    else:
-        compliance['WinCollect'] = "Not Running"
-
-    # Check if msrpc service is running
-    msrpc_service_command = f'powershell Get-Service -Name "RpcSs"'  # MSRPC (Remote Procedure Call)
-    msrpc_service_status, _ = run_powershell_command(msrpc_service_command)
-    if 'Running' in msrpc_service_status:
-        compliance['msrpc'] = "Running"
-    else:
-        compliance['msrpc'] = "Not Running"
-
-    return compliance
-
-# Load the Excel file and add result columns
-def load_excel(file_path):
-    wb = openpyxl.load_workbook(file_path)
-    sheet = wb.active
-    # Add result columns if not already present
-    headers = ['OS', 'SentinelOne', 'Logging', 'Patches', 'NTP', 'SentinelAgent.exe', 'WinCollect', 'msrpc']
-    for idx, header in enumerate(headers, start=3):  # Starting from column C
-        sheet.cell(row=1, column=idx).value = header
-    return wb, sheet
-
-# Main function to iterate over servers and check compliance
-def main():
-    file_path = 'D:\\VS CODE\\python\\comp\\servers_list.xlsx'
-    wb, sheet = load_excel(file_path)
-
-    # Iterate through the servers in Excel (from row 2 onwards)
-    for row in sheet.iter_rows(min_row=2, max_col=2, values_only=False):
-        asset_name = row[0].value  # Column A: AssetUniqueName
-        print(f"Checking {asset_name}...")
-
-        # Check compliance for Windows servers
-        compliance_results = check_compliance_windows(asset_name)
-
-        # Write compliance results to Excel
-        for idx, (key, result) in enumerate(compliance_results.items(), start=2):  # Write starting from column C
-            sheet.cell(row=row[0].row, column=idx + 1).value = result
-
-    # Save the updated Excel file
-    wb.save(file_path)
-    print("Compliance report generated successfully.")
-
-if __name__ == '__main__':
-    main()
