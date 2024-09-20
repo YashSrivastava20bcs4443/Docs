@@ -1,52 +1,19 @@
-# Function to check security patches using win32_quickfixengineering
-def check_security_patches(asset_name):
-    # Command to fetch all installed patches
-    security_patches_command = f'powershell Get-WmiObject -ComputerName {asset_name} -Class win32_quickfixengineering'
-    output, _ = run_powershell_command(security_patches_command)
+Here are the expanded benefits of each project:
 
-    if not output:
-        return "No Security Patches Found"
+    DR Drill-1: NJDC Disaster Recovery Setup in Azure: Ensures critical systems can be quickly restored during disasters or outages, minimizing downtime, data loss, and maintaining business continuity by leveraging cloud-based disaster recovery solutions.
 
-    patch_lines = output.splitlines()
-    security_updates = []
+    Li Office Network Q1: Enhances network infrastructure in the office, improving overall network speed, reliability, and security, leading to better performance, reduced downtime, and smoother business operations.
 
-    # Regex to extract InstalledOn date and HotFixID (handles different date formats)
-    date_regex = r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})'  # Matches both DD/MM/YYYY and MM/DD/YYYY with either '-' or '/'
-    hotfix_regex = r'(KB\d{7})'  # Regex for HotFixID like 'KB5012170'
+    Network Firewall Backup Automation (Q2): Automates the backup process for firewall configurations, ensuring that up-to-date backups are always available. This reduces manual intervention, accelerates recovery during incidents, and minimizes security risks.
 
-    # Iterate through each line and find patches with "Security Update"
-    for line in patch_lines:
-        if "Security Update" in line:
-            # Extract 'InstalledOn' date
-            date_match = re.search(date_regex, line)
-            # Extract 'HotFixID'
-            hotfix_match = re.search(hotfix_regex, line)
+    Network Firewall Configuration Automation: Automates the deployment and management of firewall configurations, reducing the potential for human error, ensuring consistency in network security policies, and improving overall security posture.
 
-            if date_match and hotfix_match:
-                installed_on_str = date_match.group(1)
-                hotfix_id = hotfix_match.group(1)
+    Network Switch Backup Automation: Provides automated backups for network switches, ensuring quick restoration of settings in case of failures, improving network reliability, and reducing manual recovery efforts.
 
-                try:
-                    # Try multiple date formats
-                    for fmt in ('%d-%m-%Y', '%d/%m/%Y', '%m-%d-%Y', '%m/%d/%Y'):
-                        try:
-                            installed_on_date = datetime.datetime.strptime(installed_on_str, fmt).date()
-                            break
-                        except ValueError:
-                            continue
-                    else:
-                        # Skip if no valid date format is found
-                        continue
-                    
-                    # Add to security updates list
-                    security_updates.append((installed_on_date, hotfix_id))
-                except ValueError:
-                    continue  # Skip lines with invalid date formats
+    Cloud Centralized Cost Dashboard (beta): Offers a single, centralized platform for tracking cloud costs, making it easier to monitor and analyze spending across cloud services, enabling better budgeting, cost optimization, and financial control.
 
-    if security_updates:
-        # Sort by date in descending order to get the most recent security update
-        latest_security_update = max(security_updates, key=lambda x: x[0])
-        latest_date, latest_hotfix_id = latest_security_update
-        return f"Latest Security Patch Installed On: {latest_date.strftime('%d-%m-%Y')} (HotFixID: {latest_hotfix_id})"
-    else:
-        return "No Security Updates Found"
+    Cloud Centralized Event Box Dashboard (beta): Centralizes event monitoring across cloud infrastructure, improving visibility into system alerts and events, enabling faster response to issues, and enhancing overall system reliability and uptime.
+
+    AI-based VM Capacity Forecasting (beta): Utilizes AI to predict future demand for virtual machine resources, allowing proactive resource allocation, preventing over-provisioning, and ensuring efficient use of cloud resources, thereby reducing costs.
+
+    Compute/Storage Optimization: Optimizes the use of compute and storage resources across cloud infrastructure, leading to cost savings, better performance, and reduced waste of underutilized resources.
