@@ -1,1 +1,57 @@
+---
+- name: Backup Cisco Switches
+  hosts: switches
+  gather_facts: no
+  vars:
+    backup_base_dir: /home/ems_cyberark
+    sftp_server: 172.23.1.107  # Update with actual SFTP server details
+    sftp_user: fwbackup
+    sftp_password: "2002"
+    ansible_network_os: ios
+    ansible_connection: network_cli
+  tasks:
+    - name: Get current datetime
+      set_fact:
+        current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d-%H-%M-%S') }}"
+
+    - name: Create backup directory for each switch if it doesn't exist
+      command: "mkdir -p {{ backup_base_dir }}/{{ inventory_hostname }}"
+      delegate_to: localhost
+
+    - name: Run 'terminal length 0' and 'show running-config' on the Cisco switch
+      ios_command:
+        commands:
+          - terminal length 0
+          - show running-config
+      register: running_config
+
+    - name: Save running configuration to file
+      copy:
+        content: "{{ running_config.stdout[1] }}"
+        dest: "{{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}.cfg"
+      delegate_to: localhost
+
+    - name: Create corresponding directory on SFTP server
+      expect:
+        command: "sftp {{ sftp_user }}@{{ sftp_server }}"
+        responses:
+          "(?i)password:": "{{ sftp_password }}"
+          "sftp> ": "mkdir {{ inventory_hostname }}\nbye"
+        timeout: 60
+      delegate_to: localhost
+
+    - name: Transfer backups to SFTP server
+      expect:
+        command: "sftp {{ sftp_user }}@{{ sftp_server }}"
+        responses:
+          "(?i)password:": "{{ sftp_password }}"
+          "sftp> ": "lcd {{ backup_base_dir }}/{{ inventory_hostname }}\ncd {{ inventory_hostname }}\nput *.cfg\nbye"
+        timeout: 60
+      delegate_to: localhost
+
+    - name: Delete local backups
+      file:
+        path: "{{ backup_base_dir }}/{{ inventory_hostname }}"
+        state: absent
+      delegate_to: localhost
 
