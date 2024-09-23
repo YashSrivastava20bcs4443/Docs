@@ -1,124 +1,38 @@
-import subprocess
-import openpyxl
-from openpyxl import Workbook
-import datetime
-import re
-
-# Function to run PowerShell commands on a remote machine using Invoke-Command
-def run_powershell_command(asset_name, command):
-    print(f"Running command on {asset_name}: {command}")  # Add this to log what is being run
-    session_command = f'powershell Invoke-Command -ComputerName {asset_name} -ScriptBlock {{{command}}}'
-    process = subprocess.Popen(session_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    print(f"Command output: {stdout.decode().strip()}")  
-    print(f"Command error: {stderr.decode().strip()}")  
-    return stdout.decode().strip(), stderr.decode().strip()
-
-
-# Function to check security patches using win32_quickfixengineering remotely
-def check_security_patches(asset_name):
-    security_patches_command = 'Get-WmiObject -Class win32_quickfixengineering'
-    output, _ = run_powershell_command(asset_name, security_patches_command)
-
-    if not output:
-        return "No Security Patches Found"
-
-    patch_lines = output.splitlines()
-    security_updates = []
-
-    # Regex to extract InstalledOn date and HotFixID (handles different date formats)
-    date_regex = r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})' 
-    hotfix_regex = r'(KB\d{7})'  
-
-    for line in patch_lines:
-        if "Security Update" in line:
-            date_match = re.search(date_regex, line)
-            hotfix_match = re.search(hotfix_regex, line)
-
-            if date_match and hotfix_match:
-                installed_on_str = date_match.group(1)
-                hotfix_id = hotfix_match.group(1)
-
-                try:
-                    for fmt in ('%d-%m-%Y', '%d/%m/%Y', '%m-%d-%Y', '%m/%d/%Y'):
-                        try:
-                            installed_on_date = datetime.datetime.strptime(installed_on_str, fmt).date()
-                            break
-                        except ValueError:
-                            continue
-                    else:
-                        continue
-                    
-                    security_updates.append((installed_on_date, hotfix_id))
-                except ValueError:
-                    continue
-
-    if security_updates:
-        latest_security_update = max(security_updates, key=lambda x: x[0])
-        latest_date, latest_hotfix_id = latest_security_update
-        return f"Latest Security Patch Installed On: {latest_date.strftime('%d-%m-%Y')} (HotFixID: {latest_hotfix_id})"
-    else:
-        return "No Security Updates Found"
-
-# Function to check NTP configuration remotely
-def check_ntp(asset_name):
-    ntp_command = 'w32tm /query /status'
-    output, _ = run_powershell_command(asset_name, ntp_command)
-    
-    if "Source" in output:
-        ntp_source = output.split('Source: ')[1].split('\n')[0]
-        return ntp_source
-    else:
-        return "NTP Not Configured"
-
 # Function to check compliance on Windows servers remotely
 def check_compliance_windows(asset_name):
     compliance = {}
 
-    # OS Version
+    # OS Version - Save OS version in Excel
     os_command = '(Get-WmiObject -Class Win32_OperatingSystem).Caption'
     os_info, _ = run_powershell_command(asset_name, os_command)
-    if 'Windows Server 2016' in os_info or 'Windows Server 2019' in os_info or 'Windows Server 2022' in os_info:
-        compliance['OS'] = "Non-EOL OS"
-    else:
-        compliance['OS'] = "EOL OS"
+    compliance['OS'] = os_info.strip()
 
-    # SentinelOne Status
-    sentinel_command = 'Get-Service -Name "SentinelAgent"'
-    sentinel_status, _ = run_powershell_command(asset_name, sentinel_command)
+    # SentinelOne Status & SentinelAgent Version
+    sentinel_status_command = 'Get-Service -Name "SentinelAgent"'
+    sentinel_status, _ = run_powershell_command(asset_name, sentinel_status_command)
+
     if 'Running' in sentinel_status:
-        compliance['SentinelOne'] = "Installed and Running"
+        # Get the version of SentinelAgent if running
+        sentinel_version_command = '(Get-Item "C:\\Program Files\\SentinelOne\\Sentinel Agent\\SentinelAgent.exe").VersionInfo.ProductVersion'
+        sentinel_version, _ = run_powershell_command(asset_name, sentinel_version_command)
+        compliance['SentinelOne'] = f"Running (Version: {sentinel_version.strip()})"
     else:
         compliance['SentinelOne'] = "Not Installed or Not Running"
 
-    # Logging Status
-    logging_command = 'wevtutil qe Security /rd:true /c:1'
-    log_status, _ = run_powershell_command(asset_name, logging_command)
-    if 'EventRecordID' in log_status:
-        compliance['Logging'] = "Enabled"
-    else:
-        compliance['Logging'] = "Not Enabled"
-
-    # Security Patches
+    # Security Patches - Keep this check
     compliance['Patches'] = check_security_patches(asset_name)
 
-    # NTP Status
+    # NTP Status - Keep this check
     compliance['NTP'] = check_ntp(asset_name)
 
-    # SentinelAgent Service
-    sentinel_service_command = 'Get-Service -Name "SentinelAgent"'
-    sentinel_service_status, _ = run_powershell_command(asset_name, sentinel_service_command)
-    compliance['SentinelAgent.exe'] = "Running" if 'Running' in sentinel_service_status else "Not Running"
+    # Windows Activation Status
+    activation_command = 'powershell "Get-CimInstance -ClassName SoftwareLicensingProduct | Where-Object { $_.PartialProductKey } | Select-Object LicenseStatus"'
+    activation_status, _ = run_powershell_command(asset_name, activation_command)
 
-    # WinCollect Service
-    wincollect_service_command = 'Get-Service -Name "WinCollect"'
-    wincollect_service_status, _ = run_powershell_command(asset_name, wincollect_service_command)
-    compliance['WinCollect'] = "Running" if 'Running' in wincollect_service_status else "Not Running"
-
-    # MSRPC Service
-    msrpc_service_command = 'Get-Service -Name "RpcSs"'
-    msrpc_service_status, _ = run_powershell_command(asset_name, msrpc_service_command)
-    compliance['msrpc'] = "Running" if 'Running' in msrpc_service_status else "Not Running"
+    if '1' in activation_status:
+        compliance['WindowsActivation'] = "Activated"
+    else:
+        compliance['WindowsActivation'] = "Not Activated"
 
     return compliance
 
@@ -126,7 +40,7 @@ def check_compliance_windows(asset_name):
 def load_excel(file_path):
     wb = openpyxl.load_workbook(file_path)
     sheet = wb.active
-    headers = ['OS', 'SentinelOne', 'Logging', 'Patches', 'NTP', 'SentinelAgent.exe', 'WinCollect', 'msrpc']
+    headers = ['OS', 'SentinelOne', 'Patches', 'NTP', 'WindowsActivation']
     for idx, header in enumerate(headers, start=3):
         sheet.cell(row=1, column=idx).value = header
     return wb, sheet
