@@ -106,13 +106,25 @@ def check_compliance_windows(asset_name):
     else:
         compliance['WindowsActivation'] = "Not Activated"
 
+    # WinCollect Service & Version
+    wincollect_status_command = 'Get-Service -Name "WinCollect"'
+    wincollect_status, _ = run_powershell_command(asset_name, wincollect_status_command)
+
+    if 'Running' in wincollect_status:
+        # Get the version of WinCollect if running
+        wincollect_version_command = '(Get-Item "C:\\Program Files\\IBM\\WinCollect\\WinCollect.exe").VersionInfo.ProductVersion'
+        wincollect_version, _ = run_powershell_command(asset_name, wincollect_version_command)
+        compliance['WinCollect'] = f"Running (Version: {wincollect_version.strip()})"
+    else:
+        compliance['WinCollect'] = "Not Installed or Not Running"
+
     return compliance
 
 # Load the Excel file and add result columns
 def load_excel(file_path):
     wb = openpyxl.load_workbook(file_path)
     sheet = wb.active
-    headers = ['OS', 'SentinelOne', 'Patches', 'NTP', 'WindowsActivation']
+    headers = ['OS', 'SentinelOne', 'Patches', 'NTP', 'WindowsActivation', 'WinCollect']
     for idx, header in enumerate(headers, start=3):
         sheet.cell(row=1, column=idx).value = header
     return wb, sheet
