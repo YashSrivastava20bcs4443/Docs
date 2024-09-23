@@ -1,15 +1,1 @@
-Subject: Centralized Windows Server for Server Hygiene Check Automation
 
-Dear [Recipient's Name],
-
-I hope this email finds you well.
-
-We are currently working on automating the server hygiene check process, and for that, we require a centralized Windows server where we can run our script via a pipeline. Could you please confirm if there is a centralized server available within our infrastructure that has the necessary access and is reachable to all the Windows servers we are targeting? Additionally, it should support Invoke-Command for running remote scripts.
-
-If such a server exists, kindly provide the necessary details or help us set up the required configuration.
-
-Your assistance in this matter would be greatly appreciated.
-
-Best regards,
-[Your Name]
-[Your Position]
