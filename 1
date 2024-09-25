@@ -1,150 +1,41 @@
-import subprocess
-import openpyxl
-from openpyxl import Workbook
-import datetime
-import re
+To create a flowchart based on the compliance check process outlined, I will provide a visual representation with the following key elements:
 
-# Function to run PowerShell commands locally
-def run_powershell_command(command):
-    process = subprocess.Popen(['powershell', '-Command', command], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    return stdout.decode().strip(), stderr.decode().strip()
+1. Start Process
 
-# Function to dynamically find SentinelOne folder and get version
-def get_sentinelone_version():
-    find_sentinel_folder_command = '(Get-ChildItem "C:\\Program Files\\SentinelOne" | Where-Object { $_.PSIsContainer }).FullName'
-    sentinel_folder, _ = run_powershell_command(find_sentinel_folder_command)
-    
-    if sentinel_folder:
-        sentinel_version_command = f'(Get-Item "{sentinel_folder}\\SentinelAgent.exe").VersionInfo.ProductVersion'
-        sentinel_version, _ = run_powershell_command(sentinel_version_command)
-        return sentinel_version.strip() if sentinel_version else "Version not found"
-    else:
-        return "SentinelOne folder not found"
 
-# Function to check security patches using win32_quickfixengineering locally
-def check_security_patches():
-    security_patches_command = 'Get-WmiObject -Class win32_quickfixengineering'
-    output, _ = run_powershell_command(security_patches_command)
+2. Load Server List (Excel file)
 
-    if not output:
-        return "No Security Patches Found"
 
-    patch_lines = output.splitlines()
-    security_updates = []
+3. Iterate Over Each Server
 
-    # Regex to extract InstalledOn date and HotFixID (handles different date formats)
-    date_regex = r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})' 
-    hotfix_regex = r'(KB\d{7})'  
 
-    for line in patch_lines:
-        if "Security Update" in line:
-            date_match = re.search(date_regex, line)
-            hotfix_match = re.search(hotfix_regex, line)
+4. Check Compliance Parameters (for both Windows and Linux)
 
-            if date_match and hotfix_match:
-                installed_on_str = date_match.group(1)
-                hotfix_id = hotfix_match.group(1)
+OS Check
 
-                try:
-                    for fmt in ('%d-%m-%Y', '%d/%m/%Y', '%m-%d-%Y', '%m/%d/%Y'):
-                        try:
-                            installed_on_date = datetime.datetime.strptime(installed_on_str, fmt).date()
-                            break
-                        except ValueError:
-                            continue
-                    else:
-                        continue
-                    
-                    security_updates.append((installed_on_date, hotfix_id))
-                except ValueError:
-                    continue
+SentinelOne Status
 
-    if security_updates:
-        latest_security_update = max(security_updates, key=lambda x: x[0])
-        latest_date, latest_hotfix_id = latest_security_update
-        return f"Latest Security Patch Installed On: {latest_date.strftime('%d-%m-%Y')} (HotFixID: {latest_hotfix_id})"
-    else:
-        return "No Security Updates Found"
+Logging Status
 
-# Function to check NTP configuration locally
-def check_ntp():
-    ntp_command = 'w32tm /query /status'
-    output, _ = run_powershell_command(ntp_command)
-    
-    if "Source" in output:
-        ntp_source = output.split('Source: ')[1].split('\n')[0]
-        return ntp_source
-    else:
-        return "NTP Not Configured"
+Security Patches
 
-# Function to check compliance on Windows servers locally
-def check_compliance_windows():
-    compliance = {}
+NTP Configuration
 
-    # OS Version - Save OS version in Excel
-    os_command = '(Get-WmiObject -Class Win32_OperatingSystem).Caption'
-    os_info, _ = run_powershell_command(os_command)
-    compliance['OS'] = os_info.strip()
+Service Status
 
-    # SentinelOne Status & Version
-    sentinel_status_command = 'Get-Service -Name "SentinelAgent"'
-    sentinel_status, _ = run_powershell_command(sentinel_status_command)
 
-    if 'Running' in sentinel_status:
-        sentinel_version = get_sentinelone_version()
-        compliance['SentinelOne'] = f"Running (Version: {sentinel_version})"
-    else:
-        compliance['SentinelOne'] = "Not Installed or Not Running"
 
-    # Security Patches
-    compliance['Patches'] = check_security_patches()
+5. Generate Automated Report
 
-    # NTP Status
-    compliance['NTP'] = check_ntp()
 
-    # Windows Activation Status (can take 30-60 seconds)
-    activation_command = 'Get-CimInstance -ClassName SoftwareLicensingProduct | Where-Object { $_.PartialProductKey } | Select-Object LicenseStatus'
-    activation_status, _ = run_powershell_command(activation_command)
+6. Manual Report Validation
 
-    if '1' in activation_status:
-        compliance['WindowsActivation'] = "Activated"
-    else:
-        compliance['WindowsActivation'] = "Not Activated"
 
-    # WinCollect Service - Save the status
-    wincollect_status_command = 'Get-Service -Name "WinCollect"'
-    wincollect_status, _ = run_powershell_command(wincollect_status_command)
-    compliance['WinCollect'] = f"{wincollect_status.strip()}"
+7. Highlight Gaps/Non-Compliance
 
-    return compliance
 
-# Load the Excel file and add result columns
-def load_excel(file_path):
-    wb = openpyxl.load_workbook(file_path)
-    sheet = wb.active
-    headers = ['OS', 'SentinelOne', 'Patches', 'NTP', 'WindowsActivation', 'WinCollect']
-    for idx, header in enumerate(headers, start=3):
-        sheet.cell(row=1, column=idx).value = header
-    return wb, sheet
+8. End Process
 
-# Main function to iterate over servers and check compliance
-def main():
-    file_path = 'D:\\VS CODE\\python\\comp\\servers_list.xlsx'
-    wb, sheet = load_excel(file_path)
 
-    for row in sheet.iter_rows(min_row=2, max_col=2, values_only=False):
-        asset_name = row[0].value
-        print(f"Checking {asset_name}...")
 
-        # Assuming the script runs locally, you may not need the asset_name variable now.
-        compliance_results = check_compliance_windows()
-
-        for idx, (key, result) in enumerate(compliance_results.items(), start=2):
-            sheet.cell(row=row[0].row, column=idx + 1).value = result
-
-    wb.save(file_path)
-    print("Compliance report generated successfully.")
-
-if __name__ == '__main__':
-    main()
+I'll generate a flowchart based on these steps.
