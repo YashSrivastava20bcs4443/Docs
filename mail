@@ -1,17 +1,39 @@
 
 
-Subject: Request for Compensatory Off on 30th September and 1st October
+Subject: Update on Automation Progress and Required Time Extension
 
-Dear [Manager's Name],
+Hi [Senior's Name],
 
-I hope this message finds you well.
+I wanted to update you on the current status of the automation process for compliance checks.
 
-I would like to bring to your attention that I worked on the weekend of 27th and 28th July as part of the Dr. Drill project, and I had duly punched in for those days. As per our policy, I would like to request compensatory off for 30th September and 1st October, 2024.
+Windows Automation:
 
-Kindly approve this request so that I can forward it to HR for further processing.
+Currently, no centralized server has full reachability to all other servers in the infrastructure.
 
-Thank you for your consideration and support.
+We need to determine how many servers, according to their respective domains, can invoke other servers.
+
+Initial tests on a Windows server confirm the script is working and generating reports correctly.
+
+
+Linux Automation:
+
+The Ansible script is written but not yet tested due to the unavailability of local services for credential provision.
+
+Staging environment: Only limited servers have full access to other servers, and there’s a policy controlling this access.
+
+
+Validation:
+
+We need a manually generated or external report to validate the accuracy of the automated reports.
 
 
 
+Considering the challenges above, I will require more time to:
+
+Complete the pipeline implementation.
+
+Identify the servers with full reachability in our environment.
+
+
+Please let me know if you have any questions or need further clarification.
 
