@@ -1,25 +1,42 @@
-Understood, I'll update the wording to reflect "service account" instead of "server account."
+import requests
+from datetime import datetime, timedelta
 
-This Week:
+# Prometheus server details
+prometheus_url = 'http://<prometheus-server>:<port>/api/v1/query_range'
 
-Continued resolving the pipeline bug for Dell Unisphere screenshot automation. Exploring solutions such as matching the Chrome and ChromeDriver versions to resolve compatibility issues.
+# Queries for CPU and Memory usage
+cpu_query = 'rate(node_cpu_seconds_total[5m])'
+memory_query = 'node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes'
 
-Tested the Ansible script in the development environment and validated the switch backup process from the centralized server. Service account user creation on the switch is in progress with the network engineering team.
+# Time range parameters
+end_time = datetime.now()  # Current time
+start_time = end_time - timedelta(days=15)  # 15 days ago
 
-Investigated methods to fetch 15 days of performance and memory data from Grafana and Prometheus endpoints.
+# Convert times to UNIX timestamps
+start_timestamp = int(start_time.timestamp())
+end_timestamp = int(end_time.timestamp())
 
-Progressed with Server Hygiene Check Automation.
+# Function to fetch range data from Prometheus
+def fetch_prometheus_range_data(query, start, end, step):
+    params = {
+        'query': query,
+        'start': start,
+        'end': end,
+        'step': step
+    }
+    response = requests.get(prometheus_url, params=params)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Failed to fetch data: {response.status_code}")
+        return None
 
+# Fetch CPU data for last 15 days with 1 hour step
+cpu_data = fetch_prometheus_range_data(cpu_query, start_timestamp, end_timestamp, '1h')
+if cpu_data:
+    print("CPU Data:", cpu_data)
 
-Next Week:
-
-Set up a pipeline for the switch backup project using the service account user.
-
-Document the remaining steps of the switch backup process.
-
-Continue working on Server Hygiene Check Automation.
-
-Document the plan and process for Server Hygiene Check Automation.
-
-Set up a pipeline for the Server Hygiene Check Automation process.
-
+# Fetch Memory data for last 15 days with 1 hour step
+memory_data = fetch_prometheus_range_data(memory_query, start_timestamp, end_timestamp, '1h')
+if memory_data:
+    print("Memory Data:", memory_data)
