@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 # Prometheus server details
 prometheus_url = 'http://<prometheus-server>:<port>/api/v1/query_range'
 
-# Replace these with your actual queries for CPU and Memory
-cpu_query = 'rate(node_cpu_seconds_total[5m])'
-memory_query = 'node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes'
+# Your specific queries
+cpu_query = '100 - (avg by(instance) (rate(node_cpu_seconds_total{job="Linux_Servers", mode="idle"}[2m])) * 100)'
+memory_query = '100 - (100 * (avg_over_time(node_memory_MemFree_bytes{job="Linux_Servers"}[2m]) + avg_over_time(node_memory_Cached_bytes{job="Linux_Servers"}[2m]) + avg_over_time(node_memory_Buffers_bytes{job="Linux_Servers"}[2m])) / avg_over_time(node_memory_MemTotal_bytes{job="Linux_Servers"}[2m]))'
 
 # Time range parameters
 end_time = datetime.now()  # Current time
@@ -48,7 +48,7 @@ def process_prometheus_data(data, metric_name):
         for value in item['values']:
             timestamp = datetime.fromtimestamp(value[0])
             records.append({
-                'date': timestamp.date(),
+                'date': timestamp.date(),  # Extract date only
                 'instance': instance,
                 metric_name: float(value[1])
             })
