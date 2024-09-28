@@ -1,10 +1,11 @@
 import requests
+import pandas as pd
 from datetime import datetime, timedelta
 
 # Prometheus server details
 prometheus_url = 'http://<prometheus-server>:<port>/api/v1/query_range'
 
-# Queries for CPU and Memory usage
+# Queries for CPU and Memory usage - (replace these with your environment-specific queries)
 cpu_query = 'rate(node_cpu_seconds_total[5m])'
 memory_query = 'node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes'
 
@@ -31,12 +32,58 @@ def fetch_prometheus_range_data(query, start, end, step):
         print(f"Failed to fetch data: {response.status_code}")
         return None
 
-# Fetch CPU data for last 15 days with 1 hour step
-cpu_data = fetch_prometheus_range_data(cpu_query, start_timestamp, end_timestamp, '1h')
-if cpu_data:
-    print("CPU Data:", cpu_data)
+# Fetch CPU data for last 15 days with 24-hour step
+cpu_data = fetch_prometheus_range_data(cpu_query, start_timestamp, end_timestamp, '24h')
+# Fetch Memory data for last 15 days with 24-hour step
+memory_data = fetch_prometheus_range_data(memory_query, start_timestamp, end_timestamp, '24h')
 
-# Fetch Memory data for last 15 days with 1 hour step
-memory_data = fetch_prometheus_range_data(memory_query, start_timestamp, end_timestamp, '1h')
-if memory_data:
-    print("Memory Data:", memory_data)
+# Function to process Prometheus data into DataFrame with date-wise data
+def process_prometheus_data(data, metric_name):
+    if not data or 'data' not in data or 'result' not in data['data']:
+        return pd.DataFrame()
+    
+    records = []
+    for item in data['data']['result']:
+        instance = item['metric'].get('instance', 'unknown')  # Extract instance/server name
+        for value in item['values']:
+            timestamp = datetime.fromtimestamp(value[0])
+            records.append({
+                'date': timestamp.date(),
+                'instance': instance,
+                metric_name: float(value[1])
+            })
+    
+    # Convert to DataFrame
+    df = pd.DataFrame(records)
+    
+    # Group by date and instance
+    avg_df = df.groupby(['date', 'instance']).mean().reset_index()
+    return avg_df
+
+# Convert CPU data to DataFrame and calculate date-wise data
+cpu_df = process_prometheus_data(cpu_data, 'cpu_usage')
+
+# Convert Memory data to DataFrame and calculate date-wise data
+memory_df = process_prometheus_data(memory_data, 'memory_usage')
+
+# Merge CPU and Memory DataFrames on 'date' and 'instance'
+merged_df = pd.merge(cpu_df, memory_df, on=['date', 'instance'], how='outer')
+
+# Calculate Max for each instance over the 15-day period and add it as a new column
+max_cpu_df = merged_df.groupby('instance')['cpu_usage'].max().reset_index()
+max_memory_df = merged_df.groupby('instance')['memory_usage'].max().reset_index()
+
+# Rename columns to indicate max values
+max_cpu_df.rename(columns={'cpu_usage': 'max_cpu_usage'}, inplace=True)
+max_memory_df.rename(columns={'memory_usage': 'max_memory_usage'}, inplace=True)
+
+# Merge the max values back to the main DataFrame
+merged_df = pd.merge(merged_df, max_cpu_df, on='instance', how='left')
+merged_df = pd.merge(merged_df, max_memory_df, on='instance', how='left')
+
+# Save the data to an Excel file with formatted sheets
+output_file = 'prometheus_data_with_max.xlsx'
+with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+    merged_df.to_excel(writer, sheet_name='CPU and Memory Usage', index=False)
+
+print(f"Data saved successfully to {output_file}")
