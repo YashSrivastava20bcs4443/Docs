@@ -52,18 +52,54 @@ function Check-NTP {
         [string]$AssetName
     )
 
-    # Get NTP configuration details
-    $ntpStatus = Get-WmiObject -Class 'Win32_ComputerSystem' -ErrorAction SilentlyContinue
-    if ($ntpStatus) {
-        $timeZone = Get-WmiObject -Class 'Win32_TimeZone' -ErrorAction SilentlyContinue
-        $ntpServers = Get-WmiObject -Namespace "root\Microsoft\Windows\Time" -Class "W32Time" -ErrorAction SilentlyContinue
-        if ($ntpServers) {
-            return "NTP Source: $($ntpServers.NtpServer), Time Zone: $($timeZone.StandardName)"
+    # Run the w32tm command to get NTP peers
+    $ntpPeersOutput = w32tm /query /peers 2>&1
+
+    # Check if there's an error in retrieving the NTP peers
+    if ($ntpPeersOutput -match "Error") {
+        return "NTP Not Configured or Error: $ntpPeersOutput"
+    }
+
+    $peersInfo = @()
+
+    # Check if the output contains 'Peers' section
+    if ($ntpPeersOutput -match "Peers:\s*(\d+)") {
+        $numPeers = [int]$matches[1]
+        if ($numPeers -gt 0) {
+            # Extract the peer and state information
+            $lines = $ntpPeersOutput -split "`n"
+            foreach ($line in $lines) {
+                if ($line -match "Peer:\s*(.+),\s*0x\d+") {
+                    $peer = $matches[1].Trim()
+                }
+                if ($line -match "State:\s*(.+)") {
+                    $state = $matches[1].Trim()
+                }
+                if ($line -match "Time Remaining:\s*(.+)") {
+                    $timeRemaining = $matches[1].Trim()
+                }
+                if ($line -match "Mode:\s*(.+)") {
+                    $mode = $matches[1].Trim()
+                }
+                if ($line -match "Stratum:\s*(.+)") {
+                    $stratum = $matches[1].Trim()
+                }
+                if ($line -match "PeerPoll Interval:\s*(.+)") {
+                    $peerPollInterval = $matches[1].Trim()
+                }
+                if ($line -match "HostPoll Interval:\s*(.+)") {
+                    $hostPollInterval = $matches[1].Trim()
+                }
+            }
+
+            # Prepare the NTP information string
+            $ntpDetails = "Peer: $peer; State: $state; Time Remaining: $timeRemaining; Mode: $mode; Stratum: $stratum; PeerPoll Interval: $peerPollInterval; HostPoll Interval: $hostPollInterval"
+            return $ntpDetails
         } else {
-            return "NTP Not Configured"
+            return "No NTP Peers Found"
         }
     } else {
-        return "NTP Not Configured"
+        return "NTP Not Configured or No Peers Found"
     }
 }
 
@@ -105,7 +141,7 @@ function Check-ComplianceWindows {
     # WinCollect status
     $wincollectStatus = Get-Service -Name "WinCollect" -ErrorAction SilentlyContinue
     if ($wincollectStatus) {
-        $compliance["WinCollect"] = "Running (Version: $($wincollectStatus.DisplayName))"
+        $compliance["WinCollect"] = "Running (Display Name: $($wincollectStatus.DisplayName))"
     } else {
         $compliance["WinCollect"] = "Not Installed or Not Running"
     }
@@ -148,4 +184,4 @@ function Main {
 }
 
 # Run the script
-Main
+Main  
