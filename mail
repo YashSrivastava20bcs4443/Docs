@@ -1,14 +1,24 @@
-Subject: Urgent Request for Manual Server Hygiene Check
+Here’s a draft response you can use:
 
-Dear [Recipient],
 
-We have successfully tested our Windows server hygiene script for the specified DMZ server (details attached in this email). However, the script has not yet been tested for the remaining servers in other domains. Due to the urgency of this task, we request that you manually check the hygiene for these Windows servers (list attached).
+---
 
-For the Linux servers, as the Ansible script could not be tested due to environmental constraints, please conduct the hygiene checks manually as well.
+Subject: Consolidated List of Linux and Windows Instances
 
-The automated report for the DMZ server has been escalated to EMS via email.
+Hi Hamed,
 
-Thank you for your prompt attention.
+Thank you for the update.
 
-Best regards,
-[Your Name]
+Please find attached the consolidated list of Linux and Windows instances along with status comments and any identified constraints. As noted, all the items have been closed, and the only pending task is the hygiene check. We are on track for the final internal review with Infosec on Thursday.
+
+@Lovekesh Singh and the team, please plan accordingly for the non-scanned servers.
+
+Let me know if you need any further information.
+
+Thanks,
+Yash Srivastava
+
+
+---
+
+Make sure to attach the Excel file with the list of servers before sending the email.
