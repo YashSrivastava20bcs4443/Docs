@@ -46,7 +46,7 @@ function Check-SecurityPatches {
     }
 }
 
-# Function to check NTP configuration
+# Function to check NTP configuration (only source and state)
 function Check-NTP {
     param (
         [string]$AssetName
@@ -60,7 +60,9 @@ function Check-NTP {
         return "NTP Not Configured or Error: $ntpPeersOutput"
     }
 
-    $peersInfo = @()
+    # Initialize variables for source and state
+    $ntpSource = "NTP Source: Not Found"
+    $ntpState = "NTP State: Not Found"
 
     # Check if the output contains 'Peers' section
     if ($ntpPeersOutput -match "Peers:\s*(\d+)") {
@@ -70,37 +72,17 @@ function Check-NTP {
             $lines = $ntpPeersOutput -split "`n"
             foreach ($line in $lines) {
                 if ($line -match "Peer:\s*(.+),\s*0x\d+") {
-                    $peer = $matches[1].Trim()
+                    $ntpSource = "NTP Source: $($matches[1].Trim())"
                 }
                 if ($line -match "State:\s*(.+)") {
-                    $state = $matches[1].Trim()
-                }
-                if ($line -match "Time Remaining:\s*(.+)") {
-                    $timeRemaining = $matches[1].Trim()
-                }
-                if ($line -match "Mode:\s*(.+)") {
-                    $mode = $matches[1].Trim()
-                }
-                if ($line -match "Stratum:\s*(.+)") {
-                    $stratum = $matches[1].Trim()
-                }
-                if ($line -match "PeerPoll Interval:\s*(.+)") {
-                    $peerPollInterval = $matches[1].Trim()
-                }
-                if ($line -match "HostPoll Interval:\s*(.+)") {
-                    $hostPollInterval = $matches[1].Trim()
+                    $ntpState = "NTP State: $($matches[1].Trim())"
                 }
             }
-
-            # Prepare the NTP information string
-            $ntpDetails = "Peer: $peer; State: $state; Time Remaining: $timeRemaining; Mode: $mode; Stratum: $stratum; PeerPoll Interval: $peerPollInterval; HostPoll Interval: $hostPollInterval"
-            return $ntpDetails
-        } else {
-            return "No NTP Peers Found"
         }
-    } else {
-        return "NTP Not Configured or No Peers Found"
     }
+
+    # Return only source and state information
+    return "$ntpSource; $ntpState"
 }
 
 # Function to check Windows compliance
@@ -127,7 +109,7 @@ function Check-ComplianceWindows {
     # Security patches
     $compliance["Patches"] = Check-SecurityPatches -AssetName $AssetName
 
-    # NTP configuration
+    # NTP configuration (only source and state)
     $compliance["NTP"] = Check-NTP -AssetName $AssetName
 
     # Windows activation status
