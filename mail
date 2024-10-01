@@ -1,24 +1,12 @@
-Here’s a draft response you can use:
+Subject: Request for Manual Execution of Compliance Checks Due to Ansible Dependency
 
+Dear [Recipient's Name],
 
----
+I hope this message finds you well. I wanted to inform you that the current Ansible script I have prepared for the compliance checks will not function on all servers as Ansible is not installed across the environment, and it is a required dependency for the script.
 
-Subject: Consolidated List of Linux and Windows Instances
+In light of this, I suggest proceeding with the manual execution of commands on the servers for now. I am currently working on optimizing the script, and if I am able to develop a more suitable version, I will provide it by tomorrow for testing. In the meantime, please advise on how you would like to move forward.
 
-Hi Hamed,
+Thank you for your understanding.
 
-Thank you for the update.
-
-Please find attached the consolidated list of Linux and Windows instances along with status comments and any identified constraints. As noted, all the items have been closed, and the only pending task is the hygiene check. We are on track for the final internal review with Infosec on Thursday.
-
-@Lovekesh Singh and the team, please plan accordingly for the non-scanned servers.
-
-Let me know if you need any further information.
-
-Thanks,
-Yash Srivastava
-
-
----
-
-Make sure to attach the Excel file with the list of servers before sending the email.
+Best regards,
+[Your Name]
