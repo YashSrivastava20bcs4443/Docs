@@ -1,57 +1,63 @@
-# Function to run PowerShell commands locally
+# Function to run PowerShell command on a remote machine
 function Run-PowerShellCommand {
-    param(
+    param (
+        [string]$AssetName,
         [string]$Command
     )
-    $process = Start-Process powershell -ArgumentList "-Command $Command" -NoNewWindow -RedirectStandardOutput "stdout.txt" -RedirectStandardError "stderr.txt" -Wait
-    $stdout = Get-Content "stdout.txt" -Raw
-    $stderr = Get-Content "stderr.txt" -Raw
-    return $stdout, $stderr
+
+    Write-Host "Running command on ${AssetName}: $Command"
+    $sessionCommand = Invoke-Command -ComputerName $AssetName -ScriptBlock {Invoke-Expression $using:Command}
+    return $sessionCommand
 }
 
-# Function to dynamically find SentinelOne folder and get version
+# Function to get SentinelOne version
 function Get-SentinelOneVersion {
-    $find_sentinel_folder_command = 'Get-ChildItem "C:\Program Files\SentinelOne" | Where-Object { $_.PSIsContainer } | Select-Object -ExpandProperty FullName'
-    $sentinel_folder, $null = Run-PowerShellCommand -Command $find_sentinel_folder_command
+    param (
+        [string]$AssetName
+    )
+
+    $sentinelFolder = Run-PowerShellCommand -AssetName $AssetName -Command '(Get-ChildItem "C:\Program Files\SentinelOne" | Where-Object { $_.PSIsContainer }).FullName'
     
-    if ($sentinel_folder) {
-        $sentinel_version_command = "(Get-Item '$sentinel_folder\SentinelAgent.exe').VersionInfo.ProductVersion"
-        $sentinel_version, $null = Run-PowerShellCommand -Command $sentinel_version_command
-        if ($sentinel_version) {
-            return $sentinel_version.Trim()
-        } else {
-            return "Version not found"
-        }
+    if ($sentinelFolder) {
+        $sentinelVersion = Run-PowerShellCommand -AssetName $AssetName -Command "(Get-Item '$sentinelFolder\SentinelAgent.exe').VersionInfo.ProductVersion"
+        return $sentinelVersion.Trim()
     } else {
         return "SentinelOne folder not found"
     }
 }
 
-# Function to check security patches using win32_quickfixengineering locally
+# Function to check for security patches
 function Check-SecurityPatches {
-    $security_patches_command = 'Get-WmiObject -Class win32_quickfixengineering'
-    $output, $null = Run-PowerShellCommand -Command $security_patches_command
-    
+    param (
+        [string]$AssetName
+    )
+
+    $securityPatchesCommand = 'Get-WmiObject -Class win32_quickfixengineering'
+    $output = Run-PowerShellCommand -AssetName $AssetName -Command $securityPatchesCommand
+
     if (-not $output) {
         return "No Security Patches Found"
     }
 
-    $patch_lines = $output -split "`n"
-    $security_updates = @()
-    $date_regex = '(\d{1,2}[/-]\d{1,2}[/-]\d{4})'
-    $hotfix_regex = '(KB\d{7})'
+    $patchLines = $output -split "`n"
+    $securityUpdates = @()
+    $dateRegex = '(\d{1,2}[/-]\d{1,2}[/-]\d{4})'
+    $hotfixRegex = '(KB\d{7})'
 
-    foreach ($line in $patch_lines) {
+    foreach ($line in $patchLines) {
         if ($line -match "Security Update") {
-            $date_match = [regex]::Match($line, $date_regex)
-            $hotfix_match = [regex]::Match($line, $hotfix_regex)
-            if ($date_match.Success -and $hotfix_match.Success) {
-                $installed_on_str = $date_match.Value
-                $hotfix_id = $hotfix_match.Value
+            $dateMatch = [regex]::Match($line, $dateRegex)
+            $hotfixMatch = [regex]::Match($line, $hotfixRegex)
 
+            if ($dateMatch.Success -and $hotfixMatch.Success) {
+                $installedOnStr = $dateMatch.Value
+                $hotfixId = $hotfixMatch.Value
                 try {
-                    $installed_on_date = [datetime]::ParseExact($installed_on_str, 'd-M-yyyy', $null)
-                    $security_updates += [PSCustomObject]@{InstalledOn = $installed_on_date; HotFixID = $hotfix_id}
+                    $installedOnDate = [datetime]::ParseExact($installedOnStr, "dd-MM-yyyy", $null)
+                    $securityUpdates += [pscustomobject]@{
+                        InstalledOn = $installedOnDate
+                        HotfixID = $hotfixId
+                    }
                 } catch {
                     continue
                 }
@@ -59,110 +65,106 @@ function Check-SecurityPatches {
         }
     }
 
-    if ($security_updates) {
-        $latest_security_update = $security_updates | Sort-Object InstalledOn -Descending | Select-Object -First 1
-        return "Latest Security Patch Installed On: $($latest_security_update.InstalledOn.ToString('dd-MM-yyyy')) (HotFixID: $($latest_security_update.HotFixID))"
+    if ($securityUpdates.Count -gt 0) {
+        $latestUpdate = $securityUpdates | Sort-Object InstalledOn -Descending | Select-Object -First 1
+        return "Latest Security Patch Installed On: $($latestUpdate.InstalledOn.ToString('dd-MM-yyyy')) (HotFixID: $($latestUpdate.HotfixID))"
     } else {
         return "No Security Updates Found"
     }
 }
 
-# Function to check NTP configuration locally
+# Function to check NTP configuration
 function Check-NTP {
-    $ntp_command = 'w32tm /query /status'
-    $output, $null = Run-PowerShellCommand -Command $ntp_command
-    
-    if ($output -match 'Source\s*:\s*(.+)') {
-        return $matches[1].Trim()
+    param (
+        [string]$AssetName
+    )
+
+    $ntpCommand = 'w32tm /query /status'
+    $output = Run-PowerShellCommand -AssetName $AssetName -Command $ntpCommand
+
+    if ($output -match "Source") {
+        $ntpSource = ($output -split "Source: ")[1] -split "`n" | Select-Object -First 1
+        return $ntpSource
     } else {
         return "NTP Not Configured"
     }
 }
 
-# Function to check compliance on Windows servers locally
+# Function to check Windows compliance
 function Check-ComplianceWindows {
+    param (
+        [string]$AssetName
+    )
+
     $compliance = @{}
-    
-    # OS Version - Save OS version in Excel
-    $os_command = '(Get-WmiObject -Class Win32_OperatingSystem).Caption'
-    $os_info, $null = Run-PowerShellCommand -Command $os_command
-    $compliance['OS'] = $os_info.Trim()
-    
-    # SentinelOne Status & Version
-    $sentinel_status_command = 'Get-Service -Name "SentinelAgent"'
-    $sentinel_status, $null = Run-PowerShellCommand -Command $sentinel_status_command
-    if ($sentinel_status -match 'Running') {
-        $sentinel_version = Get-SentinelOneVersion
-        $compliance['SentinelOne'] = "Running (Version: $sentinel_version)"
+
+    # OS information
+    $osInfo = Run-PowerShellCommand -AssetName $AssetName -Command '(Get-WmiObject -Class Win32_OperatingSystem).Caption'
+    $compliance["OS"] = $osInfo.Trim()
+
+    # SentinelOne status
+    $sentinelStatus = Run-PowerShellCommand -AssetName $AssetName -Command 'Get-Service -Name "SentinelAgent"'
+    if ($sentinelStatus -match "Running") {
+        $sentinelVersion = Get-SentinelOneVersion -AssetName $AssetName
+        $compliance["SentinelOne"] = "Running (Version: $sentinelVersion)"
     } else {
-        $compliance['SentinelOne'] = "Not Installed or Not Running"
+        $compliance["SentinelOne"] = "Not Installed or Not Running"
     }
 
-    # Security Patches
-    $compliance['Patches'] = Check-SecurityPatches
-    
-    # NTP Status
-    $compliance['NTP'] = Check-NTP
+    # Security patches
+    $compliance["Patches"] = Check-SecurityPatches -AssetName $AssetName
 
-    # Windows Activation Status (can take 30-60 seconds)
-    $activation_command = 'Get-CimInstance -ClassName SoftwareLicensingProduct | Where-Object { $_.PartialProductKey } | Select-Object -ExpandProperty LicenseStatus'
-    $activation_status, $null = Run-PowerShellCommand -Command $activation_command
-    if ($activation_status -match '1') {
-        $compliance['WindowsActivation'] = "Activated"
+    # NTP configuration
+    $compliance["NTP"] = Check-NTP -AssetName $AssetName
+
+    # Windows activation status
+    $activationStatus = Run-PowerShellCommand -AssetName $AssetName -Command 'powershell "Get-CimInstance -ClassName SoftwareLicensingProduct | Where-Object { $_.PartialProductKey } | Select-Object LicenseStatus"'
+    if ($activationStatus -match "1") {
+        $compliance["WindowsActivation"] = "Activated"
     } else {
-        $compliance['WindowsActivation'] = "Not Activated"
+        $compliance["WindowsActivation"] = "Not Activated"
     }
 
-    # WinCollect Service - Save the status
-    $wincollect_status_command = 'Get-Service -Name "WinCollect"'
-    $wincollect_status, $null = Run-PowerShellCommand -Command $wincollect_status_command
-    $compliance['WinCollect'] = $wincollect_status.Trim()
+    # WinCollect status
+    $wincollectStatus = Run-PowerShellCommand -AssetName $AssetName -Command 'Get-Service -Name "WinCollect"'
+    $compliance["WinCollect"] = $wincollectStatus.Trim()
 
     return $compliance
 }
 
-# Load the Excel file and add result columns
-function Load-Excel {
-    param(
+# Function to read hostnames from a text file
+function Read-Hostnames {
+    param (
         [string]$FilePath
     )
-
-    $excel = New-Object -ComObject Excel.Application
-    $workbook = $excel.Workbooks.Open($FilePath)
-    $sheet = $workbook.Sheets.Item(1)
-    
-    $headers = @('OS', 'SentinelOne', 'Patches', 'NTP', 'WindowsActivation', 'WinCollect')
-    
-    for ($i = 0; $i -lt $headers.Count; $i++) {
-        $sheet.Cells.Item(1, $i + 3).Value2 = $headers[$i]
-    }
-
-    return $workbook, $sheet
+    return Get-Content -Path $FilePath
 }
 
-# Main function to iterate over servers and check compliance
+# Main function
 function Main {
-    $file_path = "D:\VS CODE\python\comp\\servers_list.xlsx"
-    $workbook, $sheet = Load-Excel -FilePath $file_path
+    $hostnameFilePath = "D:\VS CODE\python\comp\hostnames.txt"
+    $csvFilePath = "D:\VS CODE\python\comp\compliance_report.csv"
+    $hostnames = Read-Hostnames -FilePath $hostnameFilePath
 
-    for ($row = 2; $row -le $sheet.UsedRange.Rows.Count; $row++) {
-        $asset_name = $sheet.Cells.Item($row, 1).Value2
-        Write-Host "Checking $asset_name..."
-        
-        # Since script runs locally, asset_name is not needed for now.
-        $compliance_results = Check-ComplianceWindows
-        
-        $col = 3
-        foreach ($key in $compliance_results.Keys) {
-            $sheet.Cells.Item($row, $col).Value2 = $compliance_results[$key]
-            $col++
-        }
+    # Create CSV file and write header
+    $header = "Hostname,OS,SentinelOne,Patches,NTP,WindowsActivation,WinCollect"
+    Set-Content -Path $csvFilePath -Value $header
+
+    foreach ($assetName in $hostnames) {
+        Write-Host "Checking $assetName..."
+        $complianceResults = Check-ComplianceWindows -AssetName $assetName
+
+        # Prepare row data
+        $rowData = "$assetName," + ($complianceResults["OS"]) + "," + ($complianceResults["SentinelOne"]) + "," +
+                   ($complianceResults["Patches"]) + "," + ($complianceResults["NTP"]) + "," +
+                   ($complianceResults["WindowsActivation"]) + "," + ($complianceResults["WinCollect"])
+
+        # Append row data to CSV
+        Add-Content -Path $csvFilePath -Value $rowData
     }
 
-    $workbook.Save()
-    $workbook.Close()
-    Write-Host "Compliance report generated successfully."
+    Write-Host "Compliance report generated successfully at $csvFilePath."
 }
 
-# Entry point
+# Run the script
 Main
