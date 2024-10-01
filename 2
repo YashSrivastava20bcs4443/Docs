@@ -1,25 +1,13 @@
-# Function to run PowerShell command on a remote machine
-function Run-PowerShellCommand {
-    param (
-        [string]$AssetName,
-        [string]$Command
-    )
-
-    Write-Host "Running command on ${AssetName}: $Command"
-    $sessionCommand = Invoke-Command -ComputerName $AssetName -ScriptBlock {Invoke-Expression $using:Command}
-    return $sessionCommand
-}
-
 # Function to get SentinelOne version
 function Get-SentinelOneVersion {
     param (
         [string]$AssetName
     )
 
-    $sentinelFolder = Run-PowerShellCommand -AssetName $AssetName -Command '(Get-ChildItem "C:\Program Files\SentinelOne" | Where-Object { $_.PSIsContainer }).FullName'
-    
+    $sentinelFolder = Get-ChildItem "C:\Program Files\SentinelOne" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+
     if ($sentinelFolder) {
-        $sentinelVersion = Run-PowerShellCommand -AssetName $AssetName -Command "(Get-Item '$sentinelFolder\SentinelAgent.exe').VersionInfo.ProductVersion"
+        $sentinelVersion = (Get-Item "$sentinelFolder\SentinelAgent.exe").VersionInfo.ProductVersion
         return $sentinelVersion.Trim()
     } else {
         return "SentinelOne folder not found"
@@ -32,35 +20,20 @@ function Check-SecurityPatches {
         [string]$AssetName
     )
 
-    $securityPatchesCommand = 'Get-WmiObject -Class win32_quickfixengineering'
-    $output = Run-PowerShellCommand -AssetName $AssetName -Command $securityPatchesCommand
+    $output = Get-WmiObject -Class 'win32_quickfixengineering' -ErrorAction SilentlyContinue
 
     if (-not $output) {
         return "No Security Patches Found"
     }
 
-    $patchLines = $output -split "`n"
     $securityUpdates = @()
-    $dateRegex = '(\d{1,2}[/-]\d{1,2}[/-]\d{4})'
-    $hotfixRegex = '(KB\d{7})'
 
-    foreach ($line in $patchLines) {
-        if ($line -match "Security Update") {
-            $dateMatch = [regex]::Match($line, $dateRegex)
-            $hotfixMatch = [regex]::Match($line, $hotfixRegex)
-
-            if ($dateMatch.Success -and $hotfixMatch.Success) {
-                $installedOnStr = $dateMatch.Value
-                $hotfixId = $hotfixMatch.Value
-                try {
-                    $installedOnDate = [datetime]::ParseExact($installedOnStr, "dd-MM-yyyy", $null)
-                    $securityUpdates += [pscustomobject]@{
-                        InstalledOn = $installedOnDate
-                        HotfixID = $hotfixId
-                    }
-                } catch {
-                    continue
-                }
+    foreach ($patch in $output) {
+        if ($patch.Description -match "Security Update") {
+            $installedOnDate = [datetime]::ParseExact($patch.InstalledOn, "yyyyMMdd", $null)
+            $securityUpdates += [pscustomobject]@{
+                InstalledOn = $installedOnDate
+                HotfixID = $patch.HotFixID
             }
         }
     }
@@ -79,12 +52,9 @@ function Check-NTP {
         [string]$AssetName
     )
 
-    $ntpCommand = 'w32tm /query /status'
-    $output = Run-PowerShellCommand -AssetName $AssetName -Command $ntpCommand
-
-    if ($output -match "Source") {
-        $ntpSource = ($output -split "Source: ")[1] -split "`n" | Select-Object -First 1
-        return $ntpSource
+    $output = Get-WmiObject -Class 'Win32_TimeZone' -ErrorAction SilentlyContinue
+    if ($output) {
+        return "NTP Source: $($output.StandardName)"
     } else {
         return "NTP Not Configured"
     }
@@ -96,15 +66,15 @@ function Check-ComplianceWindows {
         [string]$AssetName
     )
 
-    $compliance = @{}
+    $compliance = @{ }
 
     # OS information
-    $osInfo = Run-PowerShellCommand -AssetName $AssetName -Command '(Get-WmiObject -Class Win32_OperatingSystem).Caption'
-    $compliance["OS"] = $osInfo.Trim()
+    $osInfo = Get-WmiObject -Class 'Win32_OperatingSystem' -ErrorAction SilentlyContinue
+    $compliance["OS"] = $osInfo.Caption.Trim()
 
     # SentinelOne status
-    $sentinelStatus = Run-PowerShellCommand -AssetName $AssetName -Command 'Get-Service -Name "SentinelAgent"'
-    if ($sentinelStatus -match "Running") {
+    $sentinelStatus = Get-Service -Name "SentinelAgent" -ErrorAction SilentlyContinue
+    if ($sentinelStatus -and $sentinelStatus.Status -eq 'Running') {
         $sentinelVersion = Get-SentinelOneVersion -AssetName $AssetName
         $compliance["SentinelOne"] = "Running (Version: $sentinelVersion)"
     } else {
@@ -118,58 +88,52 @@ function Check-ComplianceWindows {
     $compliance["NTP"] = Check-NTP -AssetName $AssetName
 
     # Windows activation status
-    $activationStatus = Run-PowerShellCommand -AssetName $AssetName -Command 'powershell "Get-CimInstance -ClassName SoftwareLicensingProduct | Where-Object { $_.PartialProductKey } | Select-Object LicenseStatus"'
-    if ($activationStatus -match "1") {
+    $activationStatus = Get-WmiObject -Class 'SoftwareLicensingProduct' -ErrorAction SilentlyContinue
+    if ($activationStatus.LicenseStatus -eq 1) {
         $compliance["WindowsActivation"] = "Activated"
     } else {
         $compliance["WindowsActivation"] = "Not Activated"
     }
 
     # WinCollect status
-    $wincollectStatus = Run-PowerShellCommand -AssetName $AssetName -Command 'Get-Service -Name "WinCollect"'
-    $compliance["WinCollect"] = $wincollectStatus.Trim()
+    $wincollectStatus = Get-Service -Name "WinCollect" -ErrorAction SilentlyContinue
+    $compliance["WinCollect"] = if ($wincollectStatus) { $wincollectStatus.Status } else { "Service Not Found" }
 
     return $compliance
 }
 
-# Load Excel file
-function Load-Excel {
+# Function to read hostnames from a text file
+function Read-Hostnames {
     param (
         [string]$FilePath
     )
-
-    $excel = New-Object -ComObject Excel.Application
-    $workbook = $excel.Workbooks.Open($FilePath)
-    $sheet = $workbook.Sheets.Item(1)
-    return $workbook, $sheet
+    return Get-Content -Path $FilePath
 }
 
 # Main function
 function Main {
-    $filePath = "D:\VS CODE\python\comp\\servers_list.xlsx"
-    $workbook, $sheet = Load-Excel -FilePath $filePath
+    $hostnameFilePath = "D:\VS CODE\python\comp\test.txt" 
+    $csvFilePath = "D:\VS CODE\python\comp\compliance_report.csv" 
+    $hostnames = Read-Hostnames -FilePath $hostnameFilePath
 
-    $headers = @('OS', 'SentinelOne', 'Patches', 'NTP', 'WindowsActivation', 'WinCollect')
-    for ($i = 0; $i -lt $headers.Length; $i++) {
-        $sheet.Cells.Item(1, $i + 3).Value2 = $headers[$i]
-    }
+    # Create CSV file and write header
+    $header = "Hostname,OS,SentinelOne,Patches,NTP,WindowsActivation,WinCollect"
+    Set-Content -Path $csvFilePath -Value $header
 
-    $rowCount = $sheet.UsedRange.Rows.Count
-    for ($row = 2; $row -le $rowCount; $row++) {
-        $assetName = $sheet.Cells.Item($row, 1).Value2
+    foreach ($assetName in $hostnames) {
         Write-Host "Checking $assetName..."
         $complianceResults = Check-ComplianceWindows -AssetName $assetName
 
-        $colIndex = 3
-        foreach ($result in $complianceResults.Values) {
-            $sheet.Cells.Item($row, $colIndex).Value2 = $result
-            $colIndex++
-        }
+        # Prepare row data
+        $rowData = "$assetName," + ($complianceResults["OS"]) + "," + ($complianceResults["SentinelOne"]) + "," +
+                   ($complianceResults["Patches"]) + "," + ($complianceResults["NTP"]) + "," +
+                   ($complianceResults["WindowsActivation"]) + "," + ($complianceResults["WinCollect"])
+
+        # Append row data to CSV
+        Add-Content -Path $csvFilePath -Value $rowData
     }
 
-    $workbook.Save()
-    $workbook.Close()
-    Write-Host "Compliance report generated successfully."
+    Write-Host "Compliance report generated successfully at $csvFilePath."
 }
 
 # Run the script
