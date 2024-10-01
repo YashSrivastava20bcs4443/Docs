@@ -1,12 +1,5 @@
-Subject: Request for Manual Execution of Compliance Checks Due to Ansible Dependency
+I would like to highlight a couple of points:
 
-Dear [Recipient's Name],
+Wincollect Status: We've noticed that Wincollect is not running on many servers, even after manual attempts. This has been identified as a constraint and is reflected in the status.
 
-I hope this message finds you well. I wanted to inform you that the current Ansible script I have prepared for the compliance checks will not function on all servers as Ansible is not installed across the environment, and it is a required dependency for the script.
-
-In light of this, I suggest proceeding with the manual execution of commands on the servers for now. I am currently working on optimizing the script, and if I am able to develop a more suitable version, I will provide it by tomorrow for testing. In the meantime, please advise on how you would like to move forward.
-
-Thank you for your understanding.
-
-Best regards,
-[Your Name]
+NTP Output: The required output for NTP has not been received yet, as per the team's assessment. We will discuss and resolve this with Pardeep sir.
