@@ -1,5 +1,9 @@
 # Function to get SentinelOne version
 function Get-SentinelOneVersion {
+    param (
+        [string]$AssetName
+    )
+
     $sentinelFolder = Get-ChildItem "C:\Program Files\SentinelOne" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
 
     if ($sentinelFolder) {
@@ -12,6 +16,10 @@ function Get-SentinelOneVersion {
 
 # Function to check for security patches
 function Check-SecurityPatches {
+    param (
+        [string]$AssetName
+    )
+
     $output = Get-WmiObject -Class 'win32_quickfixengineering' -ErrorAction SilentlyContinue
 
     if (-not $output) {
@@ -22,10 +30,17 @@ function Check-SecurityPatches {
 
     foreach ($patch in $output) {
         if ($patch.Description -match "Security Update") {
-            $installedOnDate = [datetime]::ParseExact($patch.InstalledOn, "yyyyMMdd", $null)
-            $securityUpdates += [pscustomobject]@{
-                InstalledOn = $installedOnDate
-                HotfixID = $patch.HotFixID
+            $installedOnDate = try {
+                [datetime]::Parse($patch.InstalledOn)
+            } catch {
+                $null
+            }
+
+            if ($installedOnDate) {
+                $securityUpdates += [pscustomobject]@{
+                    InstalledOn = $installedOnDate
+                    HotfixID = $patch.HotFixID
+                }
             }
         }
     }
@@ -38,34 +53,35 @@ function Check-SecurityPatches {
     }
 }
 
-# Function to check NTP configuration using 'w32tm /query /status'
+# Function to check NTP configuration using w32tm /query /status
 function Check-NTP {
-    $ntpCommand = 'w32tm /query /status'
-    $output = w32tm /query /status -ErrorAction SilentlyContinue
+    param (
+        [string]$AssetName
+    )
 
-    if ($output -and $output -match "Source") {
-        $ntpSource = $output -split "Source:\s+" | Select-Object -Last 1
-        return "NTP Source: $ntpSource"
+    $ntpOutput = w32tm /query /status 2>&1
+
+    if ($ntpOutput) {
+        $ntpSource = $ntpOutput | Select-String -Pattern 'Source: (.*)' | ForEach-Object {
+            $_.Matches.Groups[1].Value.Trim()
+        }
+
+        if ($ntpSource) {
+            return "NTP Source: $ntpSource"
+        } else {
+            return "NTP Source not found"
+        }
     } else {
         return "NTP Not Configured"
     }
 }
 
-# Function to check WinCollect status and version
-function Check-WinCollect {
-    $winCollectService = Get-Service -Name "WinCollect" -ErrorAction SilentlyContinue
-    if ($winCollectService -and $winCollectService.Status -eq 'Running') {
-        $winCollectVersion = (Get-Item "C:\Program Files\IBM\WinCollect\WinCollect.exe").VersionInfo.ProductVersion
-        return "Running (Version: $winCollectVersion)"
-    } elseif ($winCollectService) {
-        return "Installed but not Running"
-    } else {
-        return "WinCollect Not Installed"
-    }
-}
-
 # Function to check Windows compliance
 function Check-ComplianceWindows {
+    param (
+        [string]$AssetName
+    )
+
     $compliance = @{ }
 
     # OS information
@@ -75,17 +91,17 @@ function Check-ComplianceWindows {
     # SentinelOne status
     $sentinelStatus = Get-Service -Name "SentinelAgent" -ErrorAction SilentlyContinue
     if ($sentinelStatus -and $sentinelStatus.Status -eq 'Running') {
-        $sentinelVersion = Get-SentinelOneVersion
+        $sentinelVersion = Get-SentinelOneVersion -AssetName $AssetName
         $compliance["SentinelOne"] = "Running (Version: $sentinelVersion)"
     } else {
         $compliance["SentinelOne"] = "Not Installed or Not Running"
     }
 
     # Security patches
-    $compliance["Patches"] = Check-SecurityPatches
+    $compliance["Patches"] = Check-SecurityPatches -AssetName $AssetName
 
     # NTP configuration
-    $compliance["NTP"] = Check-NTP
+    $compliance["NTP"] = Check-NTP -AssetName $AssetName
 
     # Windows activation status
     $activationStatus = Get-WmiObject -Class 'SoftwareLicensingProduct' -ErrorAction SilentlyContinue
@@ -96,7 +112,8 @@ function Check-ComplianceWindows {
     }
 
     # WinCollect status
-    $compliance["WinCollect"] = Check-WinCollect
+    $wincollectStatus = Get-Service -Name "WinCollect" -ErrorAction SilentlyContinue
+    $compliance["WinCollect"] = if ($wincollectStatus) { $wincollectStatus.Status } else { "Service Not Found" }
 
     return $compliance
 }
@@ -121,7 +138,7 @@ function Main {
 
     foreach ($assetName in $hostnames) {
         Write-Host "Checking $assetName..."
-        $complianceResults = Check-ComplianceWindows
+        $complianceResults = Check-ComplianceWindows -AssetName $assetName
 
         # Prepare row data
         $rowData = "$assetName," + ($complianceResults["OS"]) + "," + ($complianceResults["SentinelOne"]) + "," +
