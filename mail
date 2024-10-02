@@ -1,5 +1,23 @@
-I would like to highlight a couple of points:
+Here’s the updated professional summary:
 
-Wincollect Status: We've noticed that Wincollect is not running on many servers, even after manual attempts. This has been identified as a constraint and is reflected in the status.
+This Week:
 
-NTP Output: The required output for NTP has not been received yet, as per the team's assessment. We will discuss and resolve this with Pardeep sir.
+Continued resolving the pipeline bug for Dell Unisphere screenshot automation, focusing on Chrome and ChromeDriver version compatibility.
+
+Ongoing setup of the pipeline for the switch backup project using the service account user. Documented the remaining steps of the switch backup process.
+
+Completed work on the Windows DMZ server for the Server Hygiene Check Automation.
+
+Investigated methods to fetch 15 days of performance and memory data from Grafana and Prometheus endpoints.
+
+
+Next Week:
+
+Complete the remaining Server Hygiene Check Automation for Windows and Linux. Prepare and test automation scripts, and work on feedback from the Windows DMZ server reports.
+
+Set up a pipeline to fetch 15 days of performance and memory data from Prometheus endpoints.
+
+Add a feature for dumping data to an SFTP server as part of the Prometheus task.
+
+Document the entire process for the Prometheus task.
+
