@@ -1,110 +1,38 @@
-import requests
-import pandas as pd
-import paramiko
-import os
-from datetime import datetime, timedelta
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-# Prometheus server details
-prometheus_url = "https://prometheus.abl.com/api/v1/query?step=1440m"
-
-# Function to query Prometheus
-def query_prometheus(query):
-    response = requests.get(prometheus_url, params={'query': query})
-    if response.status_code == 200:
-        return response.json()['data']['result']
-    else:
-        raise Exception(f"Query Failed with the status code: {response.status_code}: {response.text}")
-
-# Define the queries
-queries = {
-    "Memory": '100-(windows_os_physical_memory_free_bytes{job=~"Windows_Servers"} / (windows_cs_physical_memory_bytes{job=~"Windows_Servers"} - 0) * 100)',
-    "Cpu": '100 - (avg by (instance) (irate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[1m])) * 100)',
-    "c_drive": '(windows_logical_disk_size_bytes{job=~"Windows_Servers", volume="C:"} - windows_logical_disk_free_bytes{job=~"Windows_Servers", volume="C:"}) / windows_logical_disk_size_bytes{job=~"Windows_Servers", volume="C:"} * 100'
-}
-
-# Collect data from Prometheus
-data = {}
-for name, query in queries.items():
+def test_smtp(smtp_server, smtp_port, smtp_user, smtp_password, sender_email, recipient_email):
     try:
-        result = query_prometheus(query)
-        for item in result:
-            instance = item['metric']['instance']
-            value = float(item['value'][1])
-            if instance not in data:
-                data[instance] = {}
-            data[instance][name] = value
+        # Create the message
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = recipient_email
+        msg['Subject'] = 'SMTP Test Email'
+        
+        # Add message body
+        body = 'This is a test email to verify the SMTP server is working.'
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Connect to the SMTP server
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()  # Upgrade the connection to a secure encrypted SSL/TLS connection
+        server.login(smtp_user, smtp_password)
+        
+        # Send the email
+        server.sendmail(sender_email, recipient_email, msg.as_string())
+        server.quit()
+        
+        print(f"Test email sent successfully to {recipient_email} via {smtp_server}.")
     except Exception as e:
-        print(f"Failed to run query {name}: {e}")
+        print(f"Failed to send email: {str(e)}")
 
-# Prepare data for DataFrame
-hostname = []
-cpu = []
-memory = []
-c_drive = []
-for instance, metrics in data.items():
-    hostname.append(instance)
-    cpu.append(metrics.get("Cpu", None))
-    memory.append(metrics.get("Memory", None))
-    c_drive.append(metrics.get("c_drive", None))
+# Example usage
+smtp_server = 'smtp.yourserver.com'
+smtp_port = 587
+smtp_user = 'your_username'
+smtp_password = 'your_password'
+sender_email = 'sender@example.com'
+recipient_email = 'recipient@example.com'
 
-# Create DataFrame
-df = pd.DataFrame({
-    "Hostname": hostname,
-    "CPU Util. %": cpu,
-    "Memory Util. %": memory,
-    "C Drive Util. %": c_drive
-})
-
-# Save DataFrame to CSV
-local_file_path = 'C:\\Temp\\Last_24_hr_Windows_Performance_metrics.csv'
-df.to_csv(local_file_path, index=False)
-print("Data exported to CSV.")
-
-# SFTP details
-sftp_host = '<your_sftp_host>'  # Replace with your SFTP host
-sftp_port = 22  # Default SFTP port
-sftp_username = '<your_username>'  # Replace with your SFTP username
-sftp_password = '<your_password>'  # Replace with your SFTP password
-sftp_target_directory = '/Network_devices_Backup/Performance_metrics'
-
-# Function to upload to SFTP
-def upload_to_sftp(local_file_path, sftp_host, sftp_port, sftp_username, sftp_password, sftp_target_directory):
-    try:
-        # Establish an SFTP connection
-        transport = paramiko.Transport((sftp_host, sftp_port))
-        transport.connect(username=sftp_username, password=sftp_password)
-        sftp = paramiko.SFTPClient.from_transport(transport)
-        
-        # Navigate to the target directory
-        try:
-            sftp.chdir(sftp_target_directory)
-        except IOError:
-            sftp.mkdir(sftp_target_directory)
-            sftp.chdir(sftp_target_directory)
-
-        # Upload file
-        file_name = os.path.basename(local_file_path)
-        sftp.put(local_file_path, f"{sftp_target_directory}/{file_name}")
-        print(f"File {file_name} uploaded successfully to {sftp_target_directory}")
-        
-        # Verify file is in directory
-        files_in_directory = sftp.listdir(sftp_target_directory)
-        if file_name in files_in_directory:
-            print(f"File {file_name} successfully listed in {sftp_target_directory}")
-        else:
-            print(f"File {file_name} not found in {sftp_target_directory}.")
-        
-        # Close connection
-        sftp.close()
-        transport.close()
-        
-        # Delete local file
-        if os.path.exists(local_file_path):
-            os.remove(local_file_path)
-            print(f"Local file {local_file_path} deleted successfully.")
-    
-    except Exception as e:
-        print(f"Failed to upload file: {e}")
-
-# Upload the CSV to SFTP
-upload_to_sftp(local_file_path, sftp_host, sftp_port, sftp_username, sftp_password, sftp_target_directory)
+test_smtp(smtp_server, smtp_port, smtp_user, smtp_password, sender_email, recipient_email)
