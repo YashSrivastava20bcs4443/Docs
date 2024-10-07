@@ -8,3 +8,7 @@ For Windows
 
 max cpu = max(rate(windows_cpu_time_total{mode!="idle", job="windows"}[1m])) by (instance)
 max mem = max(windows_cs_physical_memory_bytes{job="windows"} - windows_os_physical_memory_free_bytes{job="windows"}) by (instance)
+
+
+max((node_memory_MemTotal_bytes{job="linux"} - node_memory_MemAvailable_bytes{job="linux"}) / node_memory_MemTotal_bytes{job="linux"} * 100) by (instance)
+
