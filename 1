@@ -1,5 +1,7 @@
 import requests
+import csv
 
+# Prometheus API URL and step
 prometheus_url = "https://prometheus.abl.com/api/v1/query?step=1440m"
 
 # CPU Usage Query
@@ -10,6 +12,21 @@ cpu_response = requests.get(f'{prometheus_url}&query={cpu_query}').json()
 memory_query = '100 * (max(node_memory_MemAvailable_bytes) by (instance) / max(node_memory_MemTotal_bytes) by (instance))'
 memory_response = requests.get(f'{prometheus_url}&query={memory_query}').json()
 
-# Process the responses as needed
-print(cpu_response)
-print(memory_response)
+# Open CSV file for writing
+with open('server_metrics.csv', mode='w', newline='') as file:
+    writer = csv.writer(file)
+
+    # Write header to CSV file
+    writer.writerow(['Instance', 'CPU Usage (%)', 'Memory Usage (%)'])
+
+    # Extract CPU and Memory data
+    cpu_data = {item['metric']['instance']: item['value'][1] for item in cpu_response['data']['result']}
+    memory_data = {item['metric']['instance']: item['value'][1] for item in memory_response['data']['result']}
+
+    # Combine the CPU and Memory data for each instance and write to CSV
+    for instance in cpu_data.keys():
+        cpu_usage = cpu_data.get(instance, 'N/A')
+        memory_usage = memory_data.get(instance, 'N/A')
+        writer.writerow([instance, cpu_usage, memory_usage])
+
+print("Data has been saved to 'server_metrics.csv'.")
