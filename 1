@@ -2,7 +2,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-def test_smtp(smtp_server, smtp_port, smtp_user, smtp_password, sender_email, recipient_email):
+def test_smtp_without_auth(smtp_server, smtp_port, sender_email, recipient_email):
     try:
         # Create the message
         msg = MIMEMultipart()
@@ -11,13 +11,12 @@ def test_smtp(smtp_server, smtp_port, smtp_user, smtp_password, sender_email, re
         msg['Subject'] = 'SMTP Test Email'
         
         # Add message body
-        body = 'This is a test email to verify the SMTP server is working.'
+        body = 'This is a test email to verify the SMTP server is working without authentication.'
         msg.attach(MIMEText(body, 'plain'))
         
-        # Connect to the SMTP server
+        # Connect to the SMTP server (without login)
         server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()  # Upgrade the connection to a secure encrypted SSL/TLS connection
-        server.login(smtp_user, smtp_password)
+        server.starttls()  # Upgrade to a secure connection if using TLS
         
         # Send the email
         server.sendmail(sender_email, recipient_email, msg.as_string())
@@ -29,10 +28,8 @@ def test_smtp(smtp_server, smtp_port, smtp_user, smtp_password, sender_email, re
 
 # Example usage
 smtp_server = 'smtp.yourserver.com'
-smtp_port = 587
-smtp_user = 'your_username'
-smtp_password = 'your_password'
+smtp_port = 25  # Common port for unauthenticated SMTP
 sender_email = 'sender@example.com'
 recipient_email = 'recipient@example.com'
 
-test_smtp(smtp_server, smtp_port, smtp_user, smtp_password, sender_email, recipient_email)
+test_smtp_without_auth(smtp_server, smtp_port, sender_email, recipient_email)
