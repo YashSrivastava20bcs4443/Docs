@@ -1,14 +1,26 @@
-For Linux:
-
-max_cpu = max(rate(node_cpu_seconds_total{mode!="idle", job="linux"}[1m])) by (instance)
-max_mem =max(node_memory_MemTotal_bytes{job="linux"} - node_memory_MemAvailable_bytes{job="linux"}) by (instance)
 
 
-For Windows
+Subject: Request for Staging Servers and IT Automation Project in Azure DevOps
 
-max cpu = max(rate(windows_cpu_time_total{mode!="idle", job="windows"}[1m])) by (instance)
-max mem = max(windows_cs_physical_memory_bytes{job="windows"} - windows_os_physical_memory_free_bytes{job="windows"}) by (instance)
+Dear [Recipient's Name],
+
+I hope this email finds you well.
+
+I am writing to highlight the need for setting up at least two staging servers, one for Windows and another for Linux, within our environment. Currently, our script testing is being conducted directly in the production environment, which is not a best practice and presents certain risks. Introducing dedicated staging servers will allow us to thoroughly test our automation scripts before deploying them to production, ensuring a more controlled and stable process.
+
+Additionally, we require a project named "IT Automation" to be created on Azure DevOps under the Fareportal organization. This project will serve as a hub for managing our automation pipeline, task management, and other ADO-related activities, streamlining our workflow and collaboration.
+
+I believe these steps are crucial for enhancing the overall efficiency and security of our operations. Please let me know if you need further details or if we can arrange a meeting to discuss this request.
+
+Thank you for your attention to this matter.
+
+Best regards,
+[Your Name]
+[Your Position]
+Fareportal
 
 
-max((node_memory_MemTotal_bytes{job="linux"} - node_memory_MemAvailable_bytes{job="linux"}) / node_memory_MemTotal_bytes{job="linux"} * 100) by (instance)
+---
+
+You can adjust the recipient’s name and any details as needed. Let me know if you'd like further refinements!
 
