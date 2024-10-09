@@ -2,3 +2,6 @@
 
 
 100 - (avg by(instance) (rate(windows_cpu_time_total{mode="idle", job="Windows_Servers"}[1m])) * 100)
+
+
+100 * (1 - avg_over_time(windows_cs_physical_memory_free_bytes{job="Windows_Servers"}[24h]) / windows_cs_physical_memory_total_bytes{job="Windows_Servers"})
