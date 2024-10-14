@@ -1,12 +1,63 @@
-100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle", job="Linux_Servers"}[1m])) * 100)
+import requests
+import pandas as pd
+from datetime import datetime
 
+# Prometheus server details
+prometheus_url = "https://prometheus.fareportal.com/api/v1/query?step=1440m"
 
-100 - (avg by(instance) (rate(windows_cpu_time_total{mode="idle", job="Windows_Servers"}[1m])) * 100)
+# Function to query Prometheus
+def query_prometheus(query):
+    response = requests.get(prometheus_url, params={'query': query})
+    if response.status_code == 200:
+        return response.json()['data']['result']
+    else:
+        raise Exception(f"Query Failed with the status code: {response.status_code}: {response.text}")
 
+# Function to save Prometheus data to CSV
+def save_to_csv(data, filename):
+    # Convert the data to a DataFrame
+    formatted_data = []
+    for entry in data:
+        metric = entry['metric']
+        values = entry['value']
+        metric.update({"value": values[1]})
+        formatted_data.append(metric)
+    
+    df = pd.DataFrame(formatted_data)
+    
+    # Save the DataFrame to CSV
+    df.to_csv(filename, index=False)
+    print(f"Data saved to {filename}")
 
-100 * (1 - avg_over_time(windows_cs_physical_memory_free_bytes{job="Windows_Servers"}[24h]) / windows_cs_physical_memory_total_bytes{job="Windows_Servers"})
+# Prometheus queries for both CPU and Memory
+cpu_query = 'max_over_time(100 - avg by (instance) (rate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[5m])) * 100 [1h]) by (instance)'
+memory_query = 'max_over_time(100 - (windows_os_physical_memory_free_bytes{job=~"Windows_Servers"} / windows_cs_physical_memory_bytes{job=~"Windows_Servers"} * 100)[1h]) by (instance)'
 
+# Query Prometheus for CPU and Memory
+cpu_data = query_prometheus(cpu_query)
+memory_data = query_prometheus(memory_query)
 
-max_over_time(100 - (windows_os_physical_memory_free_bytes{job=~"Windows_Servers"} / windows_cs_physical_memory_bytes{job=~"Windows_Servers"} * 100)[1h]) by (instance)
+# Process and combine both CPU and Memory data into a single DataFrame
+def format_data(data, metric_type):
+    formatted_data = []
+    for entry in data:
+        metric = entry['metric']
+        values = entry['value']
+        metric.update({"value": values[1], "metric_type": metric_type})
+        formatted_data.append(metric)
+    return formatted_data
 
-max_over_time(100 - avg by (instance) (rate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[5m])) * 100 [1h]) by (instance)
+# Format CPU and Memory data
+cpu_formatted = format_data(cpu_data, "cpu")
+memory_formatted = format_data(memory_data, "memory")
+
+# Combine both CPU and Memory into a single DataFrame
+combined_data = cpu_formatted + memory_formatted
+df = pd.DataFrame(combined_data)
+
+# Define the CSV filename (e.g., based on the current timestamp)
+filename = f"cpu_memory_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+# Save the combined data to CSV
+df.to_csv(filename, index=False)
+print(f"CPU and Memory data saved to {filename}")
