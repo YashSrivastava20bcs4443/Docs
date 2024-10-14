@@ -5,3 +5,6 @@
 
 
 100 * (1 - avg_over_time(windows_cs_physical_memory_free_bytes{job="Windows_Servers"}[24h]) / windows_cs_physical_memory_total_bytes{job="Windows_Servers"})
+
+
+max_over_time(100 - (windows_os_physical_memory_free_bytes{job=~"Windows_Servers"} / windows_cs_physical_memory_bytes{job=~"Windows_Servers"} * 100)[1h]) by (instance)
