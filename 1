@@ -1,1 +1,1 @@
-
+max(100 - (avg(irate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[2m])) * 100)) by (instance)
