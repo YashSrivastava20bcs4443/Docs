@@ -29,9 +29,9 @@ def save_to_csv(data, filename):
     df.to_csv(filename, index=False)
     print(f"Data saved to {filename}")
 
-# Prometheus queries for both CPU and Memory (last 24 hours)
-cpu_query = 'max_over_time(100 - (avg by (instance) (rate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[5m])) * 100)[24h]) by (instance)'
-memory_query = 'max_over_time(100 - (windows_os_physical_memory_free_bytes{job=~"Windows_Servers"} / windows_cs_physical_memory_bytes{job=~"Windows_Servers"} * 100)[24h]) by (instance)'
+# Prometheus queries for both CPU and Memory
+cpu_query = '100 - max_over_time(avg by (instance) (rate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[5m])) * 100 [1h]) by (instance)'
+memory_query = 'max_over_time(100 - (windows_os_physical_memory_free_bytes{job=~"Windows_Servers"} / windows_cs_physical_memory_bytes{job=~"Windows_Servers"} * 100)[1h]) by (instance)'
 
 # Query Prometheus for CPU and Memory
 cpu_data = query_prometheus(cpu_query)
@@ -56,8 +56,8 @@ combined_data = cpu_formatted + memory_formatted
 df = pd.DataFrame(combined_data)
 
 # Define the CSV filename (e.g., based on the current timestamp)
-filename = f"cpu_memory_data_24h_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+filename = f"cpu_memory_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
 # Save the combined data to CSV
 df.to_csv(filename, index=False)
-print(f"CPU and Memory data for the last 24 hours saved to {filename}")
+print(f"CPU and Memory data saved to {filename}")
