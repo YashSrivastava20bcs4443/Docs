@@ -29,15 +29,26 @@ def save_to_csv(data, filename):
     df.to_csv(filename, index=False)
     print(f"Data saved to {filename}")
 
-# Prometheus queries for both CPU and Memory
-cpu_query = '100 - max_over_time(avg by (instance) (rate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[5m])) * 100 [1h]) by (instance)'
-memory_query = 'max_over_time(100 - (windows_os_physical_memory_free_bytes{job=~"Windows_Servers"} / windows_cs_physical_memory_bytes{job=~"Windows_Servers"} * 100)[1h]) by (instance)'
+# Function to get max CPU usage query for Windows servers
+def get_cpu_query_windows(days):
+    return f'100 - max_over_time(avg by (instance) (rate(windows_cpu_time_total{{job=~"Windows_Servers", mode="idle"}}[5m])) * 100 [{days}d]) by (instance)'
 
-# Query Prometheus for CPU and Memory
+# Function to get max memory usage query for Windows servers
+def get_memory_query_windows(days):
+    return f'max_over_time(100 - (windows_os_physical_memory_free_bytes{{job=~"Windows_Servers"}} / windows_cs_physical_memory_bytes{{job=~"Windows_Servers"}} * 100)[{days}d]) by (instance)'
+
+# Number of days for peak usage (e.g., 1 for 24 hours, 7 for a week)
+days = 1  # You can change this to the number of days you want to query
+
+# Prometheus queries for both CPU and Memory for Windows Servers
+cpu_query = get_cpu_query_windows(days)
+memory_query = get_memory_query_windows(days)
+
+# Query Prometheus for CPU and Memory data
 cpu_data = query_prometheus(cpu_query)
 memory_data = query_prometheus(memory_query)
 
-# Process and combine both CPU and Memory data into a single DataFrame
+# Format data and save to CSV
 def format_data(data, metric_type):
     formatted_data = []
     for entry in data:
@@ -47,16 +58,16 @@ def format_data(data, metric_type):
         formatted_data.append(metric)
     return formatted_data
 
-# Format CPU and Memory data
+# Format CPU and Memory data for Windows Servers
 cpu_formatted = format_data(cpu_data, "cpu")
 memory_formatted = format_data(memory_data, "memory")
 
-# Combine both CPU and Memory into a single DataFrame
+# Combine both CPU and Memory data into a single DataFrame
 combined_data = cpu_formatted + memory_formatted
 df = pd.DataFrame(combined_data)
 
 # Define the CSV filename (e.g., based on the current timestamp)
-filename = f"cpu_memory_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+filename = f"windows_cpu_memory_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
 # Save the combined data to CSV
 df.to_csv(filename, index=False)
