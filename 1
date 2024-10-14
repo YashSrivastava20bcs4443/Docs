@@ -1,4 +1,1 @@
-max(irate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle", instance="NJPAPWP00120.FarePortalDMZ.local:9182"}[2m]) * 100)
 
-
-max((windows_cs_physical_memory_bytes{instance=~"NJPAPWP00120.FarePortalDMZ.local:9182"} - windows_os_physical_memory_free_bytes{instance=~"NJPAPWP00120.FarePortalDMZ.local:9182"}) / windows_cs_physical_memory_bytes{instance=~"NJPAPWP00120.FarePortalDMZ.local:9182"} * 100)
