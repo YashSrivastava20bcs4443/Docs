@@ -2,12 +2,12 @@ max_over_time(
   (
     windows_cs_physical_memory_bytes{job=~"Windows_Servers"} - 
     windows_os_physical_memory_free_bytes{job=~"Windows_Servers"}
-  ) / windows_cs_physical_memory_bytes{job=~"Windows_Servers"} * 100
+  ) / windows_cs_physical_memory_bytes{job=~"Windows_Servers"}
 [24h])
 
 
 max_over_time(
-  100 - (avg_over_time(
+  100 - avg_over_time(
     irate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[2m])[24h]
-  ) * 100)
+  ) * 100
 [24h])
