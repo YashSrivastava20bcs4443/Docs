@@ -1,3 +1,57 @@
-100 * (1 - max_over_time(windows_memory_available_bytes{job="windows"}[24h]) / max(windows_cs_physical_memory_bytes{job="windows"}))
+import requests
+import pandas as pd
+from datetime import datetime
 
-100 * (1 - max_over_time(rate(windows_cpu_time_total{mode="idle", job="windows"}[5m])[24h]))
+# Prometheus base URL for querying
+prometheus_url = "https://prometheus.apl.com/api/v1/query?step=1440"
+
+# Function to query Prometheus
+def query_prometheus(query):
+    response = requests.get(prometheus_url, params={'query': query})
+    if response.status_code == 200:
+        return response.json()['data']['result']
+    else:
+        raise Exception(f"Query failed with status code: {response.status_code}: {response.text}")
+
+# Function to format and save data to CSV
+def save_to_csv(data, filename):
+    formatted_data = []
+    for entry in data:
+        metric = entry['metric']
+        values = entry['value']
+        metric.update({"value": values[1]})  # Add the 'value' to the metric
+        formatted_data.append(metric)
+    df = pd.DataFrame(formatted_data)
+    df.to_csv(filename, index=False)
+    print(f"Data saved to {filename}")
+
+# Updated CPU and memory query strings for max over last 24 hours for all instances
+cpu_query = '100 * max_over_time(1 - rate(windows_cpu_time_total{mode="idle"}[5m])[24h:]) by (instance)'
+memory_query = '100 - (max_over_time(windows_memory_available_bytes[24h:]) * 100 / max_over_time(windows_cs_physical_memory_bytes[24h:])) by (instance)'
+
+# Get data from Prometheus
+cpu_data = query_prometheus(cpu_query)
+memory_data = query_prometheus(memory_query)
+
+# Function to format CPU and memory data
+def format_data(data, metric_type):
+    formatted_data = []
+    for entry in data:
+        metric = entry['metric']
+        values = entry['value']
+        metric.update({"value": values[1], "metric_type": metric_type})  # Add metric type (CPU/Memory)
+        formatted_data.append(metric)
+    return formatted_data
+
+# Format CPU and memory data
+cpu_formatted = format_data(cpu_data, "cpu")
+memory_formatted = format_data(memory_data, "memory")
+
+# Combine both CPU and memory data
+combined_data = cpu_formatted + memory_formatted
+
+# Save to CSV with a timestamped filename
+filename = f"cpu_memory_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+df = pd.DataFrame(combined_data)
+df.to_csv(filename, index=False)
+print(f"CPU and Memory data saved to {filename}")
