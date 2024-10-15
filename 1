@@ -7,27 +7,23 @@ from datetime import datetime, timedelta
 # Prometheus server details
 prometheus_url = "https://prometheus.abl.com/api/v1/query_range"
 
-# Define the queries for max CPU and Memory utilization
-max_queries = {
-    "CPU": '100 * max(1 - rate(windows_cpu_time_total{mode="idle"}[5m])) by (instance)',
-    "Memory": '100 - (avg(windows_memory_available_bytes) by (instance) * 100 / avg(windows_cs_physical_memory_bytes) by (instance))'
-}
-
-# Define the queries for average CPU and Memory utilization
-avg_queries = {
-    "CPU": '100 - (avg by (instance) (irate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[1m])) * 100)',
-    "Memory": '100 - (windows_os_physical_memory_free_bytes{job=~"Windows_Servers"} / (windows_cs_physical_memory_bytes{job=~"Windows_Servers"} - 0) * 100)',
+# Define the queries for max and avg utilization
+queries = {
+    "Max_CPU": '100 * max(1 - rate(windows_cpu_time_total{mode="idle"}[5m])) by (instance)',
+    "Max_Memory": '100 - (avg(windows_memory_available_bytes) by (instance) * 100 / avg(windows_cs_physical_memory_bytes) by (instance))',
+    "Avg_CPU": '100 - (avg by (instance) (irate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[1m])) * 100)',
+    "Avg_Memory": '100 - (windows_os_physical_memory_free_bytes{job=~"Windows_Servers"} / (windows_cs_physical_memory_bytes{job=~"Windows_Servers"} - 0) * 100)',
     "C_Drive": '(windows_logical_disk_size_bytes{job=~"Windows_Servers", volume="C:"} - windows_logical_disk_free_bytes{job=~"Windows_Servers", volume="C:"}) / windows_logical_disk_size_bytes{job=~"Windows_Servers", volume="C:"} * 100'
 }
 
-# Get the last 24 hours
+# Time range: last 24 hours
 end_time = datetime.now()
 start_time = end_time - timedelta(hours=24)
 start_time_unix = int(start_time.timestamp())
 end_time_unix = int(end_time.timestamp())
 
 # Function to query Prometheus
-def query_prometheus(query, start_time, end_time, step):
+def query_prometheus(query, start_time, end_time, step=60):
     response = requests.get(prometheus_url, params={
         'query': query,
         'start': start_time,
@@ -37,64 +33,48 @@ def query_prometheus(query, start_time, end_time, step):
     if response.status_code == 200:
         return response.json()['data']['result']
     else:
-        raise Exception(f"Query failed with status code: {response.status_code}: {response.text}")
+        raise Exception(f"Query failed with status code {response.status_code}: {response.text}")
 
-# Function to format data for max and avg calculations
-def format_data(data, metric_type):
-    formatted_data = []
-    for entry in data:
-        instance = entry['metric']['instance']
-        values = entry['values']
-        for value in values:
-            timestamp, usage = value
-            formatted_data.append({
-                "timestamp": datetime.fromtimestamp(float(timestamp)),
-                "instance": instance,
-                "metric_type": metric_type,
-                "value": float(usage)
-            })
-    return formatted_data
+# Function to extract and summarize data
+def extract_data(query_result):
+    data = {}
+    for entry in query_result:
+        instance = entry['metric'].get('instance', 'Unknown')
+        values = [float(v[1]) for v in entry['values']]
+        if instance not in data:
+            data[instance] = {"Max": max(values), "Avg": sum(values) / len(values)}
+    return data
 
-# Collect max CPU and Memory data
-max_data = []
-for metric_name, query in max_queries.items():
+# Collect data from Prometheus
+collected_data = {}
+for metric_name, query in queries.items():
     try:
-        result = query_prometheus(query, start_time_unix, end_time_unix, 60)
-        max_data.extend(format_data(result, metric_name))
+        result = query_prometheus(query, start_time_unix, end_time_unix)
+        collected_data[metric_name] = extract_data(result)
     except Exception as e:
-        print(f"Failed to query max {metric_name}: {e}")
+        print(f"Failed to collect {metric_name} data: {e}")
 
-# Create DataFrame for max utilization
-max_df = pd.DataFrame(max_data)
+# Prepare data for the final DataFrame
+rows = []
+instances = set(
+    inst for metrics in collected_data.values() for inst in metrics
+)  # Collect all unique instances
 
-# Calculate max usage
-max_usage = max_df.groupby(['instance', 'metric_type'])['value'].max().reset_index()
+for instance in instances:
+    row = {
+        "Instance": instance,
+        "Max_CPU": collected_data.get("Max_CPU", {}).get(instance, {}).get("Max", None),
+        "Avg_CPU": collected_data.get("Avg_CPU", {}).get(instance, {}).get("Avg", None),
+        "Max_Memory": collected_data.get("Max_Memory", {}).get(instance, {}).get("Max", None),
+        "Avg_Memory": collected_data.get("Avg_Memory", {}).get(instance, {}).get("Avg", None),
+        "C_Drive": collected_data.get("C_Drive", {}).get(instance, {}).get("Avg", None),  # Assuming we only need avg here
+    }
+    rows.append(row)
 
-# Collect average CPU, Memory, and C Drive utilization
-avg_data = []
-for metric_name, query in avg_queries.items():
-    try:
-        result = query_prometheus(query, start_time_unix, end_time_unix, 60)
-        avg_data.extend(format_data(result, metric_name))
-    except Exception as e:
-        print(f"Failed to query avg {metric_name}: {e}")
-
-# Create DataFrame for avg utilization
-avg_df = pd.DataFrame(avg_data)
-
-# Calculate average usage for CPU, Memory, and C Drive
-avg_usage = avg_df.groupby(['instance', 'metric_type'])['value'].mean().reset_index()
-
-# Merge max and avg DataFrames
-merged_df = pd.merge(
-    max_usage, avg_usage, 
-    on=['instance', 'metric_type'], 
-    suffixes=('_max', '_avg')
-)
-
-# Save the merged data to a single CSV
+# Create DataFrame and save to CSV
+df = pd.DataFrame(rows)
 filename = f"C:\\Temp\\performance_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-merged_df.to_csv(filename, index=False)
+df.to_csv(filename, index=False)
 
 print(f"Data saved to {filename}")
 
