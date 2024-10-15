@@ -1,1 +1,140 @@
-100 * avg(rate(windows_cpu_time_total{mode!="idle"}[5m])) by (instance)
+import requests
+import pandas as pd
+import paramiko
+import os
+from datetime import datetime, timedelta
+
+# Prometheus base URL
+prometheus_url = "https://prometheus.apl.com/api/v1/query_range"
+
+# Function to query Prometheus
+def query_prometheus(query, start_time, end_time, step):
+    response = requests.get(prometheus_url, params={
+        'query': query,
+        'start': start_time,
+        'end': end_time,
+        'step': step
+    })
+    if response.status_code == 200:
+        return response.json()['data']['result']
+    else:
+        raise Exception(f"Query failed with status code: {response.status_code}: {response.text}")
+
+# Get the last 24 hours in Unix time
+end_time = datetime.now()
+start_time = end_time - timedelta(hours=24)
+start_time_unix = int(start_time.timestamp())
+end_time_unix = int(end_time.timestamp())
+
+# Prometheus queries
+queries = {
+    "Cpu": '100 - (avg by (instance) (irate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[1m])) * 100)',
+    "Memory": '100-(windows_os_physical_memory_free_bytes{job=~"Windows_Servers"} / (windows_cs_physical_memory_bytes{job=~"Windows_Servers"} - 0) * 100)',
+    "C Drive": '(windows_logical_disk_size_bytes{job=~"Windows_Servers", volume="C:"} - windows_logical_disk_free_bytes{job=~"Windows_Servers", volume="C:"}) / windows_logical_disk_size_bytes{job=~"Windows_Servers", volume="C:"} * 100'
+}
+
+# Collect data from Prometheus
+data = {}
+max_cpu = {}
+max_memory = {}
+
+for name, query in queries.items():
+    try:
+        result = query_prometheus(query, start_time_unix, end_time_unix, 60)
+        for item in result:
+            instance = item['metric']['instance']
+            for value in item['values']:
+                timestamp, usage = value
+                if instance not in data:
+                    data[instance] = {}
+                data[instance][name] = float(usage)
+
+                # Track maximum CPU and Memory values
+                if name == "Cpu":
+                    if instance not in max_cpu:
+                        max_cpu[instance] = float(usage)
+                    else:
+                        max_cpu[instance] = max(max_cpu[instance], float(usage))
+
+                if name == "Memory":
+                    if instance not in max_memory:
+                        max_memory[instance] = float(usage)
+                    else:
+                        max_memory[instance] = max(max_memory[instance], float(usage))
+
+    except Exception as e:
+        print(f"Failed to run query {name}: {e}")
+
+# Prepare data for DataFrame
+hostname = []
+cpu = []
+memory = []
+c_drive = []
+max_cpu_values = []
+max_memory_values = []
+
+for instance, metrics in data.items():
+    hostname.append(instance)
+    cpu.append(metrics.get("Cpu", None))
+    memory.append(metrics.get("Memory", None))
+    c_drive.append(metrics.get("C Drive", None))
+    max_cpu_values.append(max_cpu.get(instance, None))
+    max_memory_values.append(max_memory.get(instance, None))
+
+# Create DataFrame
+df = pd.DataFrame({
+    "Hostname": hostname,
+    "CPU Util. %": cpu,
+    "Max CPU Util. %": max_cpu_values,
+    "Memory Util. %": memory,
+    "Max Memory Util. %": max_memory_values,
+    "C Drive Util. %": c_drive
+})
+
+# Save DataFrame to CSV
+local_file_path = f'C:\\Temp\\Windows_Performance_metrics_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+df.to_csv(local_file_path, index=False)
+print(f"Data saved to {local_file_path}")
+
+# SFTP details
+sftp_host = '<your_sftp_host>'
+sftp_port = 22
+sftp_username = '<your_username>'
+sftp_password = '<your_password>'
+sftp_target_directory = '/Network_devices_Backup/Performance_metrics'
+
+# Function to upload to SFTP
+def upload_to_sftp(local_file_path, sftp_host, sftp_port, sftp_username, sftp_password, sftp_target_directory):
+    try:
+        transport = paramiko.Transport((sftp_host, sftp_port))
+        transport.connect(username=sftp_username, password=sftp_password)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+
+        try:
+            sftp.chdir(sftp_target_directory)
+        except IOError:
+            sftp.mkdir(sftp_target_directory)
+            sftp.chdir(sftp_target_directory)
+
+        file_name = os.path.basename(local_file_path)
+        sftp.put(local_file_path, f"{sftp_target_directory}/{file_name}")
+        print(f"File {file_name} uploaded successfully to {sftp_target_directory}")
+
+        files_in_directory = sftp.listdir(sftp_target_directory)
+        if file_name in files_in_directory:
+            print(f"File {file_name} successfully listed in {sftp_target_directory}")
+        else:
+            print(f"File {file_name} not found in {sftp_target_directory}.")
+
+        sftp.close()
+        transport.close()
+
+        if os.path.exists(local_file_path):
+            os.remove(local_file_path)
+            print(f"Local file {local_file_path} deleted successfully.")
+
+    except Exception as e:
+        print(f"Failed to upload file: {e}")
+
+# Upload the CSV to SFTP
+upload_to_sftp(local_file_path, sftp_host, sftp_port, sftp_username, sftp_password, sftp_target_directory)
