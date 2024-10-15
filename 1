@@ -1,13 +1,18 @@
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Prometheus base URL for querying
-prometheus_url = "https://prometheus.apl.com/api/v1/query?step=1440"
+prometheus_url = "https://prometheus.apl.com/api/v1/query_range"
 
 # Function to query Prometheus
-def query_prometheus(query):
-    response = requests.get(prometheus_url, params={'query': query})
+def query_prometheus(query, start_time, end_time, step):
+    response = requests.get(prometheus_url, params={
+        'query': query,
+        'start': start_time,
+        'end': end_time,
+        'step': step
+    })
     if response.status_code == 200:
         return response.json()['data']['result']
     else:
@@ -18,29 +23,46 @@ def save_to_csv(data, filename):
     formatted_data = []
     for entry in data:
         metric = entry['metric']
-        values = entry['value']
-        metric.update({"value": values[1]})  # Add the 'value' to the metric
-        formatted_data.append(metric)
+        values = entry['values']  # Use 'values' to get time series data
+        for value in values:
+            timestamp, usage = value
+            formatted_data.append({
+                "timestamp": datetime.fromtimestamp(float(timestamp)),
+                **metric,
+                "value": usage
+            })
     df = pd.DataFrame(formatted_data)
     df.to_csv(filename, index=False)
     print(f"Data saved to {filename}")
 
-# Corrected CPU and memory query strings
-cpu_query = 'max_over_time(avg(100 * (1 - rate(windows_cpu_time_total{mode="idle"}[5m])) by (instance))[24h:])'
-memory_query = 'max_over_time(100 - (avg(windows_memory_available_bytes) by (instance) * 100 / avg(windows_cs_physical_memory_bytes) by (instance))[24h:])'
+# Get the last 24 hours
+end_time = datetime.now()
+start_time = end_time - timedelta(hours=24)
+start_time_unix = int(start_time.timestamp())
+end_time_unix = int(end_time.timestamp())
 
-# Get data from Prometheus
-cpu_data = query_prometheus(cpu_query)
-memory_data = query_prometheus(memory_query)
+# Prometheus queries (now simplified)
+cpu_query = '100 * (1 - avg(rate(windows_cpu_time_total{mode="idle"}[5m])) by (instance))'
+memory_query = '100 - (avg(windows_memory_available_bytes) by (instance) * 100 / avg(windows_cs_physical_memory_bytes) by (instance))'
+
+# Query data for CPU and Memory (with step of 60 seconds for minute-level data)
+cpu_data = query_prometheus(cpu_query, start_time_unix, end_time_unix, 60)
+memory_data = query_prometheus(memory_query, start_time_unix, end_time_unix, 60)
 
 # Function to format CPU and memory data
 def format_data(data, metric_type):
     formatted_data = []
     for entry in data:
         metric = entry['metric']
-        values = entry['value']
-        metric.update({"value": values[1], "metric_type": metric_type})  # Add metric type (CPU/Memory)
-        formatted_data.append(metric)
+        values = entry['values']
+        for value in values:
+            timestamp, usage = value
+            formatted_data.append({
+                "timestamp": datetime.fromtimestamp(float(timestamp)),
+                **metric,
+                "value": usage,
+                "metric_type": metric_type
+            })
     return formatted_data
 
 # Format CPU and memory data
@@ -50,8 +72,12 @@ memory_formatted = format_data(memory_data, "memory")
 # Combine both CPU and memory data
 combined_data = cpu_formatted + memory_formatted
 
-# Save to CSV with a timestamped filename
-filename = f"cpu_memory_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+# Create a DataFrame and calculate the max CPU and memory usage per instance
 df = pd.DataFrame(combined_data)
-df.to_csv(filename, index=False)
-print(f"CPU and Memory data saved to {filename}")
+df['value'] = df['value'].astype(float)  # Ensure the values are numeric
+max_usage = df.groupby(['instance', 'metric_type'])['value'].max().reset_index()
+
+# Save the max data to CSV with a timestamped filename
+filename = f"max_cpu_memory_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+max_usage.to_csv(filename, index=False)
+print(f"Max CPU and Memory data saved to {filename}")
