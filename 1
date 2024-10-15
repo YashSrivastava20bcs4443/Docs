@@ -26,7 +26,7 @@ def save_to_csv(data, filename):
     print(f"Data saved to {filename}")
 
 # Corrected CPU and memory query strings
-cpu_query = 'max_over_time(100 * (1 - avg(rate(windows_cpu_time_total{mode="idle"}[5m])) by (instance))[24h:])'
+cpu_query = 'max_over_time(avg(100 * (1 - rate(windows_cpu_time_total{mode="idle"}[5m])) by (instance))[24h:])'
 memory_query = 'max_over_time(100 - (avg(windows_memory_available_bytes) by (instance) * 100 / avg(windows_cs_physical_memory_bytes) by (instance))[24h:])'
 
 # Get data from Prometheus
