@@ -1,126 +1,39 @@
 import requests
-import pandas as pd
-import paramiko
-import os
-from datetime import datetime, timedelta
 
-# Prometheus server details
-prometheus_url = "https://prometheus.abl.com/api/v1/query_range"
+tenant_id = "your-tenant-id"
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+group_id = "your-group-id"
+dataset_id = "your-dataset-id"
 
-# Define the queries for max and avg utilization
-queries = {
-    "Max_CPU": '100 * max(1 - rate(windows_cpu_time_total{mode="idle"}[5m])) by (instance)',
-    "Max_Memory": '100 - (avg(windows_memory_available_bytes) by (instance) * 100 / avg(windows_cs_physical_memory_bytes) by (instance))',
-    "Avg_CPU": '100 - (avg by (instance) (irate(windows_cpu_time_total{job=~"Windows_Servers", mode="idle"}[1m])) * 100)',
-    "Avg_Memory": '100 - (windows_os_physical_memory_free_bytes{job=~"Windows_Servers"} / (windows_cs_physical_memory_bytes{job=~"Windows_Servers"} - 0) * 100)',
-    "C_Drive": '(windows_logical_disk_size_bytes{job=~"Windows_Servers", volume="C:"} - windows_logical_disk_free_bytes{job=~"Windows_Servers", volume="C:"}) / windows_logical_disk_size_bytes{job=~"Windows_Servers", volume="C:"} * 100'
+url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
+headers = {
+    'Content-Type': 'application/x-www-form-urlencoded'
+}
+body = {
+    'grant_type': 'client_credentials',
+    'client_id': client_id,
+    'client_secret': client_secret,
+    'resource': 'https://analysis.windows.net/powerbi/api'
 }
 
-# Time range: last 24 hours
-end_time = datetime.now()
-start_time = end_time - timedelta(hours=24)
-start_time_unix = int(start_time.timestamp())
-end_time_unix = int(end_time.timestamp())
+response = requests.post(url, headers=headers, data=body)
+token = response.json().get('access_token')
 
-# Function to query Prometheus
-def query_prometheus(query, start_time, end_time, step=60):
-    response = requests.get(prometheus_url, params={
-        'query': query,
-        'start': start_time,
-        'end': end_time,
-        'step': step
-    })
-    if response.status_code == 200:
-        return response.json()['data']['result']
-    else:
-        raise Exception(f"Query failed with status code {response.status_code}: {response.text}")
+api_url = f"https://api.powerbi.com/v1.0/myorg/groups/{group_id}/datasets/{dataset_id}/refreshes"
+headers = {
+    'Authorization': f'Bearer {token}'
+}
+response = requests.get(api_url, headers=headers)
+refresh_history = response.json().get('value', [])
 
-# Function to extract and summarize data
-def extract_data(query_result):
-    data = {}
-    for entry in query_result:
-        instance = entry['metric'].get('instance', 'Unknown')
-        values = [float(v[1]) for v in entry['values']]
-        if instance not in data:
-            data[instance] = {"Max": max(values), "Avg": sum(values) / len(values)}
-    return data
+file_path = "refresh_history.txt"
+with open(file_path, "w") as file:
+    for refresh in refresh_history:
+        file.write(f"Request ID: {refresh.get('requestId')}\n")
+        file.write(f"Start Time: {refresh.get('startTime')}\n")
+        file.write(f"End Time: {refresh.get('endTime')}\n")
+        file.write(f"Status: {refresh.get('status')}\n")
+        file.write("-----------------------------------\n")
 
-# Collect data from Prometheus
-collected_data = {}
-for metric_name, query in queries.items():
-    try:
-        result = query_prometheus(query, start_time_unix, end_time_unix)
-        collected_data[metric_name] = extract_data(result)
-    except Exception as e:
-        print(f"Failed to collect {metric_name} data: {e}")
-
-# Prepare data for the final DataFrame
-rows = []
-instances = set(
-    inst for metrics in collected_data.values() for inst in metrics
-)  # Collect all unique instances
-
-for instance in instances:
-    row = {
-        "Instance": instance,
-        "Max_CPU": collected_data.get("Max_CPU", {}).get(instance, {}).get("Max", None),
-        "Avg_CPU": collected_data.get("Avg_CPU", {}).get(instance, {}).get("Avg", None),
-        "Max_Memory": collected_data.get("Max_Memory", {}).get(instance, {}).get("Max", None),
-        "Avg_Memory": collected_data.get("Avg_Memory", {}).get(instance, {}).get("Avg", None),
-        "C_Drive": collected_data.get("C_Drive", {}).get(instance, {}).get("Avg", None),  # Assuming we only need avg here
-    }
-    rows.append(row)
-
-# Create DataFrame and save to CSV
-df = pd.DataFrame(rows)
-filename = f"C:\\Temp\\performance_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-df.to_csv(filename, index=False)
-
-print(f"Data saved to {filename}")
-
-# SFTP details
-sftp_host = '<your_sftp_host>'
-sftp_port = 22
-sftp_username = '<your_username>'
-sftp_password = '<your_password>'
-sftp_target_directory = '/Network_devices_Backup/Performance_metrics'
-
-# Function to upload the CSV to SFTP
-def upload_to_sftp(local_file_path):
-    try:
-        transport = paramiko.Transport((sftp_host, sftp_port))
-        transport.connect(username=sftp_username, password=sftp_password)
-        sftp = paramiko.SFTPClient.from_transport(transport)
-
-        # Navigate or create target directory
-        try:
-            sftp.chdir(sftp_target_directory)
-        except IOError:
-            sftp.mkdir(sftp_target_directory)
-            sftp.chdir(sftp_target_directory)
-
-        # Upload the file
-        file_name = os.path.basename(local_file_path)
-        sftp.put(local_file_path, f"{sftp_target_directory}/{file_name}")
-        print(f"File {file_name} uploaded successfully.")
-
-        # Verify upload
-        if file_name in sftp.listdir(sftp_target_directory):
-            print(f"File {file_name} verified on server.")
-        else:
-            print(f"File {file_name} not found on server.")
-
-        # Delete local file after upload
-        if os.path.exists(local_file_path):
-            os.remove(local_file_path)
-            print(f"Local file {local_file_path} deleted.")
-
-        # Close connection
-        sftp.close()
-        transport.close()
-
-    except Exception as e:
-        print(f"SFTP upload failed: {e}")
-
-# Upload the CSV to SFTP
-upload_to_sftp(filename)
+print(f"Refresh history saved to {file_path}")
