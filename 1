@@ -1,39 +1,143 @@
-import requests
+import os
+import shutil
+import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+import config  # Ensure config file contains necessary credentials
 
-tenant_id = "your-tenant-id"
-client_id = "your-client-id"
-client_secret = "your-client-secret"
-group_id = "your-group-id"
-dataset_id = "your-dataset-id"
+# Function to sign in to Microsoft account
+def sign_in(driver, email, password):
+    EMAILFIELD = (By.ID, "i0116")
+    PASSWORDFIELD = (By.ID, "i0118")
+    NEXTBUTTON = (By.ID, "idSIButton9")
+    
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EMAILFIELD)).send_keys(email)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(PASSWORDFIELD)).send_keys(password)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
 
-url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
-headers = {
-    'Content-Type': 'application/x-www-form-urlencoded'
-}
-body = {
-    'grant_type': 'client_credentials',
-    'client_id': client_id,
-    'client_secret': client_secret,
-    'resource': 'https://analysis.windows.net/powerbi/api'
-}
+    try:
+        stay_signed_in_popup = WebDriverWait(driver, 10).until(
+            EC.visibility_of_element_located((By.XPATH, "//div[contains(text(), 'Stay signed in?')]"))
+        )
+        if stay_signed_in_popup:
+            no_button = driver.find_element(By.XPATH, "//input[@value='No']")
+            no_button.click()
+    except:
+        pass
 
-response = requests.post(url, headers=headers, data=body)
-token = response.json().get('access_token')
+# Function to access the system and navigate to System Health page
+def access_system_health(driver, ip, username, password):
+    # Bypass the security warnings if any
+    try:
+        advanced_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "details-button")))
+        advanced_button.click()
+        proceed_link = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "proceed-link")))
+        proceed_link.click()
+    except Exception as e:
+        print(f"No advanced option found or proceed (unsafe) link: {e}")
 
-api_url = f"https://api.powerbi.com/v1.0/myorg/groups/{group_id}/datasets/{dataset_id}/refreshes"
-headers = {
-    'Authorization': f'Bearer {token}'
-}
-response = requests.get(api_url, headers=headers)
-refresh_history = response.json().get('value', [])
+    # Log in to the system
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "username"))).send_keys(username)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "password"))).send_keys(password)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "submit"))).click()
 
-file_path = "refresh_history.txt"
-with open(file_path, "w") as file:
-    for refresh in refresh_history:
-        file.write(f"Request ID: {refresh.get('requestId')}\n")
-        file.write(f"Start Time: {refresh.get('startTime')}\n")
-        file.write(f"End Time: {refresh.get('endTime')}\n")
-        file.write(f"Status: {refresh.get('status')}\n")
-        file.write("-----------------------------------\n")
+    # Click on the "System Health" tab
+    try:
+        system_health_tab = WebDriverWait(driver, 30).until(
+            EC.element_to_be_clickable((By.XPATH, "//a[@routerlink='/dashboard/system-health']"))
+        )
+        system_health_tab.click()
+        time.sleep(10)  # Wait for the page to load
+    except Exception as e:
+        print(f"Failed to open System Health page: {e}")
 
-print(f"Refresh history saved to {file_path}")
+# Function to set zoom level and capture screenshot
+def capture_screenshot(driver, filename):
+    # Set zoom level to 33%
+    driver.execute_cdp_cmd('Page.setDeviceMetricsOverride', {
+        'width': 1920,
+        'height': 1080,
+        'deviceScaleFactor': 1,
+        'mobile': False,
+        'scale': 0.33
+    })
+    time.sleep(2)  # Allow time for zoom to apply
+    driver.save_screenshot(filename)  # Capture the screenshot
+
+# Function to send email with the screenshot
+def send_email(owner_email, screenshot_filename):
+    smtp_server = "smtp-mail.outlook.com"
+    smtp_port = 25
+    sender_email = config.SENDER_EMAIL
+    password = config.SENDER_PASSWORD
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = owner_email
+    msg['Subject'] = "System Health Screenshot"
+
+    body = """
+    <html>
+    <body>
+        <p>Hi team,</p>
+        <p>Please find the System Health screenshot attached below:</p>
+        <p><img src="cid:{filename}" width="800"></p>
+        <p>Thanks & Regards,<br> Yash Srivastava</p>
+    </body>
+    </html>
+    """.format(filename=os.path.basename(screenshot_filename))
+
+    msg.attach(MIMEText(body, "html"))
+
+    with open(screenshot_filename, "rb") as f:
+        img = MIMEImage(f.read())
+        img.add_header("Content-Disposition", "inline", filename=os.path.basename(screenshot_filename))
+        img.add_header("Content-ID", f"<{os.path.basename(screenshot_filename)}>")
+        msg.attach(img)
+
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(sender_email, password)
+        server.send_message(msg)
+
+# Main execution
+if __name__ == "__main__":
+    # Ensure Temp directory exists
+    if not os.path.exists("Temp"):
+        os.makedirs("Temp")
+
+    driver = webdriver.Chrome(service=Service("C:\\path\\to\\chromedriver.exe"))
+    driver.maximize_window()
+
+    # Sign in to Microsoft account
+    driver.get('https://login.microsoftonline.com/')
+    sign_in(driver, config.LOGIN_USER, config.LOGIN_PASSWORD)
+
+    # List of IPs to automate
+    ips = ["10.20.1.3", "10.20.1.4", "10.20.1.5"]
+
+    # Loop through each IP, navigate to System Health, capture screenshot, and send email
+    for ip in ips:
+        try:
+            driver.get(f"https://{ip}/")
+            access_system_health(driver, ip, config.SITE_USER, config.SITE_PASSWORD)
+
+            # Capture screenshot and send it via email
+            screenshot_filename = f"Temp/System_Health_{ip.replace('.', '_')}.png"
+            capture_screenshot(driver, screenshot_filename)
+            send_email("yash.srivastava@fareportal.com", screenshot_filename)
+
+        except Exception as e:
+            print(f"An error occurred for IP {ip}: {e}")
+
+    # Clean up
+    driver.quit()
+    shutil.rmtree("Temp")
