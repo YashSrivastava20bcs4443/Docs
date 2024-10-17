@@ -1,15 +1,20 @@
 import os
 import time
 import shutil
+import smtplib
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from PIL import Image  # For combining screenshots
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+import config  # Import your config variables
 
 def login_and_open_system_health(driver, ip, username, password):
     """Log into the site and navigate to the System Health page."""
     try:
-        # Handle any security warnings
+        # Handle security warnings
         advanced_button = driver.find_element(By.ID, "details-button")
         advanced_button.click()
         proceed_link = driver.find_element(By.ID, "proceed-link")
@@ -17,7 +22,7 @@ def login_and_open_system_health(driver, ip, username, password):
     except:
         print("No security warning.")
 
-    # Perform login
+    # Login process
     driver.find_element(By.ID, "username").send_keys(username)
     driver.find_element(By.ID, "password").send_keys(password)
     driver.find_element(By.XPATH, "//button[contains(text(), 'LOG IN')]").click()
@@ -29,24 +34,18 @@ def login_and_open_system_health(driver, ip, username, password):
 
 def capture_full_page_screenshot(driver, filename):
     """Capture a full-page screenshot using JavaScript scrolling."""
-    # Get the total height of the page
     total_height = driver.execute_script("return document.body.scrollHeight")
     viewport_height = driver.execute_script("return window.innerHeight")
-
-    # List to store temporary screenshot paths
     screenshots = []
 
     for scroll_position in range(0, total_height, viewport_height):
-        # Scroll to the next section
         driver.execute_script(f"window.scrollTo(0, {scroll_position});")
         time.sleep(1)  # Wait for rendering
 
-        # Take a screenshot and save it
         screenshot_path = f"Temp/screenshot_{scroll_position}.png"
         driver.save_screenshot(screenshot_path)
         screenshots.append(screenshot_path)
 
-    # Stitch the screenshots into a single image
     stitch_screenshots(screenshots, filename)
 
 def stitch_screenshots(screenshots, output_filename):
@@ -55,9 +54,7 @@ def stitch_screenshots(screenshots, output_filename):
     total_width = images[0].width
     total_height = sum(img.height for img in images)
 
-    # Create a new blank image to hold the stitched screenshots
     stitched_image = Image.new('RGB', (total_width, total_height))
-
     y_offset = 0
     for img in images:
         stitched_image.paste(img, (0, y_offset))
@@ -69,9 +66,41 @@ def stitch_screenshots(screenshots, output_filename):
     for screenshot in screenshots:
         os.remove(screenshot)
 
+def send_email(owner_email, screenshot_filename):
+    """Send an email with the screenshot attached."""
+    smtp_server = "smtp-mail.outlook.com"
+    smtp_port = 25
+    sender_email = config.SENDER_EMAIL
+    password = config.SENDER_PASSWORD
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = owner_email
+    msg['Subject'] = "System Health Screenshot"
+
+    body = """
+    <html>
+    <body>
+        <p>Hi team,</p>
+        <p>Please find the System Health screenshot attached below:</p>
+        <p>Thanks & Regards,<br>Yash Srivastava</p>
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(body, "html"))
+
+    with open(screenshot_filename, "rb") as f:
+        img = MIMEImage(f.read())
+        img.add_header("Content-Disposition", "inline", filename=os.path.basename(screenshot_filename))
+        msg.attach(img)
+
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(sender_email, password)
+        server.send_message(msg)
+
 def main():
     """Main execution logic."""
-    # Ensure Temp directory exists
     if not os.path.exists("Temp"):
         os.makedirs("Temp")
 
@@ -79,15 +108,15 @@ def main():
     driver.maximize_window()
 
     try:
-        # Access the System Health page and capture a screenshot
         driver.get("https://10.1.3.96/")
-        login_and_open_system_health(driver, "10.1.3.96", "your_username", "your_password")
+        login_and_open_system_health(driver, "10.1.3.96", config.SITE_USER, config.SITE_PASSWORD)
 
-        # Capture the full page screenshot
         screenshot_filename = "Temp/System_Health_Full_Page.png"
         capture_full_page_screenshot(driver, screenshot_filename)
 
         print(f"Screenshot saved at {screenshot_filename}")
+
+        send_email("yash.srivastava@fareportal.com", screenshot_filename)
     finally:
         driver.quit()
         shutil.rmtree("Temp")
