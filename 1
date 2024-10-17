@@ -1,5 +1,17 @@
-# Function to set zoom using JavaScript
-def set_zoom(driver, zoom_level):
-    zoom_script = f"document.body.style.zoom='{zoom_level}'"
-    driver.execute_script(zoom_script)
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
+
+# Function to simulate zoom out using Ctrl + '-'
+def set_zoom(driver, zoom_out_steps):
+    actions = ActionChains(driver)
+    # Hold down the CTRL key
+    actions.key_down(Keys.CONTROL)
+
+    # Press the '-' key 'zoom_out_steps' number of times
+    for _ in range(zoom_out_steps):
+        actions.send_keys(Keys.SUBTRACT)  # This is equivalent to '-'
+
+    # Release the CTRL key
+    actions.key_up(Keys.CONTROL)
+    actions.perform()
     time.sleep(2)  # Allow the zoom to take effect
