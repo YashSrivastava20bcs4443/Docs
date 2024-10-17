@@ -1,31 +1,5 @@
-# Function to take a full-page screenshot
-def get_full_page_screenshot(driver, filename):
-    # Get full width and height of the webpage
-    width = driver.execute_script("""
-        return Math.max(
-            document.body.scrollWidth,
-            document.body.offsetWidth,
-            document.documentElement.clientWidth,
-            document.documentElement.scrollWidth,
-            document.documentElement.offsetWidth
-        );
-    """)
-
-    height = driver.execute_script("""
-        return Math.max(
-            document.body.scrollHeight,
-            document.body.offsetHeight,
-            document.documentElement.clientHeight,
-            document.documentElement.scrollHeight,
-            document.documentElement.offsetHeight
-        );
-    """)
-
-    # Set the window size to match the entire webpage
-    driver.set_window_size(width, height)
-    time.sleep(2)  # Allow time for the page to render
-
-    # Find the full page element (usually 'body') and capture the screenshot
-    full_page = driver.find_element(By.TAG_NAME, "body")
-    full_page.screenshot(filename)  # Save screenshot
-    print(f"Screenshot saved: {filename}")
+# Function to set zoom using JavaScript
+def set_zoom(driver, zoom_level):
+    zoom_script = f"document.body.style.zoom='{zoom_level}'"
+    driver.execute_script(zoom_script)
+    time.sleep(2)  # Allow the zoom to take effect
