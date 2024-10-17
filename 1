@@ -1,111 +1,31 @@
-import os
-import time
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
-import config
-
 # Function to take a full-page screenshot
 def get_full_page_screenshot(driver, filename):
-    # Adjust the window size to capture the entire page
-    total_height = driver.execute_script("return document.body.scrollHeight")
-    total_width = driver.execute_script("return document.body.scrollWidth")
-    
-    driver.set_window_size(total_width, total_height)  # Set window size
+    # Get full width and height of the webpage
+    width = driver.execute_script("""
+        return Math.max(
+            document.body.scrollWidth,
+            document.body.offsetWidth,
+            document.documentElement.clientWidth,
+            document.documentElement.scrollWidth,
+            document.documentElement.offsetWidth
+        );
+    """)
+
+    height = driver.execute_script("""
+        return Math.max(
+            document.body.scrollHeight,
+            document.body.offsetHeight,
+            document.documentElement.clientHeight,
+            document.documentElement.scrollHeight,
+            document.documentElement.offsetHeight
+        );
+    """)
+
+    # Set the window size to match the entire webpage
+    driver.set_window_size(width, height)
     time.sleep(2)  # Allow time for the page to render
 
-    driver.save_screenshot(filename)  # Save screenshot
+    # Find the full page element (usually 'body') and capture the screenshot
+    full_page = driver.find_element(By.TAG_NAME, "body")
+    full_page.screenshot(filename)  # Save screenshot
     print(f"Screenshot saved: {filename}")
-
-# Function to log in and navigate to the "System Health" page
-def access_system_health(driver, url, username, password):
-    driver.get(url)  # Open the URL
-
-    try:
-        # Handle security warnings if present
-        advanced_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "details-button")))
-        advanced_button.click()
-        proceed_link = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "proceed-link")))
-        proceed_link.click()
-    except:
-        print("No security warning found.")
-
-    # Perform Login
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "username"))).send_keys(username)
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "password"))).send_keys(password)
-
-    login_button = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[@type='submit' and contains(text(), 'LOG IN')]"))
-    )
-    login_button.click()
-
-    # Navigate to System Health page
-    system_health_link = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, "//a[@routerlink='/dashboard/system-health']"))
-    )
-    system_health_link.click()
-
-    time.sleep(5)  # Wait for the page to fully load
-
-# Function to send email with the screenshot
-def send_email(owner_email, screenshot_filename):
-    smtp_server = "smtp-mail.outlook.com"
-    smtp_port = 587  # Use 587 for TLS
-    sender_email = config.SENDER_EMAIL
-    password = config.SENDER_PASSWORD
-
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = owner_email
-    msg['Subject'] = "System Health Screenshot"
-
-    body = """
-    <html>
-    <body>
-        <p>Hi team,</p>
-        <p>Please find the System Health screenshot attached below:</p>
-        <p><img src="cid:{filename}"></p>
-        <p>Thanks & Regards,<br>Yash Srivastava</p>
-    </body>
-    </html>
-    """.format(filename=os.path.basename(screenshot_filename))
-
-    msg.attach(MIMEText(body, "html"))
-
-    with open(screenshot_filename, "rb") as f:
-        img = MIMEImage(f.read())
-        img.add_header("Content-ID", f"<{os.path.basename(screenshot_filename)}>")
-        msg.attach(img)
-
-    with smtplib.SMTP(smtp_server, smtp_port) as server:
-        server.starttls()  # Start TLS encryption
-        server.login(sender_email, password)
-        server.send_message(msg)
-
-# Main execution
-if __name__ == "__main__":
-    # Ensure Temp directory exists
-    if not os.path.exists("Temp"):
-        os.makedirs("Temp")
-
-    # Initialize the Chrome WebDriver
-    driver = webdriver.Chrome(service=Service("C:\\path\\to\\chromedriver.exe"))
-
-    try:
-        # Access the system health page
-        access_system_health(driver, "https://10.1.3.96/", config.SITE_USER, config.SITE_PASSWORD)
-
-        # Take a full-page screenshot
-        screenshot_filename = "Temp/System_Health_screenshot.png"
-        get_full_page_screenshot(driver, screenshot_filename)
-
-        # Send the screenshot via email
-        send_email("recipient@example.com", screenshot_filename)  # Change to the recipient's email
-    finally:
-        driver.quit()  # Close the browser
