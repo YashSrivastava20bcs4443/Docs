@@ -1,17 +1,5 @@
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
+As I recall, during our last call, we discussed your requirements and you shared a couple of scripts with us – one storing data into a text file and another that utilizes REST APIs. We are currently working with the REST API approach; however, the GroupID and DatasetID are not mentioned in the script you provided.
 
-# Function to simulate zoom out using Ctrl + '-'
-def set_zoom(driver, zoom_out_steps):
-    actions = ActionChains(driver)
-    # Hold down the CTRL key
-    actions.key_down(Keys.CONTROL)
+To proceed with testing, we need these IDs, which is why I’m reaching out to request them. Without them, we're unable to move forward with the test.
 
-    # Press the '-' key 'zoom_out_steps' number of times
-    for _ in range(zoom_out_steps):
-        actions.send_keys(Keys.SUBTRACT)  # This is equivalent to '-'
-
-    # Release the CTRL key
-    actions.key_up(Keys.CONTROL)
-    actions.perform()
-    time.sleep(2)  # Allow the zoom to take effect
+If you need more clarification on why we require these, we can certainly discuss it during our next scheduled call. We are almost ready with the script, and once we have the required IDs, we’ll be able to proceed with testing smoothly.
