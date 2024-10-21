@@ -1,1 +1,80 @@
+---
+- name: Capture Pre-Change Configuration of FortiGate Firewalls
+  hosts: forti1
+  gather_facts: no
+  vars:
+    backup_base_dir: /home/yash/fortigate_configs
+    current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
+    
 
+  tasks:
+    - name: Ensure backup directory exists on localhost
+      ansible.builtin.file:
+        path: "{{ backup_base_dir }}/{{ inventory_hostname }}"
+        state: directory
+      delegate_to: localhost
+
+    - name: SCP Pre-Change Configuration to Local Machine using expect
+      ansible.builtin.expect:
+        command: "scp admin@192.168.31.2:sys_config {{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}_pre_change.conf"
+        responses:
+          "assword:": "{{ ansible_ssh_pass }}"
+        timeout: 60
+      delegate_to: localhost
+      ignore_errors: no
+
+
+
+---
+- name: Capture Post-Change Configuration of FortiGate Firewalls
+  hosts: forti1
+  gather_facts: no
+  vars:
+    backup_base_dir: /home/yash/fortigate_configs
+    current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
+    report_dir: "/home/yash/reports"
+    pre_config_path: "{{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}_pre_change.conf"
+    post_config_path: "{{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}_post_change.conf"
+
+  tasks:
+    - name: Ensure backup directory exists on localhost for post-change
+      ansible.builtin.file:
+        path: "{{ backup_base_dir }}/{{ inventory_hostname }}"
+        state: directory
+      delegate_to: localhost
+
+    - name: SCP Post-Change Configuration to Local Machine using expect
+      ansible.builtin.expect:
+        command: "scp admin@192.168.31.2:sys_config {{ post_config_path }}"
+        responses:
+          "assword:": "{{ ansible_ssh_pass }}"
+        timeout: 60
+      delegate_to: localhost
+      ignore_errors: no
+
+    - name: Compare pre- and post-change configurations
+      command: "diff {{ pre_config_path }} {{ post_config_path }}"
+      register: config_diff
+      delegate_to: localhost
+      ignore_errors: yes  # This ensures the playbook doesn't fail if no differences are found
+
+    - name: Check if any changes were detected
+      fail:
+        msg: "No configuration changes detected for {{ inventory_hostname }}."
+      when: config_diff.stdout == ""
+
+    - name: Generate change report
+      copy:
+        content: |
+          Configuration Changes Report for {{ inventory_hostname }}
+          ----------------------------------------------------
+          Time of Check: {{ lookup('pipe', 'date +%Y-%m-%d %H:%M:%S') }}
+          
+          Changes:
+          {{ config_diff.stdout }}
+        dest: "{{ report_dir }}/{{ inventory_hostname }}_config_change_report_{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}.txt"
+      delegate_to: localhost
+
+    - name: Display the report location
+      debug:
+        msg: "Configuration changes report generated at: {{ report_dir }}/{{ inventory_hostname }}_config_change_report_{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}.txt"
