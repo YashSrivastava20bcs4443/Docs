@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.keys import Keys
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -39,11 +39,16 @@ def access_system_health(driver, ip, username, password):
         EC.element_to_be_clickable((By.XPATH, "//a[@routerlink='/dashboard/system-health']"))
     )
     system_health_link.click()
-    time.sleep(10)  # Allow the page to load
+    time.sleep(5)  # Allow the page to load
 
-# Function to take a full-page screenshot in headless mode
-def take_full_page_screenshot(driver, filename):
-    # Headless mode automatically captures the full page
+# Function to zoom out 6 times by pressing Ctrl + "-" 6 times
+def zoom_out(driver):
+    for _ in range(6):
+        driver.find_element(By.TAG_NAME, 'body').send_keys(Keys.CONTROL, Keys.SUBTRACT)
+        time.sleep(0.5)  # Small delay between key presses
+
+# Function to take a screenshot
+def take_screenshot(driver, filename):
     driver.save_screenshot(filename)
 
 # Function to send email with the screenshot
@@ -87,23 +92,20 @@ if __name__ == "__main__":
     if not os.path.exists("Temp"):
         os.makedirs("Temp")
 
-    # Setup Chrome options for headless mode
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Run Chrome in headless mode
-    chrome_options.add_argument("--window-size=1920x1080")  # Set initial window size for headless mode
-    chrome_options.add_argument("--disable-gpu")  # Optional: Disable GPU if using headless mode on some systems
-    chrome_options.add_argument("--no-sandbox")  # Optional: Bypass OS security model, useful for CI environments
-
-    driver = webdriver.Chrome(service=Service("C:\\Users\\y.s.va22\\Downloads\\syseng_automation\\chromedriver.exe"), options=chrome_options)
+    driver = webdriver.Chrome(service=Service("C:\\Users\\y.s.va22\\Downloads\\syseng_automation\\chromedriver.exe"))
+    driver.maximize_window()
 
     # Access system health page and take screenshot
     try:
         driver.get("https://10.1.3.96/")
         access_system_health(driver, "10.1.3.96", config.SITE_USER, config.SITE_PASSWORD)
 
-        # Take a full-page screenshot
+        # Zoom out 6 times (Ctrl + "-" 6 times)
+        zoom_out(driver)
+
+        # Take the screenshot
         screenshot_filename = "Temp/System_Health_screenshot.png"
-        take_full_page_screenshot(driver, screenshot_filename)
+        take_screenshot(driver, screenshot_filename)
 
         # Send the screenshot via email
         send_email("yash.srivastava@fareportal.com", screenshot_filename)
