@@ -1,1 +1,127 @@
+import requests
+import pandas as pd
+import paramiko
+import os
+from datetime import datetime, timedelta
+
+# Prometheus server details
+prometheus_url = "https://prometheus.apl.com/api/v1/query_range"
+
+# Time range: last 24 hours
+end_time = datetime.now()
+start_time = end_time - timedelta(hours=24)
+start_time_unix = int(start_time.timestamp())
+end_time_unix = int(end_time.timestamp())
+
+# Function to query Prometheus
+def query_prometheus(query, start_time, end_time, step=1440):
+    response = requests.get(prometheus_url, params={
+        'query': query,
+        'start': start_time,
+        'end': end_time,
+        'step': step
+    })
+    if response.status_code == 200:
+        return response.json()['data']['result']
+    else:
+        raise Exception(f"Query Failed with the status code: {response.status_code}: {response.text}")
+
+# Define the queries
+queries = {
+    "Avg_Memory": '100 * (1 - ((avg_over_time(node_memory_MemFree_bytes{job="Linux_Servers"}[2m]) + avg_over_time(node_memory_Cached_bytes{job="Linux_Servers"}[2m]) + avg_over_time(node_memory_Buffers_bytes{job="Linux_Servers"}[2m])) / avg_over_time(node_memory_MemTotal_bytes{job="Linux_Servers"}[2m])))',
+    "Avg_Cpu": '100 - (avg by(instance) (rate(node_cpu_seconds_total{job="Linux_Servers", mode="idle"}[2m])) * 100)',
+    "(/)Util": '100 - ((node_filesystem_avail_bytes{job="Linux_Servers", mountpoint="/"} * 100) / node_filesystem_size_bytes{job="Linux_Servers", mountpoint="/"} )',
+    "Max_Memory": 'max by (instance)((node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100)',
+    "Max_Cpu": '100 * max(1 - rate(node_cpu_seconds_total{mode="idle",job = "Linux_Servers"}[5m])) by (instance)'
+}
+
+data = {}
+
+for name, query in queries.items():
+    try:
+        result = query_prometheus(query, start_time_unix, end_time_unix, step=1440)
+        for item in result:
+            instance = item['metric']['instance']
+            value = float(item['value'][1])
+            if instance not in data:
+                data[instance] = {}
+            data[instance][name] = value
+    except Exception as e:
+        print(f"Failed to run query {name}: {e}")
+
+# Prepare data for CSV export
+hostname = []
+avg_cpu = []
+avg_memory = []
+max_cpu = []
+max_memory = []
+_util = []
+
+for instance, metrics in data.items():
+    hostname.append(instance)
+    avg_cpu.append(metrics.get("Avg_Cpu", None))
+    avg_memory.append(metrics.get("Avg_Memory", None))
+    max_cpu.append(metrics.get("Max_Cpu", None))
+    max_memory.append(metrics.get("Max_Memory", None))
+    _util.append(metrics.get("(/)Util", None))
+
+df = pd.DataFrame({
+    "Hostname": hostname,
+    "Avg_CPU Util. %": avg_cpu,
+    "Avg_Memory Util. %": avg_memory,
+    "Max_Memory Util. %": max_memory,
+    "Max_CPU Util. %": max_cpu,
+    "(/) Util. %": _util
+})
+
+# Save to CSV
+current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+local_file_path = f'/tmp/Last_24_hr_Linux_Performance_metrics_{current_time}.csv'
+df.to_csv(local_file_path, index=False)
+print("Data exported to CSV.")
+
+# SFTP Details
+sftp_host = '10.1.23.5'
+sftp_port = 22
+sftp_username = 'yash'
+sftp_password = os.getenv('SFTP_PASSWORD')
+sftp_target_directory = '/Network_devices_Backup/Performance_metrics'
+
+# Function to upload CSV to SFTP
+def upload_to_sftp(local_file_path, sftp_host, sftp_port, sftp_username, sftp_password, sftp_target_directory):
+    try:
+        transport = paramiko.Transport((sftp_host, sftp_port))
+        transport.connect(username=sftp_username, password=sftp_password)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+
+        try:
+            sftp.chdir(sftp_target_directory)
+        except IOError:
+            sftp.mkdir(sftp_target_directory)
+            sftp.chdir(sftp_target_directory)
+
+        file_name = os.path.basename(local_file_path)
+        sftp.put(local_file_path, f"{sftp_target_directory}/{file_name}")
+        print(f"File {file_name} uploaded successfully to {sftp_target_directory}")
+
+        # Verify upload
+        files_in_directory = sftp.listdir(sftp_target_directory)
+        if file_name in files_in_directory:
+            print(f"File {file_name} successfully listed in {sftp_target_directory}")
+        else:
+            print(f"File {file_name} not found in {sftp_target_directory}.")
+
+        # Close connection
+        sftp.close()
+        transport.close()
+
+        # Remove local file
+        if os.path.exists(local_file_path):
+            os.remove(local_file_path)
+            print(f"Local file {local_file_path} deleted successfully.")
+    except Exception as e:
+        print(f"Failed to upload file: {e}")
+
+# Upload the generated CSV to SFTP
+upload_to_sftp(local_file_path, sftp_host, sftp_port, sftp_username, sftp_password, sftp_target_directory)
 
