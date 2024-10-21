@@ -1,116 +1,44 @@
-import os
-import shutil
-import time
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
-import config
+import requests
 
-# Function to log in and navigate to the "System Health" page
-def access_system_health(driver, ip, username, password):
-    try:
-        # Handle security warning, if present
-        advanced_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "details-button")))
-        advanced_button.click()
-        proceed_link = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "proceed-link")))
-        proceed_link.click()
-    except:
-        print("No security warning found or bypassed.")
+# Define variables
+tenant_id = "your-tenant-id"
+client_id = "your-client-id"
+client_secret = "your-client-secret"
 
-    # Log in to the system
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "username"))).send_keys(username)
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "password"))).send_keys(password)
-    
-    # Locate and click the LOG IN button
-    login_button = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[@type='submit' and contains(text(), 'LOG IN')]"))
-    )
-    login_button.click()
+# Get an authentication token
+url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
+headers = {
+    'Content-Type': 'application/x-www-form-urlencoded'
+}
+body = {
+    'grant_type': 'client_credentials',
+    'client_id': client_id,
+    'client_secret': client_secret,
+    'resource': 'https://analysis.windows.net/powerbi/api'
+}
 
-    # Navigate to the "System Health" page
-    system_health_link = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, "//a[@routerlink='/dashboard/system-health']"))
-    )
-    system_health_link.click()
-    time.sleep(5)  # Allow the page to load
+response = requests.post(url, headers=headers, data=body)
+token = response.json().get('access_token')
 
-# Function to zoom out 6 times by pressing Ctrl + "-" 6 times using ActionChains
-def zoom_out(driver):
-    action = ActionChains(driver)
-    for _ in range(6):
-        action.key_down(Keys.CONTROL).send_keys(Keys.SUBTRACT).key_up(Keys.CONTROL).perform()
-        time.sleep(0.5)  # Small delay between key presses
+# Define the REST API URL for workspaces
+api_url = "https://api.powerbi.com/v1.0/myorg/groups"
+headers = {
+    'Authorization': f'Bearer {token}'
+}
 
-# Function to take a screenshot
-def take_screenshot(driver, filename):
-    driver.save_screenshot(filename)
+# Make the API request to get the list of workspaces
+response = requests.get(api_url, headers=headers)
+workspaces = response.json().get('value', [])
 
-# Function to send email with the screenshot
-def send_email(owner_email, screenshot_filename):
-    smtp_server = "smtp-mail.outlook.com"
-    smtp_port = 25
-    sender_email = config.SENDER_EMAIL
-    password = config.SENDER_PASSWORD
+# Filter the workspaces with name "Data Lab"
+data_lab_workspaces = [workspace for workspace in workspaces if workspace.get('name') == "Data Lab"]
 
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = owner_email
-    msg['Subject'] = "System Health Screenshot"
-
-    body = """
-    <html>
-    <body>
-        <p>Hi team,</p>
-        <p>Please find the System Health screenshot attached below:</p>
-        <p><img src="cid:{filename}"></p>
-        <p>Thanks & Regards,<br>Yash Srivastava</p>
-    </body>
-    </html>
-    """.format(filename=os.path.basename(screenshot_filename))
-    
-    msg.attach(MIMEText(body, "html"))
-
-    with open(screenshot_filename, "rb") as f:
-        img = MIMEImage(f.read())
-        img.add_header("Content-ID", f"<{os.path.basename(screenshot_filename)}>")
-        msg.attach(img)
-
-    with smtplib.SMTP(smtp_server, smtp_port) as server:
-        server.starttls()
-        server.login(sender_email, password)
-        server.send_message(msg)
-
-# Main execution
-if __name__ == "__main__":
-    # Ensure Temp directory exists
-    if not os.path.exists("Temp"):
-        os.makedirs("Temp")
-
-    driver = webdriver.Chrome(service=Service("C:\\Users\\y.s.va22\\Downloads\\syseng_automation\\chromedriver.exe"))
-    driver.maximize_window()
-
-    # Access system health page and take screenshot
-    try:
-        driver.get("https://10.1.3.96/")
-        access_system_health(driver, "10.1.3.96", config.SITE_USER, config.SITE_PASSWORD)
-
-        # Zoom out 6 times (Ctrl + "-" 6 times)
-        zoom_out(driver)
-
-        # Take the screenshot
-        screenshot_filename = "Temp/System_Health_screenshot.png"
-        take_screenshot(driver, screenshot_filename)
-
-        # Send the screenshot via email
-        send_email("yash.srivastava@fareportal.com", screenshot_filename)
-    finally:
-        driver.quit()
-        shutil.rmtree("Temp")
+# Output the workspace details
+if data_lab_workspaces:
+    for workspace in data_lab_workspaces:
+        print(f"Workspace ID: {workspace.get('id')}")
+        print(f"Workspace Name: {workspace.get('name')}")
+        print(f"Workspace IsReadOnly: {workspace.get('isReadOnly')}")
+        print("-----------------------------------")
+else:
+    print("No workspaces found with the name 'Data Lab'.")
