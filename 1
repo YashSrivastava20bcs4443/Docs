@@ -1,80 +1,116 @@
----
-- name: Capture Pre-Change Configuration of FortiGate Firewalls
-  hosts: forti1
-  gather_facts: no
-  vars:
-    backup_base_dir: /home/yash/fortigate_configs
-    current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
+import os
+import shutil
+import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+import config
+
+# Function to set zoom level using JavaScript
+def set_zoom(driver, zoom_level):
+    driver.execute_script(f"document.body.style.zoom='{zoom_level * 100}%'")
+    time.sleep(2)  # Give some time for the zoom to apply
+
+# Function to log in and navigate to the "System Health" page
+def access_system_health(driver, ip, username, password):
+    try:
+        # Handle security warning, if present
+        advanced_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "details-button")))
+        advanced_button.click()
+        proceed_link = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "proceed-link")))
+        proceed_link.click()
+    except:
+        print("No security warning found or bypassed.")
+
+    # Log in to the system
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "username"))).send_keys(username)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "password"))).send_keys(password)
     
+    # Locate and click the LOG IN button
+    login_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[@type='submit' and contains(text(), 'LOG IN')]"))
+    )
+    login_button.click()
 
-  tasks:
-    - name: Ensure backup directory exists on localhost
-      ansible.builtin.file:
-        path: "{{ backup_base_dir }}/{{ inventory_hostname }}"
-        state: directory
-      delegate_to: localhost
+    # Navigate to the "System Health" page
+    system_health_link = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, "//a[@routerlink='/dashboard/system-health']"))
+    )
+    system_health_link.click()
+    time.sleep(10)  # Allow the page to load
 
-    - name: SCP Pre-Change Configuration to Local Machine using expect
-      ansible.builtin.expect:
-        command: "scp admin@192.168.31.2:sys_config {{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}_pre_change.conf"
-        responses:
-          "assword:": "{{ ansible_ssh_pass }}"
-        timeout: 60
-      delegate_to: localhost
-      ignore_errors: no
+# Function to take a screenshot at 33% zoom
+def take_screenshot(driver, filename):
+    # Set zoom to 33%
+    set_zoom(driver, 0.33)
 
+    # Take the screenshot
+    driver.save_screenshot(filename)
 
+    # Reset zoom to 100% (optional)
+    set_zoom(driver, 1)
 
----
-- name: Capture Post-Change Configuration of FortiGate Firewalls
-  hosts: forti1
-  gather_facts: no
-  vars:
-    backup_base_dir: /home/yash/fortigate_configs
-    current_datetime: "{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
-    report_dir: "/home/yash/reports"
-    pre_config_path: "{{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}_pre_change.conf"
-    post_config_path: "{{ backup_base_dir }}/{{ inventory_hostname }}/{{ inventory_hostname }}_{{ current_datetime }}_post_change.conf"
+# Function to send email with the screenshot
+def send_email(owner_email, screenshot_filename):
+    smtp_server = "smtp-mail.outlook.com"
+    smtp_port = 25
+    sender_email = config.SENDER_EMAIL
+    password = config.SENDER_PASSWORD
 
-  tasks:
-    - name: Ensure backup directory exists on localhost for post-change
-      ansible.builtin.file:
-        path: "{{ backup_base_dir }}/{{ inventory_hostname }}"
-        state: directory
-      delegate_to: localhost
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = owner_email
+    msg['Subject'] = "System Health Screenshot"
 
-    - name: SCP Post-Change Configuration to Local Machine using expect
-      ansible.builtin.expect:
-        command: "scp admin@192.168.31.2:sys_config {{ post_config_path }}"
-        responses:
-          "assword:": "{{ ansible_ssh_pass }}"
-        timeout: 60
-      delegate_to: localhost
-      ignore_errors: no
+    body = """
+    <html>
+    <body>
+        <p>Hi team,</p>
+        <p>Please find the System Health screenshot attached below:</p>
+        <p><img src="cid:{filename}"></p>
+        <p>Thanks & Regards,<br>Yash Srivastava</p>
+    </body>
+    </html>
+    """.format(filename=os.path.basename(screenshot_filename))
+    
+    msg.attach(MIMEText(body, "html"))
 
-    - name: Compare pre- and post-change configurations
-      command: "diff {{ pre_config_path }} {{ post_config_path }}"
-      register: config_diff
-      delegate_to: localhost
-      ignore_errors: yes  # This ensures the playbook doesn't fail if no differences are found
+    with open(screenshot_filename, "rb") as f:
+        img = MIMEImage(f.read())
+        img.add_header("Content-ID", f"<{os.path.basename(screenshot_filename)}>")
+        msg.attach(img)
 
-    - name: Check if any changes were detected
-      fail:
-        msg: "No configuration changes detected for {{ inventory_hostname }}."
-      when: config_diff.stdout == ""
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()
+        server.login(sender_email, password)
+        server.send_message(msg)
 
-    - name: Generate change report
-      copy:
-        content: |
-          Configuration Changes Report for {{ inventory_hostname }}
-          ----------------------------------------------------
-          Time of Check: {{ lookup('pipe', 'date +%Y-%m-%d %H:%M:%S') }}
-          
-          Changes:
-          {{ config_diff.stdout }}
-        dest: "{{ report_dir }}/{{ inventory_hostname }}_config_change_report_{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}.txt"
-      delegate_to: localhost
+# Main execution
+if __name__ == "__main__":
+    # Ensure Temp directory exists
+    if not os.path.exists("Temp"):
+        os.makedirs("Temp")
 
-    - name: Display the report location
-      debug:
-        msg: "Configuration changes report generated at: {{ report_dir }}/{{ inventory_hostname }}_config_change_report_{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}.txt"
+    driver = webdriver.Chrome(service=Service("C:\\Users\\y.s.va22\\Downloads\\syseng_automation\\chromedriver.exe"))
+    driver.maximize_window()
+
+    # Access system health page and take screenshot
+    try:
+        driver.get("https://10.1.3.96/")
+        access_system_health(driver, "10.1.3.96", config.SITE_USER, config.SITE_PASSWORD)
+
+        # Take a screenshot at 33% zoom
+        screenshot_filename = "Temp/System_Health_screenshot.png"
+        take_screenshot(driver, screenshot_filename)
+
+        # Send the screenshot via email
+        send_email("yash.srivastava@fareportal.com", screenshot_filename)
+    finally:
+        driver.quit()
+        shutil.rmtree("Temp")
