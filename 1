@@ -7,6 +7,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -41,10 +42,11 @@ def access_system_health(driver, ip, username, password):
     system_health_link.click()
     time.sleep(5)  # Allow the page to load
 
-# Function to zoom out 6 times by pressing Ctrl + "-" 6 times
+# Function to zoom out 6 times by pressing Ctrl + "-" 6 times using ActionChains
 def zoom_out(driver):
+    action = ActionChains(driver)
     for _ in range(6):
-        driver.find_element(By.TAG_NAME, 'body').send_keys(Keys.CONTROL, Keys.SUBTRACT)
+        action.key_down(Keys.CONTROL).send_keys(Keys.SUBTRACT).key_up(Keys.CONTROL).perform()
         time.sleep(0.5)  # Small delay between key presses
 
 # Function to take a screenshot
