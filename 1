@@ -1,44 +1,57 @@
-import requests
+Power BI API: Retrieve Workspace and Dataset Refresh Status with Required Permissions
+To access Power BI workspaces and datasets and retrieve their refresh status via the Power BI API, you need to set specific permissions. These permissions are defined in the Azure Active Directory (AAD) during App Registration. Below is a detailed guide to the permissions and setup required.
 
-# Define variables
-tenant_id = "your-tenant-id"
-client_id = "your-client-id"
-client_secret = "your-client-secret"
+1. Required Permissions for Power BI API Access
+When accessing the Power BI REST API, you must assign API Permissions to your Azure AD App Registration. The required permissions vary based on the actions you intend to perform.
 
-# Get an authentication token
-url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
-headers = {
-    'Content-Type': 'application/x-www-form-urlencoded'
-}
-body = {
-    'grant_type': 'client_credentials',
-    'client_id': client_id,
-    'client_secret': client_secret,
-    'resource': 'https://analysis.windows.net/powerbi/api'
-}
+Delegated Permissions (Used with User Login)
+These permissions allow access only to resources that the signed-in user has access to.
 
-response = requests.post(url, headers=headers, data=body)
-token = response.json().get('access_token')
+Dataset.ReadWrite.All: Allows the user to read and write datasets.
+Dataset.Read.All: Allows the user to read datasets.
+Group.ReadWrite.All: Grants full access to workspaces (groups) available to the user.
+Group.Read.All: Grants read-only access to workspaces available to the user.
+Application Permissions (Used with Service Principal / App-Only Access)
+These allow the app to access Power BI resources across the organization without user interaction.
 
-# Define the REST API URL for workspaces
-api_url = "https://api.powerbi.com/v1.0/myorg/groups"
-headers = {
-    'Authorization': f'Bearer {token}'
-}
+Dataset.ReadWrite.All: Enables app-only access to read and write datasets in all workspaces.
+Group.ReadWrite.All: Grants full app-only access to all workspaces.
+Group.Read.All: Grants app-only read access to all workspaces.
+2. Steps to Set Permissions
+App Registration in Azure Active Directory
+Go to Azure Active Directory in the Azure Portal.
+Create a new App Registration for the Power BI API.
+Save the Client ID and Tenant ID for later use.
+Grant API Permissions
+Under the App Registration, navigate to API Permissions.
+Click on Add a permission → Power BI Service.
+Add the required permissions based on your needs:
+Full Access: Dataset.ReadWrite.All, Group.ReadWrite.All
+Read-Only Access: Dataset.Read.All, Group.Read.All
+If using Application Permissions (Service Principal), click Grant admin consent to authorize the permissions for the tenant.
+Authentication
+Use the Client ID, Client Secret, and Tenant ID from Azure AD to authenticate your app via OAuth2 and obtain an access token.
 
-# Make the API request to get the list of workspaces
-response = requests.get(api_url, headers=headers)
-workspaces = response.json().get('value', [])
+3. Admin Consent Requirements
+Delegated Permissions: These work within the scope of a user's access and usually do not require admin consent unless otherwise specified.
+Application Permissions: Admin consent is mandatory since these permissions allow the app to access resources across the organization without user involvement.
+4. Power BI Roles and Workspace Access
+Power BI Admin Role: If the service principal needs access to all workspaces across the organization, assign it the Power BI Admin role.
+Workspace Role: Ensure the service principal or user has the required role (Admin/Member/Contributor) for the workspaces you need to query.
+5. Optional: Power BI Admin API Permissions
+If you need tenant-wide access to all workspaces or detailed tenant-level information, you might need additional permissions for the Power BI Admin API:
 
-# Filter the workspaces with name "Data Lab"
-data_lab_workspaces = [workspace for workspace in workspaces if workspace.get('name') == "Data Lab"]
+Tenant.Read.All: Grants read-only access to tenant-wide information.
+Summary of Permissions Required
+Dataset Permissions:
 
-# Output the workspace details
-if data_lab_workspaces:
-    for workspace in data_lab_workspaces:
-        print(f"Workspace ID: {workspace.get('id')}")
-        print(f"Workspace Name: {workspace.get('name')}")
-        print(f"Workspace IsReadOnly: {workspace.get('isReadOnly')}")
-        print("-----------------------------------")
-else:
-    print("No workspaces found with the name 'Data Lab'.")
+Dataset.ReadWrite.All (Full access)
+Dataset.Read.All (Read-only access)
+Workspace Permissions:
+
+Group.ReadWrite.All (Full access to workspaces)
+Group.Read.All (Read-only access to workspaces)
+Admin Consent:
+
+Required for application-level permissions or tenant-wide access.
+By configuring these permissions properly, you can retrieve the refresh status and other data from Power BI workspaces and datasets smoothly.
