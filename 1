@@ -1,57 +1,21 @@
-Power BI API: Retrieve Workspace and Dataset Refresh Status with Required Permissions
-To access Power BI workspaces and datasets and retrieve their refresh status via the Power BI API, you need to set specific permissions. These permissions are defined in the Azure Active Directory (AAD) during App Registration. Below is a detailed guide to the permissions and setup required.
+import subprocess
 
-1. Required Permissions for Power BI API Access
-When accessing the Power BI REST API, you must assign API Permissions to your Azure AD App Registration. The required permissions vary based on the actions you intend to perform.
-
-Delegated Permissions (Used with User Login)
-These permissions allow access only to resources that the signed-in user has access to.
-
-Dataset.ReadWrite.All: Allows the user to read and write datasets.
-Dataset.Read.All: Allows the user to read datasets.
-Group.ReadWrite.All: Grants full access to workspaces (groups) available to the user.
-Group.Read.All: Grants read-only access to workspaces available to the user.
-Application Permissions (Used with Service Principal / App-Only Access)
-These allow the app to access Power BI resources across the organization without user interaction.
-
-Dataset.ReadWrite.All: Enables app-only access to read and write datasets in all workspaces.
-Group.ReadWrite.All: Grants full app-only access to all workspaces.
-Group.Read.All: Grants app-only read access to all workspaces.
-2. Steps to Set Permissions
-App Registration in Azure Active Directory
-Go to Azure Active Directory in the Azure Portal.
-Create a new App Registration for the Power BI API.
-Save the Client ID and Tenant ID for later use.
-Grant API Permissions
-Under the App Registration, navigate to API Permissions.
-Click on Add a permission → Power BI Service.
-Add the required permissions based on your needs:
-Full Access: Dataset.ReadWrite.All, Group.ReadWrite.All
-Read-Only Access: Dataset.Read.All, Group.Read.All
-If using Application Permissions (Service Principal), click Grant admin consent to authorize the permissions for the tenant.
-Authentication
-Use the Client ID, Client Secret, and Tenant ID from Azure AD to authenticate your app via OAuth2 and obtain an access token.
-
-3. Admin Consent Requirements
-Delegated Permissions: These work within the scope of a user's access and usually do not require admin consent unless otherwise specified.
-Application Permissions: Admin consent is mandatory since these permissions allow the app to access resources across the organization without user involvement.
-4. Power BI Roles and Workspace Access
-Power BI Admin Role: If the service principal needs access to all workspaces across the organization, assign it the Power BI Admin role.
-Workspace Role: Ensure the service principal or user has the required role (Admin/Member/Contributor) for the workspaces you need to query.
-5. Optional: Power BI Admin API Permissions
-If you need tenant-wide access to all workspaces or detailed tenant-level information, you might need additional permissions for the Power BI Admin API:
-
-Tenant.Read.All: Grants read-only access to tenant-wide information.
-Summary of Permissions Required
-Dataset Permissions:
-
-Dataset.ReadWrite.All (Full access)
-Dataset.Read.All (Read-only access)
-Workspace Permissions:
-
-Group.ReadWrite.All (Full access to workspaces)
-Group.Read.All (Read-only access to workspaces)
-Admin Consent:
-
-Required for application-level permissions or tenant-wide access.
-By configuring these permissions properly, you can retrieve the refresh status and other data from Power BI workspaces and datasets smoothly.
+def check_ssh(server_name, port=22):
+    command = ["ssh", "-vp", str(port), server_name]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=5)
+        
+        # Check if "Connection established" appears in stdout
+        if "Connection established" in result.stdout:
+            print(f"SSH connection successful for {server_name}")
+            return True
+        else:
+            print(f"SSH connection failed for {server_name}")
+            print(result.stderr)  # Print error message if available
+            return False
+    except subprocess.TimeoutExpired:
+        print(f"SSH connection to {server_name} timed out")
+        return False
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return False
