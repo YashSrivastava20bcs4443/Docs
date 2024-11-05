@@ -1,7 +1,8 @@
 import subprocess
 
 def check_ssh(server_name, port=22):
-    command = ["ssh", "-vp", str(port), server_name]
+    # Adding the -o StrictHostKeyChecking=no option to skip the host key confirmation prompt
+    command = ["ssh", "-vp", str(port), "-o", "StrictHostKeyChecking=no", server_name]
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=5)
         
