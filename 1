@@ -1,61 +1,84 @@
-# First attempt an RDP connection, then an SSH connection if RDP fails
-def check_connectivity(server_name):
-    # Try RDP connection first (assuming Windows preference if no OS data)
-    if check_rdp(server_name):
-        print(f"RDP connection successful for {server_name}")
-        return True
-    elif check_ssh(server_name):
-        print(f"SSH connection successful for {server_name}")
-        return True
-    else:
-        print(f"Both RDP and SSH failed for {server_name}")
-        return False
+import requests
+import pandas as pd
+import os
+from datetime import datetime
 
+# File path for CSV export
+file_name = "C:/Temp/PowerBiRefreshHistory_Sept2024.csv"
 
+# Remove the file if it exists
+if os.path.exists(file_name):
+    os.remove(file_name)
 
-# Main function to process alerts
-def process_alerts():
-    alert_tracker = load_alert_tracker()
-    alerts = fetch_alert()
-    utc_now = datetime.now(timezone.utc)
+# Power BI API credentials
+tenant_id = "xxxx"
+pbi_authority_url = f"https://login.windows.net/{tenant_id}/oauth2/token"
+pbi_resource_url = "https://analysis.windows.net/powerbi/api"
+client_id = "xxxx"
+client_secret = "xxxx"
 
-    for record in alerts:
-        es_source = record['_source']
-        server_name = es_source.get("EventNode", "")
-        timestamp = es_source.get("@timestamp")
+# Authentication to get token
+auth_body = {
+    'resource': pbi_resource_url,
+    'client_id': client_id,
+    'grant_type': 'client_credentials',
+    'client_secret': client_secret
+}
+auth_response = requests.post(pbi_authority_url, data=auth_body)
+auth_response.raise_for_status()  # Check for errors
 
-        if not server_name or not timestamp:
-            continue
+# Get the access token
+auth_token = auth_response.json().get("access_token")
+auth_header = {
+    'Content-Type': 'application/json',
+    'Authorization': f'Bearer {auth_token}'
+}
 
-        alert_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+# Fetching Power BI workspaces (groups)
+uri_groups = "https://api.powerbi.com/v1.0/myorg/groups"
+groups_response = requests.get(uri_groups, headers=auth_header)
+groups_response.raise_for_status()
+groups = groups_response.json().get("value", [])
 
-        # Update alert history for the server
-        if server_name not in alert_tracker:
-            alert_tracker[server_name] = []
+# List to hold dataset information
+pbi_datasets = []
 
-        # Remove alerts older than 24 hours
-        alert_tracker[server_name] = [
-            alert for alert in alert_tracker[server_name]
-            if alert > (utc_now - timedelta(hours=24)).isoformat()
-        ]
+# Fetching datasets and refresh history
+for group in groups:
+    group_id = group.get("id")
+    group_name = group.get("name")
+    uri_datasets = f"https://api.powerbi.com/v1.0/myorg/groups/{group_id}/datasets"
+    datasets_response = requests.get(uri_datasets, headers=auth_header)
+    datasets_response.raise_for_status()
+    datasets = datasets_response.json().get("value", [])
+
+    for dataset in datasets:
+        dataset_id = dataset.get("id")
+        report_name = dataset.get("name")
+        dataset_owner = dataset.get("configuredBy")
+        uri_refreshes = f"https://api.powerbi.com/v1.0/myorg/groups/{group_id}/datasets/{dataset_id}/refreshes"
         
-        # Add the current alert timestamp
-        alert_tracker[server_name].append(alert_time.isoformat())
+        refreshes_response = requests.get(uri_refreshes, headers=auth_header)
+        refreshes_response.raise_for_status()
+        refreshes = refreshes_response.json().get("value", [])
 
-        # Check connectivity: first try RDP, then SSH if RDP fails
-        ping_success = check_ping(server_name)
-        connectivity_success = check_connectivity(server_name)
+        if refreshes:
+            last_refresh = refreshes[0]  # Latest refresh info
+            refresh_type = last_refresh.get("refreshType")
+            if refresh_type in ["Scheduled", "OnDemand"]:
+                last_refresh_start = last_refresh.get("startTime")
+                last_refresh_end = last_refresh.get("endTime")
 
-        # Reboot decision: if both ping and connectivity checks fail, escalate if over 3 alerts in 24h
-        if not ping_success and not connectivity_success:
-            if len(alert_tracker[server_name]) > 3:
-                print(f"Escalating issue for {server_name} due to multiple alerts.")
-                send_email(server_name)
-            else:
-                print(f"Rebooting {server_name} via SCVMM due to unreachable status.")
-                reboot_scvmm_vm(server_name)
+                # Append data to the list
+                pbi_datasets.append({
+                    "WorkSpaceName": group_name,
+                    "ReportName": report_name,
+                    "DatasetOwner": dataset_owner,
+                    "LastRefreshType": refresh_type,
+                    "LastRefreshStart": last_refresh_start,
+                    "LastRefreshEnd": last_refresh_end
+                })
 
-    save_alert_tracker(alert_tracker)
-
-if __name__ == "__main__":
-    process_alerts()        
+# Exporting the data to CSV
+df = pd.DataFrame(pbi_datasets)
+df.to_csv(file_name, sep=';', index=False)
