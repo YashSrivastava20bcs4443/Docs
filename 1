@@ -1,44 +1,61 @@
-# Define function to fetch alerts
-def fetch_alert():
-    # Elasticsearch URL for the search query
-    e_url = f"{elasticsearch_url}/{common_index}/_search"
-    
-    # Define payload for the query
-    payload = json.dumps({
-        "query": {
-            "bool": {
-                "must": [
-                    {
-                        "range": {
-                            "@timestamp": {
-                                "gte": "now-24h",
-                                "lte": "now",
-                                "format": "MMM d, yyyy @ HH:mm:ss.SSSSSS"
-                            }
-                        }
-                    },
-                    {"match": {"EventSource": "SCOM"}},
-                    {"match": {"EventTitle.keyword": "Failed to Connect to Computer"}}
-                ]
-            }
-        },
-        "sort": [{"@timestamp": {"order": "desc"}}]
-    })
-    
-    # Execute search query and process results
-    try:
-        result = es.search(index=common_index, body=payload)
-        if result['hits']['total']['value'] > 0:
-            alerts = result['hits']['hits']
-            for record in alerts:
-                es_source = record['_source']
-                unique_id = record['_id']
-                server_name = es_source.get('EventNode', '')
-                print("Hostname of the server is:", server_name)
-            return alerts  # Return the list of alert records
-        else:
-            print("No alerts found.")
-            return []  # Return an empty list if no alerts are found
-    except Exception as e:
-        print(f"Error in fetch_alert: {e}")
-        return []  # Return an empty list in case of an error
+# First attempt an RDP connection, then an SSH connection if RDP fails
+def check_connectivity(server_name):
+    # Try RDP connection first (assuming Windows preference if no OS data)
+    if check_rdp(server_name):
+        print(f"RDP connection successful for {server_name}")
+        return True
+    elif check_ssh(server_name):
+        print(f"SSH connection successful for {server_name}")
+        return True
+    else:
+        print(f"Both RDP and SSH failed for {server_name}")
+        return False
+
+
+
+# Main function to process alerts
+def process_alerts():
+    alert_tracker = load_alert_tracker()
+    alerts = fetch_alert()
+    utc_now = datetime.now(timezone.utc)
+
+    for record in alerts:
+        es_source = record['_source']
+        server_name = es_source.get("EventNode", "")
+        timestamp = es_source.get("@timestamp")
+
+        if not server_name or not timestamp:
+            continue
+
+        alert_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+
+        # Update alert history for the server
+        if server_name not in alert_tracker:
+            alert_tracker[server_name] = []
+
+        # Remove alerts older than 24 hours
+        alert_tracker[server_name] = [
+            alert for alert in alert_tracker[server_name]
+            if alert > (utc_now - timedelta(hours=24)).isoformat()
+        ]
+        
+        # Add the current alert timestamp
+        alert_tracker[server_name].append(alert_time.isoformat())
+
+        # Check connectivity: first try RDP, then SSH if RDP fails
+        ping_success = check_ping(server_name)
+        connectivity_success = check_connectivity(server_name)
+
+        # Reboot decision: if both ping and connectivity checks fail, escalate if over 3 alerts in 24h
+        if not ping_success and not connectivity_success:
+            if len(alert_tracker[server_name]) > 3:
+                print(f"Escalating issue for {server_name} due to multiple alerts.")
+                send_email(server_name)
+            else:
+                print(f"Rebooting {server_name} via SCVMM due to unreachable status.")
+                reboot_scvmm_vm(server_name)
+
+    save_alert_tracker(alert_tracker)
+
+if __name__ == "__main__":
+    process_alerts()        
