@@ -1,32 +1,69 @@
-import subprocess
+import json
+import base64
+from demo_config import e_password, e_username, elasticsearch_url
+from elasticsearch import Elasticsearch
+from datetime import datetime, timezone
 
-def check_ssh(server_name, port=22):
-    # Construct the SSH command with StrictHostKeyChecking disabled
-    command = ["ssh", "-vp", str(port), "-o", "StrictHostKeyChecking=no", server_name]
+# Encode authentication header
+auth_header = base64.b64encode(f"{e_username}:{e_password}".encode()).decode()
+
+# Elasticsearch index settings
+common_index = 'common-events-*'
+utc_now = datetime.now(timezone.utc).isoformat()
+common_index_name = f'common-events-{datetime.now().strftime("%Y-%m-%d")}'
+
+# Define headers for the request
+headers = {
+    "Authorization": f"Basic {auth_header}",
+    "Content-Type": "application/json"
+}
+
+# Initialize Elasticsearch connection
+es = Elasticsearch(
+    [elasticsearch_url],
+    basic_auth=(e_username, e_password),
+)
+
+# Define function to fetch alerts
+def fetch_alert():
+    # Elasticsearch URL for the search query
+    e_url = f"{elasticsearch_url}/{common_index}/_search"
+    
+    # Define payload for the query
+    payload = json.dumps({
+        "query": {
+            "bool": {
+                "must": [
+                    {
+                        "range": {
+                            "@timestamp": {
+                                "gte": "now-24h",
+                                "lte": "now",
+                                "format": "MMM d, yyyy @ HH:mm:ss.SSSSSS"
+                            }
+                        }
+                    },
+                    {"match": {"EventSource": "SCOM"}},
+                    {"match": {"EventTitle.keyword": "Failed to Connect to Computer"}}
+                ]
+            }
+        },
+        "sort": [{"@timestamp": {"order": "desc"}}]
+    })
+    
+    # Execute search query and process results
     try:
-        # Start the subprocess and capture output in real-time
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        
-        # Read output line-by-line
-        for line in process.stdout:
-            print(line.strip())  # Print each line (optional, for debugging)
-            # Check for "Connection established"
-            if "Connection established" in line:
-                print(f"SSH connection successful for {server_name}")
-                process.terminate()  # Stop the process if connection is successful
-                return True
-        
-        # Capture the error output after the process ends
-        _, stderr = process.communicate()
-        
-        # If "Connection established" was not found, print the error and return False
-        print(f"SSH connection failed for {server_name}")
-        print(stderr.strip())  # Print any error messages
-        return False
-        
-    except subprocess.TimeoutExpired:
-        print(f"SSH connection to {server_name} timed out")
-        return False
+        result = es.search(index=common_index, body=payload)
+        if result['hits']['total']['value'] > 0:
+            for record in result['hits']['hits']:
+                es_source = record['_source']
+                unique_id = record['_id']
+                server_name = es_source.get('EventNode', '')
+                print("Hostname of the server is:", server_name)
+        else:
+            print("No alerts found.")
     except Exception as e:
-        print(f"An error occurred: {e}")
-        return False
+        print(f"Error in fetch_alert: {e}")
+
+# Run the fetch_alert function
+fetch_alert()
