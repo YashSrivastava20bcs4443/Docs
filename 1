@@ -1,89 +1,63 @@
-import os
-import requests
-import csv
-from datetime import datetime
+import subprocess
 
-# Define variables
-file_name = "C:/Temp/PowerBiRefreshHistory_Sept2024.csv"
-tenant_id = "xxxx"
-client_id = "xxxx"
-client_secret = "xxxx"
-pbi_authority_url = f"https://login.windows.net/{tenant_id}/oauth2/token"
-pbi_resource_url = "https://analysis.windows.net/powerbi/api"
-
-# Remove file if it exists
-if os.path.exists(file_name):
-    os.remove(file_name)
-
-# Authentication
-auth_body = {
-    'resource': pbi_resource_url,
-    'client_id': client_id,
-    'grant_type': "client_credentials",
-    'client_secret': client_secret
+# PowerShell script
+powershell_script = """
+$FileName = "C:\\Temp\\PowerBiRefreshHistory_Sept2024.csv"
+if (Test-Path $FileName) { Remove-Item $FileName }
+$tenantId = "xxxx"
+$pbiAuthorityUrl = "https://login.windows.net/$tenantId/oauth2/token"
+$pbiResourceUrl = "https://analysis.windows.net/powerbi/api"
+$clientId = "xxxx"
+$clientSecret = "xxxx"
+$authBody = @{
+    'resource' = $pbiResourceUrl
+    'client_id' = $clientId
+    'grant_type' = "client_credentials"
+    'client_secret' = $clientSecret
 }
 
-auth_response = requests.post(pbi_authority_url, data=auth_body)
-auth_response.raise_for_status()
-access_token = auth_response.json().get("access_token")
-
-# Set up authorization header (without Content-Type for GET requests)
-auth_header = {
-    'Authorization': f'Bearer {access_token}'
+# Auth to API to get Token
+$auth = Invoke-RestMethod -Uri $pbiAuthorityUrl -Body $authBody -Method POST -ErrorAction Ignore
+# Building Rest API header with authorization token
+$authHeader = @{
+    'Content-Type' = 'application/json'
+    'Authorization' = 'Bearer ' + $auth.access_token
 }
 
-# Get workspaces/groups
-groups_url = "https://api.powerbi.com/v1.0/myorg/groups"
-groups_response = requests.get(groups_url, headers=auth_header)
-groups_response.raise_for_status()
-groups = groups_response.json().get("value", [])
+$uri = "https://api.powerbi.com/v1.0/myorg/groups"
+$groups = Invoke-RestMethod -Uri $uri -Headers $authHeader -Method GET
+$PBIDatasets = @()
+foreach ($group in $groups.value) {
+    $groupID = $group.id
+    $uri = "https://api.powerbi.com/v1.0/myorg/groups/$groupID/datasets"
+    $datasets = Invoke-RestMethod -Uri $uri -Headers $authHeader -Method GET
+    foreach ($dataset in $datasets.value) {
+        $datasetID = $dataset.id
+        $uri2 = "https://api.powerbi.com/v1.0/myorg/groups/$groupID/datasets/$datasetID/refreshes"
+        $refreshes = Invoke-RestMethod -Uri $uri2 -Headers $authHeader -Method GET
+        if ($refreshes.value[0].refreshType -match "Scheduled" -or $refreshes.value[0].refreshType -match "OnDemand") {
+            $PBIDatasets += New-Object PsObject -Property @{
+                "WorkSpaceName" = "$($group.name)"
+                "ReportName" = "$($dataset.name)"
+                "DatasetOwner" = "$($dataset.configuredBy)"
+                "LastRefreshType" = "$($refreshes.value[0].refreshType)"
+                "LastRefreshStart" = "$($refreshes.value[0].startTime)"
+                "LastRefreshEnd" = "$($refreshes.value[0].endTime)"
+            }
+        }
+    }
+    $datasets = $null
+}
+$PBIDatasets | Export-Csv -Path "C:\\Temp\\PowerBiRefreshHistory_Sept2024.csv" -Delimiter ';' -NoTypeInformation
+"""
 
-# Prepare data for CSV
-pbi_datasets = []
+# Run the PowerShell script from Python
+process = subprocess.run(["powershell", "-Command", powershell_script], capture_output=True, text=True)
 
-for group in groups:
-    group_id = group['id']
-    group_name = group['name']
-    
-    # Get datasets in each group
-    datasets_url = f"https://api.powerbi.com/v1.0/myorg/groups/{group_id}/datasets"
-    datasets_response = requests.get(datasets_url, headers=auth_header)
-    datasets_response.raise_for_status()
-    datasets = datasets_response.json().get("value", [])
-    
-    for dataset in datasets:
-        dataset_id = dataset['id']
-        dataset_name = dataset['name']
-        dataset_owner = dataset.get('configuredBy', 'N/A')
-        
-        # Get refresh history for each dataset
-        refresh_url = f"https://api.powerbi.com/v1.0/myorg/groups/{group_id}/datasets/{dataset_id}/refreshes"
-        refresh_response = requests.get(refresh_url, headers=auth_header)  # Content-Type not needed
-        refresh_response.raise_for_status()
-        refreshes = refresh_response.json().get("value", [])
-        
-        if refreshes:
-            last_refresh = refreshes[0]
-            refresh_type = last_refresh.get("refreshType", "N/A")
-            if refresh_type in ["Scheduled", "OnDemand"]:
-                refresh_start = last_refresh.get("startTime", "N/A")
-                refresh_end = last_refresh.get("endTime", "N/A")
-                
-                # Add data to list
-                pbi_datasets.append({
-                    "WorkSpaceName": group_name,
-                    "ReportName": dataset_name,
-                    "DatasetOwner": dataset_owner,
-                    "LastRefreshType": refresh_type,
-                    "LastRefreshStart": refresh_start,
-                    "LastRefreshEnd": refresh_end
-                })
-
-# Write to CSV file
-with open(file_name, mode='w', newline='') as csv_file:
-    fieldnames = ["WorkSpaceName", "ReportName", "DatasetOwner", "LastRefreshType", "LastRefreshStart", "LastRefreshEnd"]
-    writer = csv.DictWriter(csv_file, fieldnames=fieldnames, delimiter=';')
-    writer.writeheader()
-    writer.writerows(pbi_datasets)
-
-print("Data exported to CSV successfully.")
+# Output and errors
+if process.returncode == 0:
+    print("PowerShell script executed successfully.")
+    print("Output:\n", process.stdout)
+else:
+    print("Error in PowerShell script execution.")
+    print("Error Output:\n", process.stderr)
