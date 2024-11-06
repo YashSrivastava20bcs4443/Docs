@@ -1,30 +1,57 @@
 import json
 import base64
-from demo_config import e_password, e_username, elasticsearch_url
+import smtplib
+import socket
+import subprocess
+from datetime import datetime, timedelta, timezone
 from elasticsearch import Elasticsearch
-from datetime import datetime, timezone
-
-# Encode authentication header
-auth_header = base64.b64encode(f"{e_username}:{e_password}".encode()).decode()
-
-# Elasticsearch index settings
-common_index = 'common-events-*'
-utc_now = datetime.now(timezone.utc).isoformat()
-common_index_name = f'common-events-{datetime.now().strftime("%Y-%m-%d")}'
-
-# Define headers for the request
-headers = {
-    "Authorization": f"Basic {auth_header}",
-    "Content-Type": "application/json"
-}
-
-# Initialize Elasticsearch connection
-es = Elasticsearch(
-    [elasticsearch_url],
-    basic_auth=(e_username, e_password),
+from ping3 import ping
+from demo_config import (
+    a_password, e_username, elasticsearch_url, smtp_server, smtp_port,
+    sender_email, recipient_email
 )
 
-# Define function to fetch alerts
+# Encode authentication header
+auth_header = base64.b64encode(f"{e_username}:{a_password}".encode()).decode()
+
+# Elasticsearch setup
+es = Elasticsearch(
+    [elasticsearch_url],
+    basic_auth=(e_username, a_password)
+)
+common_index = 'common-events-*'
+
+# JSON file to store alert history
+alert_tracker_file = "alert_tracker.json"
+
+# Load alert tracker from JSON file
+def load_alert_tracker():
+    try:
+        with open(alert_tracker_file, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+# Save alert tracker to JSON file
+def save_alert_tracker(alert_tracker):
+    with open(alert_tracker_file, 'w') as f:
+        json.dump(alert_tracker, f)
+
+# Send escalation email
+def send_email(server_name):
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(sender_email, a_password)
+            subject = f"Escalation: Multiple Connectivity Alerts for {server_name}"
+            body = f"The server {server_name} has triggered multiple connectivity alerts within the last 24 hours and requires manual intervention."
+            message = f"Subject: {subject}\n\n{body}"
+            server.sendmail(sender_email, recipient_email, message)
+        print(f"Escalation email sent for {server_name}")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+
+# Fetch alerts from Kibana - your original fetch_alert method
 def fetch_alert():
     # Elasticsearch URL for the search query
     e_url = f"{elasticsearch_url}/{common_index}/_search"
@@ -65,5 +92,102 @@ def fetch_alert():
     except Exception as e:
         print(f"Error in fetch_alert: {e}")
 
-# Run the fetch_alert function
-fetch_alert()
+# Ping check
+def check_ping(server_name):
+    response = ping(server_name, timeout=2)
+    return response is not None
+
+# RDP check (for Windows)
+def check_rdp(server_name, port=3389):
+    try:
+        with socket.create_connection((server_name, port), timeout=5):
+            print(f"RDP connection successful for {server_name}")
+            return True
+    except socket.error:
+        print(f"RDP connection failed for {server_name}")
+        return False
+
+# SSH check (for Linux)
+def check_ssh(server_ip, port=22, timeout=5):
+    try:
+        test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        test_socket.settimeout(timeout)
+        test_socket.connect((server_ip, port))
+    except Exception as ex:
+        print(f"Failed to connect to {server_ip} on port {port}: {ex}")
+        return False
+    else:
+        print(f"Successfully connected to {server_ip} on port {port}")
+        return True
+    finally:
+        test_socket.close()
+
+# Reboot VM using PowerShell through SCVMM
+def reboot_scvmm_vm(server_name):
+    try:
+        powershell_command = f"Get-SCVirtualMachine -Name '{server_name}' | Restart-SCVirtualMachine -Force"
+        result = subprocess.run(
+            ["powershell", "-Command", powershell_command],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            print(f"Reboot command sent to VM {server_name} via SCVMM.")
+        else:
+            print(f"Failed to reboot VM {server_name} via SCVMM: {result.stderr}")
+    except Exception as e:
+        print(f"Error rebooting {server_name} through SCVMM with PowerShell: {e}")
+
+# Main function 
+def process_alerts():
+    alert_tracker = load_alert_tracker()
+    alerts = fetch_alert()
+    utc_now = datetime.utcnow()
+
+    for record in alerts:
+        es_source = record['_source']
+        server_name = es_source.get("EventNode", "")
+        timestamp = es_source.get("@timestamp")
+
+        if not server_name or not timestamp:
+            continue
+
+        alert_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+
+        #  Update alert history for the server
+        if server_name not in alert_tracker:
+            alert_tracker[server_name] = []
+
+        # Remove alerts older than 24 hours
+        alert_tracker[server_name] = [
+            alert for alert in alert_tracker[server_name]
+            if alert > (utc_now - timedelta(hours=24)).isoformat()
+        ]
+        
+        # Add the current alert timestamp
+        alert_tracker[server_name].append(alert_time.isoformat())
+        
+        # Check connectivity: ping, then RDP/SSH based on server OS
+        ping_success = check_ping(server_name)
+        rdp_or_ssh_success = False
+
+        # Dummy condition to simulate Windows/Linux OS
+        is_windows = "Windows" in es_source.get("EventOS", "")  
+        if is_windows:
+            rdp_or_ssh_success = check_rdp(server_name)
+        else:
+            rdp_or_ssh_success = check_ssh(server_name)
+
+        # Reboot decision: if both ping and RDP/SSH fail, escalate if over 3 alerts in 24h
+        if not ping_success and not rdp_or_ssh_success:
+            if len(alert_tracker[server_name]) > 3:
+                print(f"Escalating issue for {server_name} due to multiple alerts.")
+                send_email(server_name)
+            else:
+                print(f"Rebooting {server_name} via SCVMM due to unreachable status.")
+                reboot_scvmm_vm(server_name)
+
+    save_alert_tracker(alert_tracker)
+
+if __name__ == "__main__":
+    process_alerts()
