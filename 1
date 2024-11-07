@@ -1,63 +1,37 @@
 import subprocess
+import os
 
-# PowerShell script
-powershell_script = """
-$FileName = "C:\\Temp\\PowerBiRefreshHistory_Sept2024.csv"
-if (Test-Path $FileName) { Remove-Item $FileName }
-$tenantId = "xxxx"
-$pbiAuthorityUrl = "https://login.windows.net/$tenantId/oauth2/token"
-$pbiResourceUrl = "https://analysis.windows.net/powerbi/api"
-$clientId = "xxxx"
-$clientSecret = "xxxx"
-$authBody = @{
-    'resource' = $pbiResourceUrl
-    'client_id' = $clientId
-    'grant_type' = "client_credentials"
-    'client_secret' = $clientSecret
-}
+toolsadminpas = os.getenv("toolsadminpas")
 
-# Auth to API to get Token
-$auth = Invoke-RestMethod -Uri $pbiAuthorityUrl -Body $authBody -Method POST -ErrorAction Ignore
-# Building Rest API header with authorization token
-$authHeader = @{
-    'Content-Type' = 'application/json'
-    'Authorization' = 'Bearer ' + $auth.access_token
-}
+# Define PowerShell commands as a multiline string
+powershell_script = f"""
+param($toolsadminpas)
 
-$uri = "https://api.powerbi.com/v1.0/myorg/groups"
-$groups = Invoke-RestMethod -Uri $uri -Headers $authHeader -Method GET
-$PBIDatasets = @()
-foreach ($group in $groups.value) {
-    $groupID = $group.id
-    $uri = "https://api.powerbi.com/v1.0/myorg/groups/$groupID/datasets"
-    $datasets = Invoke-RestMethod -Uri $uri -Headers $authHeader -Method GET
-    foreach ($dataset in $datasets.value) {
-        $datasetID = $dataset.id
-        $uri2 = "https://api.powerbi.com/v1.0/myorg/groups/$groupID/datasets/$datasetID/refreshes"
-        $refreshes = Invoke-RestMethod -Uri $uri2 -Headers $authHeader -Method GET
-        if ($refreshes.value[0].refreshType -match "Scheduled" -or $refreshes.value[0].refreshType -match "OnDemand") {
-            $PBIDatasets += New-Object PsObject -Property @{
-                "WorkSpaceName" = "$($group.name)"
-                "ReportName" = "$($dataset.name)"
-                "DatasetOwner" = "$($dataset.configuredBy)"
-                "LastRefreshType" = "$($refreshes.value[0].refreshType)"
-                "LastRefreshStart" = "$($refreshes.value[0].startTime)"
-                "LastRefreshEnd" = "$($refreshes.value[0].endTime)"
-            }
-        }
-    }
-    $datasets = $null
-}
-$PBIDatasets | Export-Csv -Path "C:\\Temp\\PowerBiRefreshHistory_Sept2024.csv" -Delimiter ';' -NoTypeInformation
+$dpassword = $toolsadminpas | ConvertTo-SecureString -asPlainText -Force
+$username = "tools\\svc_devopsauto"
+$credential = New-Object System.Management.Automation.PSCredential ($username, $dpassword)
+
+$ErrorActionPreference = "Stop"
+$vmm = ""
+
+Get-SCVMMServer -ComputerName $vmm -Credential $credential
+
+$records = ""
+
+Reset-SCVirtualMachine -VM $records
 """
 
-# Run the PowerShell script from Python
-process = subprocess.run(["powershell", "-Command", powershell_script], capture_output=True, text=True)
+# Run the PowerShell script using subprocess
+process = subprocess.run(
+    ["pwsh", "-Command", powershell_script],
+    capture_output=True,
+    text=True
+)
 
-# Output and errors
+# Check the output and error
 if process.returncode == 0:
-    print("PowerShell script executed successfully.")
-    print("Output:\n", process.stdout)
+    print("PowerShell script executed successfully:")
+    print(process.stdout)
 else:
-    print("Error in PowerShell script execution.")
-    print("Error Output:\n", process.stderr)
+    print("PowerShell script execution failed:")
+    print(process.stderr)
