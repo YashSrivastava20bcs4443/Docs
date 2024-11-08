@@ -1,1 +1,85 @@
 
+import subprocess
+import config  # Importing the config module
+
+# Load values from config.py
+tenant_id = config.tenant_id
+client_id = config.client_id
+client_secret = config.client_secret
+
+# PowerShell script as a single string with injected config values using f-string
+powershell_script = f"""
+$FileNameCsv = "C:\\Temp\\PowerBiRefreshHistory_Sept2024.csv"
+$FileNameJson = "C:\\Temp\\PowerBiRefreshHistory_Sept2024.json"
+
+# Remove old files if they exist
+if (Test-Path $FileNameCsv) {{ Remove-Item $FileNameCsv }}
+if (Test-Path $FileNameJson) {{ Remove-Item $FileNameJson }}
+
+$tenantId = "{tenant_id}"
+$pbiAuthorityUrl = "https://login.windows.net/$tenantId/oauth2/token"
+$pbiResourceUrl = "https://analysis.windows.net/powerbi/api"
+$clientId = "{client_id}"
+$clientSecret = "{client_secret}"
+$authBody = {{
+    'resource' = $pbiResourceUrl
+    'client_id' = $clientId
+    'grant_type' = "client_credentials"
+    'client_secret' = $clientSecret
+}}
+
+# Auth to API to get Token
+$auth = Invoke-RestMethod -Uri $pbiAuthorityUrl -Body $authBody -Method POST -ErrorAction Ignore
+# Building Rest API header with authorization token
+$authHeader = {{
+    'Content-Type' = 'application/json'
+    'Authorization' = 'Bearer ' + $auth.access_token
+}}
+
+$uri = "https://api.powerbi.com/v1.0/myorg/groups"
+$groups = Invoke-RestMethod -Uri $uri -Headers $authHeader -Method GET
+$groups | ConvertTo-Json | Out-File -FilePath $FileNameJson -Append -Encoding utf8
+
+$PBIDatasets = @()
+foreach ($group in $groups.value) {{
+    $groupID = $group.id
+    $uri = "https://api.powerbi.com/v1.0/myorg/groups/$groupID/datasets"
+    $datasets = Invoke-RestMethod -Uri $uri -Headers $authHeader -Method GET
+    $datasets | ConvertTo-Json | Out-File -FilePath $FileNameJson -Append -Encoding utf8
+    
+    foreach ($dataset in $datasets.value) {{
+        $datasetID = $dataset.id
+        $uri2 = "https://api.powerbi.com/v1.0/myorg/groups/$groupID/datasets/$datasetID/refreshes"
+        $refreshes = Invoke-RestMethod -Uri $uri2 -Headers $authHeader -Method GET
+        $refreshes | ConvertTo-Json | Out-File -FilePath $FileNameJson -Append -Encoding utf8
+
+        # Check if the refresh was within the last 5 minutes
+        $lastRefreshEnd = [DateTime]$refreshes.value[0].endTime
+        if ($lastRefreshEnd -gt (Get-Date).AddMinutes(-5) -and ($refreshes.value[0].refreshType -match "Scheduled" -or $refreshes.value[0].refreshType -match "OnDemand")) {{
+            $PBIDatasets += New-Object PsObject -Property {{
+                "WorkSpaceName" = "$($group.name)"
+                "ReportName" = "$($dataset.name)"
+                "DatasetOwner" = "$($dataset.configuredBy)"
+                "LastRefreshType" = "$($refreshes.value[0].refreshType)"
+                "LastRefreshStart" = "$($refreshes.value[0].startTime)"
+                "LastRefreshEnd" = "$($refreshes.value[0].endTime)"
+            }}
+        }}
+    }}
+    $datasets = $null
+}}
+
+# Export filtered data to CSV
+$PBIDatasets | Export-Csv -Path $FileNameCsv -Delimiter ';' -NoTypeInformation
+"""
+
+# Run the PowerShell script directly from Python
+process = subprocess.run(["powershell", "-Command", powershell_script], capture_output=True, text=True)
+
+# Output and errors
+if process.returncode == 0:
+    print("PowerShell script executed successfully.")
+    print("Output:\n", process.stdout)
+else:
+    print("Error in PowerShell script execution.")
+    print("Error Output:\n", process.stderr)
