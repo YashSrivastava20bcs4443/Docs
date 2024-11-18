@@ -1,1 +1,110 @@
 
+import os
+import pandas as pd
+import paramiko
+from datetime import datetime
+
+# SFTP connection details
+sftp_host = '<your_sftp_host>'
+sftp_port = 22
+sftp_username = '<your_username>'
+sftp_password = '<your_password>'
+sftp_base_dir = 'Network_devices_Backup/Performance_metrics'
+linux_data_dir = 'Linux'
+local_download_dir = '/tmp/performance_data_linux'
+
+# Helper function to list files on SFTP
+def list_sftp_files(sftp, directory):
+    try:
+        return sftp.listdir(directory)
+    except IOError as e:
+        print(f"Error listing directory {directory}: {e}")
+        return []
+
+# Helper function to download a file from SFTP
+def download_sftp_file(sftp, remote_path, local_path):
+    try:
+        sftp.get(remote_path, local_path)
+        print(f"Downloaded {remote_path} to {local_path}")
+    except Exception as e:
+        print(f"Failed to download file {remote_path}: {e}")
+
+# Helper function to upload a file to SFTP
+def upload_sftp_file(sftp, local_path, remote_path):
+    try:
+        sftp.put(local_path, remote_path)
+        print(f"Uploaded {local_path} to {remote_path}")
+    except Exception as e:
+        print(f"Failed to upload file {local_path}: {e}")
+
+# Helper function to delete local directory
+def delete_local_directory(path):
+    try:
+        for root, dirs, files in os.walk(path, topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+        os.rmdir(path)
+        print(f"Deleted local directory {path}")
+    except Exception as e:
+        print(f"Failed to delete directory {path}: {e}")
+
+# Connect to the SFTP server
+transport = paramiko.Transport((sftp_host, sftp_port))
+transport.connect(username=sftp_username, password=sftp_password)
+sftp = paramiko.SFTPClient.from_transport(transport)
+
+# Step 1: Locate the latest consolidated file for Linux
+linux_consolidated_files = sorted([f for f in list_sftp_files(sftp, f"{sftp_base_dir}/{linux_data_dir}") if 'consolidated_linux' in f])
+
+if not linux_consolidated_files:
+    print("No consolidated Linux files found.")
+    exit(1)
+
+# Pick the latest consolidated file
+latest_consolidated_linux = linux_consolidated_files[-1]
+print(f"Latest Linux consolidated file: {latest_consolidated_linux}")
+
+# Step 2: Download the latest consolidated Linux file
+local_consolidated_path = os.path.join(local_download_dir, latest_consolidated_linux)
+os.makedirs(local_download_dir, exist_ok=True)
+download_sftp_file(sftp, f"{sftp_base_dir}/{linux_data_dir}/{latest_consolidated_linux}", local_consolidated_path)
+
+# Step 3: Identify and download new daily Linux files
+all_files = list_sftp_files(sftp, f"{sftp_base_dir}")
+daily_linux_files = sorted([f for f in all_files if 'Last_24_hr_Linux_Performance_metrics' in f])
+
+# Filter daily files based on the date of the latest consolidated file
+latest_date_in_consolidated = datetime.strptime(latest_consolidated_linux.split('_')[3], '%Y')
+daily_files_to_merge = [f for f in daily_linux_files if datetime.strptime(f.split('_')[6], '%Y') > latest_date_in_consolidated]
+
+# Download each daily Linux file that needs to be merged
+local_daily_files = []
+for daily_file in daily_files_to_merge:
+    local_daily_path = os.path.join(local_download_dir, daily_file)
+    download_sftp_file(sftp, f"{sftp_base_dir}/{daily_file}", local_daily_path)
+    local_daily_files.append(local_daily_path)
+
+# Step 4: Consolidate the data
+consolidated_df = pd.read_csv(local_consolidated_path)
+
+for daily_file_path in local_daily_files:
+    daily_df = pd.read_csv(daily_file_path)
+    consolidated_df = pd.concat([consolidated_df, daily_df]).groupby('Instance').max().reset_index()
+
+# Step 5: Save the consolidated data
+new_consolidated_filename = f"{len(linux_consolidated_files) + 31}days_consolidated_linux_{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.csv"
+local_new_consolidated_path = os.path.join(local_download_dir, new_consolidated_filename)
+consolidated_df.to_csv(local_new_consolidated_path, index=False)
+print(f"New consolidated file saved: {local_new_consolidated_path}")
+
+# Step 6: Upload the new consolidated file to the SFTP server
+upload_sftp_file(sftp, local_new_consolidated_path, f"{sftp_base_dir}/{linux_data_dir}/{new_consolidated_filename}")
+
+# Step 7: Clean up the local download directory
+delete_local_directory(local_download_dir)
+
+# Close the SFTP connection
+sftp.close()
+transport.close()
