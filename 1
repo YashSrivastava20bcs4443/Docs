@@ -1,1 +1,31 @@
+# Function to extract the date from a filename formatted like 'consolidated_linux_YYYY_MM_DD_HH_MM_SS.csv'
+def extract_date_from_filename(filename):
+    try:
+        # Extract date part from filename, e.g., 'consolidated_linux_2024_11_01_19_01_16.csv'
+        date_str = '_'.join(filename.split('_')[2:5])  # Only use YYYY_MM_DD part for comparison
+        return datetime.strptime(date_str, '%Y_%m_%d')
+    except ValueError:
+        return None
+
+# Retrieve consolidated files and sort them by date using the new function
+consolidated_files = sorted(
+    [f for f in list_sftp_files(sftp, f"{sftp_base_dir}/Linux") if 'consolidated' in f],
+    key=extract_date_from_filename,
+    reverse=True
+)
+
+if not consolidated_files:
+    print("No consolidated files found.")
+    exit(1)
+
+# Pick the latest consolidated file
+latest_consolidated = consolidated_files[0]  # Now guaranteed to be the latest based on date
+latest_consolidated_path = f"{sftp_base_dir}/Linux/{latest_consolidated}"
+local_consolidated_path = os.path.join(local_temp_dir, latest_consolidated)
+
+# Download the latest consolidated file
+download_file(sftp, latest_consolidated_path, local_consolidated_path)
+
+# Load the latest consolidated data
+consolidated_df = pd.read_csv(local_consolidated_path)
 
