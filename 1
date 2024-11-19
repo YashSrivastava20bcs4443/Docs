@@ -1,46 +1,54 @@
+# Function to sort consolidated files based on the number of days and date
+def sort_consolidated_files(files):
+    def extract_days_and_date(filename):
+        # Example: '41days_consolidated_linux_2024-11-12.csv'
+        try:
+            days_part = int(filename.split('days')[0])  # Extract number of days (e.g., 41)
+            date_part = filename.split('_')[-1].replace('.csv', '')  # Extract date part (e.g., '2024-11-12')
+            date_obj = datetime.strptime(date_part, '%Y-%m-%d')
+            return (days_part, date_obj)
+        except (ValueError, IndexError) as e:
+            print(f"Error extracting date from filename {filename}: {e}")
+            return (0, datetime.min)  # Default to 0 days and a minimum date if parsing fails
 
-from datetime import datetime
+    # Sort the files based on number of days and date
+    return sorted(files, key=extract_days_and_date)
 
-# Function to extract the date from filenames like '42days_consolidated_linux_2024-11-13.csv'
-def extract_date_from_filename(filename):
-    try:
-        # Split the filename and extract the date part correctly
-        # Filename format is '<number>days_consolidated_linux_YYYY-MM-DD.csv'
-        # We want the part 'YYYY-MM-DD' which is the second last part after splitting by underscores
-        parts = filename.split('_')
-        date_str = parts[-1].replace('.csv', '')  # Remove '.csv' to get 'YYYY-MM-DD'
-        
-        # Ensure the date_str only has the format 'YYYY-MM-DD'
-        return datetime.strptime(date_str, '%Y-%m-%d')
-    except ValueError as e:
-        print(f"Skipping file due to date parsing error: {filename} - Error: {e}")
-        return None
+# Connect to the SFTP server
+try:
+    transport = paramiko.Transport((sftp_host, sftp_port))
+    transport.connect(username=sftp_username, password=sftp_password)
+    sftp = paramiko.SFTPClient.from_transport(transport)
 
-# Retrieve consolidated files and sort them by date using the new function
-consolidated_files = [
-    f for f in list_sftp_files(sftp, f"{sftp_base_dir}/Linux") if 'consolidated' in f
-]
+    # Create local temp directory if it doesn't exist
+    if not os.path.exists(local_temp_dir):
+        os.makedirs(local_temp_dir)
 
-# Filter out any files where the date extraction failed
-consolidated_files_with_dates = [
-    (f, extract_date_from_filename(f)) for f in consolidated_files
-    if extract_date_from_filename(f) is not None
-]
+    # Step 1: Locate the latest consolidated file
+    consolidated_files = [f for f in list_sftp_files(sftp, f"{sftp_base_dir}/Linux") if 'consolidated' in f]
+    sorted_consolidated_files = sort_consolidated_files(consolidated_files)  # Sort files correctly
+    if not sorted_consolidated_files:
+        print("No consolidated files found.")
+        exit(1)
 
-# Sort files based on extracted date, ignoring files with None dates
-consolidated_files_with_dates.sort(key=lambda x: x[1], reverse=True)
+    latest_consolidated = sorted_consolidated_files[-1]  # Get the latest file
+    latest_consolidated_path = f"{sftp_base_dir}/Linux/{latest_consolidated}"
+    local_consolidated_path = os.path.join(local_temp_dir, latest_consolidated)
 
-if not consolidated_files_with_dates:
-    print("No valid consolidated files found.")
-    exit(1)
+    # Download the latest consolidated file
+    download_file(sftp, latest_consolidated_path, local_consolidated_path)
 
-# Pick the latest consolidated file
-latest_consolidated = consolidated_files_with_dates[0][0]  # Now guaranteed to be the latest based on date
-latest_consolidated_path = f"{sftp_base_dir}/Linux/{latest_consolidated}"
-local_consolidated_path = os.path.join(local_temp_dir, latest_consolidated)
+    # Load the latest consolidated data
+    consolidated_df = pd.read_csv(local_consolidated_path)
 
-# Download the latest consolidated file
-download_file(sftp, latest_consolidated_path, local_consolidated_path)
+    # Step 2: Find new daily files
+    daily_files = sorted([f for f in list_sftp_files(sftp, sftp_base_dir) if 'Last_24_hr_Linux_Performance_metrics' in f])
 
-# Load the latest consolidated data
-consolidated_df = pd.read_csv(local_consolidated_path)
+    # Only consider daily files after the last consolidated file's date
+    last_consolidated_date_str = latest_consolidated.split('_')[-1].replace('.csv', '')  # Get the date part from the latest file
+    last_consolidated_date = datetime.strptime(last_consolidated_date_str, '%Y-%m-%d')
+
+    # Filter daily files based on the last consolidated date
+    daily_files_to_process = [f for f in daily_files if datetime.strptime(f.split('_')[-2], '%Y-%m-%d') > last_consolidated_date]
+
+    # Continue with the merging process...
