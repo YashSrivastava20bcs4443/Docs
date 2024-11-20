@@ -1,70 +1,31 @@
-import subprocess
-import json
-import os
+---
+- name: Move firewall policy
+  hosts: localhost
+  gather_facts: no
 
-# Function to ping and calculate packet loss
-def check_packet_loss(target_ip):
-    cmd = f"ping -c 100 {target_ip}"
-    result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    output = result.stdout
-    # Extract packet loss percentage
-    for line in output.split("\n"):
-        if "packet loss" in line:
-            loss_percent = float(line.split("%")[0].split()[-1])
-            return loss_percent
-    return 100  # Default to 100% loss if parsing fails
+  vars:
+    firewall_ip: "{{ firewall_ip }}"
+    username: "{{ username }}"
+    password: "{{ password }}"
+    policy_id_to_move: "{{ policy_id_to_move }}"
+    reference_policy_id: "{{ reference_policy_id }}"
+    move_direction: "{{ move_direction }}"
 
-# Function to determine move direction and reference policy
-def get_policy_data():
-    # File to persist the last action state
-    state_file = "policy_state.json"
-    if not os.path.exists(state_file):
-        state = {"last_direction": "before"}
-    else:
-        with open(state_file, "r") as file:
-            state = json.load(file)
+  tasks:
+    - name: Move policy on FortiGate firewall
+      expect:
+        command: ssh {{ username }}@{{ firewall_ip }}
+        responses:
+          password: "{{ password }}"
+          "#": |
+            config vdom
+            edit root
+            config router policy
+            move {{ policy_id_to_move }} {{ move_direction }} {{ reference_policy_id }}
+            end
+            exit
+      register: result
 
-    # Toggle between 'before' and 'after'
-    last_direction = state["last_direction"]
-    new_direction = "after" if last_direction == "before" else "before"
-
-    # Update the state
-    state["last_direction"] = new_direction
-    with open(state_file, "w") as file:
-        json.dump(state, file)
-
-    # Define dynamic policy IDs
-    return {
-        "policy_id_to_move": 202,
-        "reference_policy_id": 201,
-        "move_direction": new_direction,
-    }
-
-# Function to run Ansible playbook
-def run_ansible_playbook(policy_data, firewall_ip, username, password):
-    ansible_cmd = [
-        "ansible-playbook", "move_policy.yml",
-        "-i", "inventory.ini",
-        "--extra-vars", json.dumps({
-            "firewall_ip": firewall_ip,
-            "username": username,
-            "password": password,
-            **policy_data
-        })
-    ]
-    subprocess.run(ansible_cmd, check=True)
-
-# Main execution flow
-if __name__ == "__main__":
-    target_ip = "192.168.1.1"  # Replace with your machine's IP
-    firewall_ip = "192.168.1.2"  # Replace with FortiGate IP
-    username = "admin"          # Replace with FortiGate username
-    password = "password"       # Replace with FortiGate password
-
-    packet_loss = check_packet_loss(target_ip)
-    print(f"Packet Loss: {packet_loss}%")
-
-    if packet_loss < 95:
-        policy_data = get_policy_data()
-        print(f"Policy Data: {policy_data}")
-        run_ansible_playbook(policy_data, firewall_ip, username, password)
+    - name: Show result
+      debug:
+        var: result.stdout_lines
