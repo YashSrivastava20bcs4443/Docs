@@ -1,1 +1,57 @@
 
+import subprocess
+import os
+
+def ping_machine(host):
+    try:
+        # Ping the machine for 100 packets
+        result = subprocess.run(["ping", "-c", "100", host], capture_output=True, text=True)
+        output = result.stdout
+        
+        # Calculate packet loss
+        for line in output.split("\n"):
+            if "packet loss" in line:
+                loss_percentage = int(line.split("%")[0].split()[-1])
+                return loss_percentage
+        return 100  # Default to 100% loss if not calculable
+    except Exception as e:
+        print(f"Error during ping: {e}")
+        return 100  # Assume max loss on error
+
+def run_ansible_playbook(playbook, inventory):
+    try:
+        # Run the Ansible playbook
+        command = f"ansible-playbook -i {inventory} {playbook}"
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        print(result.stdout)
+        if result.returncode != 0:
+            print(f"Error running playbook: {result.stderr}")
+    except Exception as e:
+        print(f"Error running Ansible: {e}")
+
+def main():
+    host = "192.168.1.1"  # Replace with your target machine's IP/hostname
+    inventory = "inventory.yml"  # Path to your inventory file
+    
+    # Paths to Ansible playbooks
+    playbook_a = "script_a.yml"
+    playbook_b = "script_b.yml"
+    
+    packet_loss = ping_machine(host)
+    print(f"Packet loss: {packet_loss}%")
+    
+    if packet_loss < 95:
+        print("Switching policy...")
+        # Alert logic
+        if packet_loss <= 50:
+            print("Running Script A (Alert 1)...")
+            run_ansible_playbook(playbook_a, inventory)
+        else:
+            print("Running Script B (Alert 2)...")
+            run_ansible_playbook(playbook_b, inventory)
+    else:
+        print("No action required, packet loss is too high.")
+
+if __name__ == "__main__":
+    main()
+    
