@@ -1,57 +1,70 @@
-
 import subprocess
+import json
 import os
 
-def ping_machine(host):
-    try:
-        # Ping the machine for 100 packets
-        result = subprocess.run(["ping", "-c", "100", host], capture_output=True, text=True)
-        output = result.stdout
-        
-        # Calculate packet loss
-        for line in output.split("\n"):
-            if "packet loss" in line:
-                loss_percentage = int(line.split("%")[0].split()[-1])
-                return loss_percentage
-        return 100  # Default to 100% loss if not calculable
-    except Exception as e:
-        print(f"Error during ping: {e}")
-        return 100  # Assume max loss on error
+# Function to ping and calculate packet loss
+def check_packet_loss(target_ip):
+    cmd = f"ping -c 100 {target_ip}"
+    result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    output = result.stdout
+    # Extract packet loss percentage
+    for line in output.split("\n"):
+        if "packet loss" in line:
+            loss_percent = float(line.split("%")[0].split()[-1])
+            return loss_percent
+    return 100  # Default to 100% loss if parsing fails
 
-def run_ansible_playbook(playbook, inventory):
-    try:
-        # Run the Ansible playbook
-        command = f"ansible-playbook -i {inventory} {playbook}"
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-        print(result.stdout)
-        if result.returncode != 0:
-            print(f"Error running playbook: {result.stderr}")
-    except Exception as e:
-        print(f"Error running Ansible: {e}")
-
-def main():
-    host = "192.168.1.1"  # Replace with your target machine's IP/hostname
-    inventory = "inventory.yml"  # Path to your inventory file
-    
-    # Paths to Ansible playbooks
-    playbook_a = "script_a.yml"
-    playbook_b = "script_b.yml"
-    
-    packet_loss = ping_machine(host)
-    print(f"Packet loss: {packet_loss}%")
-    
-    if packet_loss < 95:
-        print("Switching policy...")
-        # Alert logic
-        if packet_loss <= 50:
-            print("Running Script A (Alert 1)...")
-            run_ansible_playbook(playbook_a, inventory)
-        else:
-            print("Running Script B (Alert 2)...")
-            run_ansible_playbook(playbook_b, inventory)
+# Function to determine move direction and reference policy
+def get_policy_data():
+    # File to persist the last action state
+    state_file = "policy_state.json"
+    if not os.path.exists(state_file):
+        state = {"last_direction": "before"}
     else:
-        print("No action required, packet loss is too high.")
+        with open(state_file, "r") as file:
+            state = json.load(file)
 
+    # Toggle between 'before' and 'after'
+    last_direction = state["last_direction"]
+    new_direction = "after" if last_direction == "before" else "before"
+
+    # Update the state
+    state["last_direction"] = new_direction
+    with open(state_file, "w") as file:
+        json.dump(state, file)
+
+    # Define dynamic policy IDs
+    return {
+        "policy_id_to_move": 202,
+        "reference_policy_id": 201,
+        "move_direction": new_direction,
+    }
+
+# Function to run Ansible playbook
+def run_ansible_playbook(policy_data, firewall_ip, username, password):
+    ansible_cmd = [
+        "ansible-playbook", "move_policy.yml",
+        "-i", "inventory.ini",
+        "--extra-vars", json.dumps({
+            "firewall_ip": firewall_ip,
+            "username": username,
+            "password": password,
+            **policy_data
+        })
+    ]
+    subprocess.run(ansible_cmd, check=True)
+
+# Main execution flow
 if __name__ == "__main__":
-    main()
-    
+    target_ip = "192.168.1.1"  # Replace with your machine's IP
+    firewall_ip = "192.168.1.2"  # Replace with FortiGate IP
+    username = "admin"          # Replace with FortiGate username
+    password = "password"       # Replace with FortiGate password
+
+    packet_loss = check_packet_loss(target_ip)
+    print(f"Packet Loss: {packet_loss}%")
+
+    if packet_loss < 95:
+        policy_data = get_policy_data()
+        print(f"Policy Data: {policy_data}")
+        run_ansible_playbook(policy_data, firewall_ip, username, password)
