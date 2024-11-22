@@ -1,1 +1,19 @@
 
+trigger:
+  none  # Disable CI triggers; using a schedule instead.
+
+schedules:
+- cron: "*/1 * * * *"  # Runs every minute.
+  displayName: Run every minute
+  branches:
+    include:
+    - main  
+  always: true  # Ensure it always triggers according to schedule
+
+pool:
+  name: "Default"
+
+steps:
+- script: |
+    python3 test.py
+  displayName: Run test Script
