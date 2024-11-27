@@ -1,13 +1,12 @@
 from PIL import Image
 
-def crop_screenshot(input_path, output_path, crop_top):
+def crop_screenshot(input_path, output_path):
     """
-    Crop the part of the image below the specified line.
+    Crop the part of the image below the blue line.
 
     Args:
     - input_path (str): Path of the original image.
     - output_path (str): Path to save the cropped image.
-    - crop_top (int): Number of pixels to crop from the top.
 
     Returns:
     - None
@@ -15,14 +14,13 @@ def crop_screenshot(input_path, output_path, crop_top):
     try:
         with Image.open(input_path) as img:
             width, height = img.size
+            crop_top = 110  # Approximate position of blue line
             crop_area = (0, crop_top, width, height)  # Crop area (left, top, right, bottom)
             cropped_img = img.crop(crop_area)
             cropped_img.save(output_path)
             print(f"Cropped image saved at: {output_path}")
     except Exception as e:
         print(f"Error cropping image: {e}")
-
-
 
 
 def take_screenshot(driver, filename):
@@ -33,12 +31,10 @@ def take_screenshot(driver, filename):
     set_zoom(driver, 1)
     
     # Cropping logic
-    crop_top = 100  # Adjust this value as per the blue line position
     cropped_filename = "Temp/Cropped_Hitachi_System_Health_screenshot.png"
-    crop_screenshot(filename, cropped_filename, crop_top)
+    crop_screenshot(filename, cropped_filename)
     
     return cropped_filename  # Return cropped file path
-
 
 
     if __name__ == "__main__":
