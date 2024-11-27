@@ -1,1 +1,29 @@
+trigger: none
 
+schedules:
+- cron: "0 * * * *"  # Runs every hour
+  displayName: Run every hour
+  branches:
+    include:
+    - main
+  always: true
+
+pool:
+  name: "Default"
+
+jobs:
+- job: SetupAndRun
+  displayName: "Set up Library and Run Scripts"
+  steps:
+  - script: |
+      python UnityHealth/main_96.py
+      python UnityHealth/main_95.py
+      python VPLEX_Autoamtion/main.py
+      python Hitachi_Health_Automation/main.py
+    displayName: "Run Python Scripts"
+    env:
+      SITE_USER: $(SITE_USER)
+      SITE_PASSWORD: $(SITE_PASSWORD)
+      VPLEX_SITE_PASSWORD: $(VPLEX_SITE_PASSWORD)
+      HITACHI_SITE_USER: $(HITACHI_SITE_USER)
+      HITACHI_SITE_PASSWORD: $(HITACHI_SITE_PASSWORD)
