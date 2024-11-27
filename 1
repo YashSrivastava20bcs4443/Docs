@@ -1,25 +1,33 @@
-from PIL import Image
+Here’s a draft email you can use to share the information:
 
-def crop_screenshot(input_path, output_path):
-    """
-    Crop the part of the image below the blue line and from left to mid.
 
-    Args:
-    - input_path (str): Path of the original image.
-    - output_path (str): Path to save the cropped image.
+---
 
-    Returns:
-    - None
-    """
-    try:
-        with Image.open(input_path) as img:
-            width, height = img.size
-            crop_top = 110  # Approximate position of blue line
-            crop_left = 0  # Left side
-            crop_right = width // 2  # Middle of the image (width/2)
-            crop_area = (crop_left, crop_top, crop_right, height)  # (left, top, right, bottom)
-            cropped_img = img.crop(crop_area)
-            cropped_img.save(output_path)
-            print(f"Cropped image saved at: {output_path}")
-    except Exception as e:
-        print(f"Error cropping image: {e}")
+Subject: Storage Performance Screenshots and Pipeline Schedules
+
+Dear Team,
+
+I hope this email finds you well.
+
+The screenshots for the storage performance of Hitachi, Unity, and Vplex are scheduled to be sent to the SysEng team and the Teams channel named Storage System Performance Screenshots.
+
+Please find the channel link below for EMS team members to join and monitor the performance:
+
+[Channel Link]
+
+Pipeline Schedules:
+
+Unity and Vplex: Pipeline triggers at 10:00 AM IST.
+
+Hitachi: Pipeline triggers at 11:30 AM IST, 6:30 PM IST, and 1:30 AM IST.
+
+
+Feel free to reach out if you have any questions or need further details.
+
+Best Regards,
+Yash
+
+
+---
+
+Let me know if you'd like to adjust anything!
