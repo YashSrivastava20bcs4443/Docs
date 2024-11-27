@@ -1,45 +1,12 @@
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import time
+Subject: Request for Validation of Sample Email and Teams Channel Message
 
-def access_system_health(driver, username, password):
-    try:
-        # Bypass security warnings if they exist
-        advanced_button = WebDriverWait(driver, 18).until(
-            EC.element_to_be_clickable((By.ID, "details-button"))
-        )
-        advanced_button.click()
+Dear Team,
 
-        proceed_link = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.ID, "proceed-link"))
-        )
-        proceed_link.click()
+I hope this message finds you well.
 
-    except Exception as e:
-        print("No security warning found or bypassed. Error:", e)
+I am sharing a sample email and a sample Teams channel message for your review. Kindly validate these to ensure they align with the required standards. Once approved, I will proceed with the pipeline creation.
 
-    # Enter username
-    WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.ID, "username"))
-    ).send_keys(username)
+Looking forward to your feedback.
 
-    # Enter password
-    WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.ID, "password"))
-    ).send_keys(password)
-
-    # Click the new login button
-    login_button = WebDriverWait(driver, 18).until(
-        EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'icon-carousel-right-arrow')]"))
-    )
-    login_button.click()
-
-    # Navigate to System Health
-    system_health_link = WebDriverWait(driver, 18).until(
-        EC.element_to_be_clickable((By.XPATH, "//a[contains(@routerlink, '/dashboard/system-health')]"))
-    )
-    time.sleep(5)  # Add a small delay to ensure navigation
-    system_health_link.click()
-
-    time.sleep(10)  # Allow the system health page to load
+Best regards,
+Yash
