@@ -1,1 +1,45 @@
-"Got it, Andy. Encouraging teams to research and propose ideas sounds like a great approach. I’ll definitely try to explore possibilities and contribute to this initiative."
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
+
+def access_system_health(driver, username, password):
+    try:
+        # Bypass security warnings if they exist
+        advanced_button = WebDriverWait(driver, 18).until(
+            EC.element_to_be_clickable((By.ID, "details-button"))
+        )
+        advanced_button.click()
+
+        proceed_link = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "proceed-link"))
+        )
+        proceed_link.click()
+
+    except Exception as e:
+        print("No security warning found or bypassed. Error:", e)
+
+    # Enter username
+    WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.ID, "username"))
+    ).send_keys(username)
+
+    # Enter password
+    WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.ID, "password"))
+    ).send_keys(password)
+
+    # Click the new login button
+    login_button = WebDriverWait(driver, 18).until(
+        EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'icon-carousel-right-arrow')]"))
+    )
+    login_button.click()
+
+    # Navigate to System Health
+    system_health_link = WebDriverWait(driver, 18).until(
+        EC.element_to_be_clickable((By.XPATH, "//a[contains(@routerlink, '/dashboard/system-health')]"))
+    )
+    time.sleep(5)  # Add a small delay to ensure navigation
+    system_health_link.click()
+
+    time.sleep(10)  # Allow the system health page to load
