@@ -1,1 +1,95 @@
 
+import os
+import requests
+import csv
+import paramiko
+from datetime import datetime
+from config import SITE_USER, SITE_PASSWORD
+
+def fetch_api_data(ip, username, password):
+    """Fetches data from the API."""
+    api_url = (
+        f"https://{ip}/api/types/metricValue/instances"
+        "?filter=path EQ \"sp.*.cpu.summary.utilization\"&filter=timestamp GT now-3600"
+    )
+    headers = {
+        "X-EMC-REST-CLIENT": "true",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    response = requests.get(api_url, headers=headers, auth=(username, password), verify=False)
+    response.raise_for_status()
+    data = response.json()
+    entries = data.get("entries", [])
+    if entries:
+        content = entries[0]["content"]
+        values = content["values"]
+        timestamp = content["timestamp"]
+        spa_utilization = values.get("spa")
+        spb_utilization = values.get("spb")
+        return timestamp, spa_utilization, spb_utilization
+    return None, None, None
+
+def append_to_csv_on_sftp(timestamp, spa_utilization, spb_utilization, sftp_details):
+    """Appends data to a CSV file on the SFTP server."""
+    today_date = datetime.utcnow().strftime("%Y%m%d")
+    remote_dir = "Network_devices_Backup/Api_data/"
+    remote_file = f"{remote_dir}api_data_{today_date}.csv"
+    local_csv = f"api_data_{today_date}.csv"
+
+    # Connect to SFTP
+    transport = paramiko.Transport((sftp_details["host"], sftp_details["port"]))
+    transport.connect(username=sftp_details["username"], password=sftp_details["password"])
+    sftp = paramiko.SFTPClient.from_transport(transport)
+
+    # Download remote file if it exists
+    file_exists = True
+    try:
+        sftp.get(remote_file, local_csv)
+    except FileNotFoundError:
+        file_exists = False
+
+    # Append or create local CSV
+    with open(local_csv, "a" if file_exists else "w", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        if not file_exists:
+            # Write header if it's a new file
+            writer.writerow(["Timestamp(GMT)", "SPA Utilisation (%)", "SPB Utilisation (%)"])
+        # Write the new data
+        writer.writerow([timestamp, spa_utilization, spb_utilization])
+
+    # Upload the updated CSV file back to the SFTP server
+    sftp.put(local_csv, remote_file)
+
+    # Cleanup
+    os.remove(local_csv)
+    sftp.close()
+    transport.close()
+
+def main():
+    sites = [
+        {"ip": "10.1.3.95", "username": os.getenv("SITE_USER"), "password": os.getenv("SITE_PASSWORD")}
+    ]
+    sftp_details = {
+        "host": "your.sftp.server",
+        "port": 22,
+        "username": "your_sftp_user",
+        "password": "your_sftp_password",
+    }
+
+    for site in sites:
+        try:
+            ip = site["ip"]
+            timestamp, spa_utilization, spb_utilization = fetch_api_data(
+                ip, site["username"], site["password"]
+            )
+            if timestamp and spa_utilization is not None and spb_utilization is not None:
+                print(f"Data fetched successfully for IP {ip}.")
+                append_to_csv_on_sftp(timestamp, spa_utilization, spb_utilization, sftp_details)
+            else:
+                print(f"No data received for IP {ip}.")
+        except Exception as e:
+            print(f"An error occurred for IP {site['ip']}: {e}")
+
+if __name__ == "__main__":
+    main()
