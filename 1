@@ -1,1 +1,73 @@
+# Send email with both graphs as attachments to multiple recipients
+def send_email_with_graphs(smtp_details, to_email, subject, body, attachment_files):
+    try:
+        # Split the to_email string into a list of recipients
+        to_emails = [email.strip() for email in to_email.split(",")]
 
+        msg = MIMEMultipart()
+        msg['From'] = smtp_details['username']
+        msg['To'] = to_email  # Keep the original string for email header
+        msg['Subject'] = subject
+
+        # Attach body
+        msg.attach(MIMEText(body, 'plain'))
+
+        # Attach all images
+        for attachment_file in attachment_files:
+            with open(attachment_file, 'rb') as img_file:
+                img = MIMEImage(img_file.read())
+                img.add_header('Content-Disposition', 'attachment', filename=os.path.basename(attachment_file))
+                msg.attach(img)
+
+        # SMTP setup
+        server = smtplib.SMTP(smtp_details['host'], smtp_details['port'])
+        server.starttls()
+        server.login(smtp_details['username'], smtp_details['password'])
+        server.sendmail(msg['From'], to_emails, msg.as_string())
+        server.quit()
+        print(f"Email sent to {to_email} with attachments {', '.join(attachment_files)}")
+    except Exception as e:
+        print(f"Error sending email: {e}")
+
+# Main function
+def main():
+    # SFTP details
+    sftp_details = {
+        "host": "your.sftp.server",
+        "port": 22,
+        "username": "your_sftp_user",
+        "password": "your_sftp_password",
+    }
+
+    # Remote and local file paths
+    remote_file = "Network_devices_Backup/Api_data/api_data_20241129.csv"  # Adjust date as needed
+    local_csv = "api_data.csv"
+    spa_output_image = "spa_utilization_bar_graph.png"
+    spb_output_image = "spb_utilization_bar_graph.png"
+
+    # SMTP details
+    smtp_details = {
+        "host": "your.smtp.server",
+        "port": 587,
+        "username": "your_smtp_user",
+        "password": "your_smtp_password",
+    }
+
+    # Specify recipients as a single string
+    to_email = "recipient1@example.com, recipient2@example.com, recipient3@example.com"
+
+    subject = "SPA & SPB Utilisation Bar Graphs"
+    body = "Please find the attached bar graphs for SPA and SPB utilisation over time."
+
+    # Workflow
+    fetch_csv_from_sftp(sftp_details, remote_file, local_csv)
+    generate_bar_graphs(local_csv, spa_output_image, spb_output_image)
+    send_email_with_graphs(smtp_details, to_email, subject, body, [spa_output_image, spb_output_image])
+
+    # Clean up local files
+    os.remove(local_csv)
+    os.remove(spa_output_image)
+    os.remove(spb_output_image)
+
+if __name__ == "__main__":
+    main()
