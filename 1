@@ -6,6 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
+from datetime import datetime
 
 # Fetch CSV from SFTP server
 def fetch_csv_from_sftp(sftp_details, remote_file, local_file):
@@ -33,17 +34,22 @@ def generate_bar_graphs(csv_file, spa_output_image, spb_output_image):
     with open(csv_file, "r") as file:
         reader = csv.DictReader(file)
         for row in reader:
-            timestamps.append(row["Timestamp(GMT)"])
+            # Format timestamps to remove ".000Z"
+            raw_timestamp = row["Timestamp(GMT)"]
+            formatted_timestamp = datetime.strptime(raw_timestamp, "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%Y-%m-%d %H:%M:%S")
+            timestamps.append(formatted_timestamp)
+
             spa_utilizations.append(float(row["SPA Utilisation (%)"]))
             spb_utilizations.append(float(row["SPB Utilisation (%)"]))
 
     # Plot SPA Utilisation (Bar Graph)
     plt.figure(figsize=(12, 6))
     bars = plt.bar(timestamps, spa_utilizations, color="blue", alpha=0.7)
-    plt.xlabel("Timestamp (GMT)")
-    plt.ylabel("Utilisation (%)")
-    plt.title("SPA Utilisation Over Time (Bar Graph)")
-    plt.xticks(rotation=45, ha="right")
+    plt.xlabel("Timestamp (GMT)", fontsize=10)
+    plt.ylabel("Utilisation (%)", fontsize=10)
+    plt.title("SPA Utilisation Over Time (Bar Graph)", fontsize=12)
+    plt.xticks(rotation=45, ha="right", fontsize=8)
+    plt.yticks(fontsize=8)
 
     # Annotate bars with values
     for bar in bars:
@@ -59,10 +65,11 @@ def generate_bar_graphs(csv_file, spa_output_image, spb_output_image):
     # Plot SPB Utilisation (Bar Graph)
     plt.figure(figsize=(12, 6))
     bars = plt.bar(timestamps, spb_utilizations, color="green", alpha=0.7)
-    plt.xlabel("Timestamp (GMT)")
-    plt.ylabel("Utilisation (%)")
-    plt.title("SPB Utilisation Over Time (Bar Graph)")
-    plt.xticks(rotation=45, ha="right")
+    plt.xlabel("Timestamp (GMT)", fontsize=10)
+    plt.ylabel("Utilisation (%)", fontsize=10)
+    plt.title("SPB Utilisation Over Time (Bar Graph)", fontsize=12)
+    plt.xticks(rotation=45, ha="right", fontsize=8)
+    plt.yticks(fontsize=8)
 
     # Annotate bars with values
     for bar in bars:
