@@ -64,8 +64,8 @@ def generate_graphs(csv_file, spa_output_image, spb_output_image):
     plt.close()
     print(f"SPB graph generated: {spb_output_image}")
 
-# Send email with the graph as attachment
-def send_email_with_graph(smtp_details, to_email, subject, body, attachment_file):
+# Send email with both graphs as attachments
+def send_email_with_graphs(smtp_details, to_email, subject, body, attachment_files):
     try:
         msg = MIMEMultipart()
         msg['From'] = smtp_details['username']
@@ -75,11 +75,12 @@ def send_email_with_graph(smtp_details, to_email, subject, body, attachment_file
         # Attach body
         msg.attach(MIMEText(body, 'plain'))
 
-        # Attach image
-        with open(attachment_file, 'rb') as img_file:
-            img = MIMEImage(img_file.read())
-            img.add_header('Content-Disposition', 'attachment', filename=os.path.basename(attachment_file))
-            msg.attach(img)
+        # Attach all images
+        for attachment_file in attachment_files:
+            with open(attachment_file, 'rb') as img_file:
+                img = MIMEImage(img_file.read())
+                img.add_header('Content-Disposition', 'attachment', filename=os.path.basename(attachment_file))
+                msg.attach(img)
 
         # SMTP setup
         server = smtplib.SMTP(smtp_details['host'], smtp_details['port'])
@@ -87,7 +88,7 @@ def send_email_with_graph(smtp_details, to_email, subject, body, attachment_file
         server.login(smtp_details['username'], smtp_details['password'])
         server.sendmail(msg['From'], msg['To'], msg.as_string())
         server.quit()
-        print(f"Email sent to {to_email} with attachment {attachment_file}")
+        print(f"Email sent to {to_email} with attachments {', '.join(attachment_files)}")
     except Exception as e:
         print(f"Error sending email: {e}")
 
@@ -121,8 +122,7 @@ def main():
     # Workflow
     fetch_csv_from_sftp(sftp_details, remote_file, local_csv)
     generate_graphs(local_csv, spa_output_image, spb_output_image)
-    send_email_with_graph(smtp_details, to_email, subject, body, spa_output_image)
-    send_email_with_graph(smtp_details, to_email, subject, body, spb_output_image)
+    send_email_with_graphs(smtp_details, to_email, subject, body, [spa_output_image, spb_output_image])
 
     # Clean up local files
     os.remove(local_csv)
