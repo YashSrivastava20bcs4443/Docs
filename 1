@@ -31,45 +31,41 @@ def fetch_api_data(ip, username, password):
 
 def append_to_csv_on_sftp(timestamp, spa_utilization, spb_utilization, sftp_details):
     """Appends data to a CSV file on the SFTP server."""
-    local_csv = "temp_data.csv"
+    today_date = datetime.utcnow().strftime("%Y%m%d")
     remote_dir = "Network_devices_Backup/Api_data/"
-    remote_file = f"{remote_dir}api_data.csv"
+    remote_file = f"{remote_dir}api_data_{today_date}.csv"
+    local_csv = f"api_data_{today_date}.csv"
 
-    # Create a local CSV file with the data
-    with open(local_csv, "w", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["Timestamp(GMT)", "SPA Utilisation (%)", "SPB Utilisation (%)"])
-        writer.writerow([timestamp, spa_utilization, spb_utilization])
-
-    # Connect to SFTP and append the file
+    # Check if the remote file exists
     transport = paramiko.Transport((sftp_details["host"], sftp_details["port"]))
     transport.connect(username=sftp_details["username"], password=sftp_details["password"])
     sftp = paramiko.SFTPClient.from_transport(transport)
 
-    # Append or create the remote CSV file
     try:
-        # Download the existing CSV file
+        # Try downloading the file (if it exists)
         sftp.get(remote_file, local_csv)
-        # Append the new data
-        with open(local_csv, "a", newline="") as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow([timestamp, spa_utilization, spb_utilization])
     except FileNotFoundError:
-        # Create the file if it does not exist
+        # If the file doesn't exist, create it with headers
         with open(local_csv, "w", newline="") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(["Timestamp(GMT)", "SPA Utilisation (%)", "SPB Utilisation (%)"])
-            writer.writerow([timestamp, spa_utilization, spb_utilization])
 
-    # Upload the updated CSV file back to the server
+    # Append new data to the local CSV file
+    with open(local_csv, "a", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow([timestamp, spa_utilization, spb_utilization])
+
+    # Upload the updated file back to the server
     sftp.put(local_csv, remote_file)
+
+    # Clean up local file
+    os.remove(local_csv)
     sftp.close()
     transport.close()
-    os.remove(local_csv)
 
 def main():
     sites = [
-        {"ip": "10.1.3.4", "username": os.getenv("SITE_USER"), "password": os.getenv("SITE_PASSWORD")}
+        {"ip": "10.1.3.5", "username": os.getenv("SITE_USER"), "password": os.getenv("SITE_PASSWORD")}
     ]
     sftp_details = {
         "host": "your.sftp.server",
