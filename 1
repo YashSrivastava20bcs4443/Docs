@@ -15,28 +15,35 @@ df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
 # Convert the cleaned @timestamp to datetime
 df['@timestamp'] = pd.to_datetime(df['@timestamp'], format='%b %d, %Y %H:%M:%S.%f')
 
-# Step 3: Extract hour of the day (0 to 24)
-df['Hour'] = df['@timestamp'].dt.hour
+# Step 3: Allow user to filter by a specific date
+selected_date = 'Dec 2, 2024'  # Set this to any date you want to filter (or use a date input)
+df['Date'] = df['@timestamp'].dt.strftime('%b %d, %Y')  # Extract date from timestamp
 
-# Step 4: Apply Filters (Optional)
+# Filter data for the selected date
+filtered_df = df[df['Date'] == selected_date]
+
+# Step 4: Extract hour of the day (0 to 24) from the filtered data
+filtered_df['Hour'] = filtered_df['@timestamp'].dt.hour
+
+# Step 5: Apply Filters (Optional)
 # Example filter: Select rows where EventSource is "Prometheus"
-filtered_df = df[df['EventSource'] == 'Prometheus']
+filtered_df = filtered_df[filtered_df['EventSource'] == 'Prometheus']
 
 # Ensure EventTitle exists in filtered data
 if 'EventTitle' not in filtered_df.columns:
     filtered_df['EventTitle'] = 'Unknown'  # Add a placeholder if missing
 
-# Step 5: Group data by hour and EventTitle
+# Step 6: Group data by hour and EventTitle
 timewise_alerts = filtered_df.groupby(['Hour', 'EventTitle'])['EventSource'].count().unstack(fill_value=0)
 
-# Step 6: Plot Stacked Bar Chart with Hour on X-axis (0 to 24)
+# Step 7: Plot Stacked Bar Chart with Hour on X-axis (0 to 24)
 fig, ax = plt.subplots(figsize=(12, 8))
 
 # Stacked Bar Chart
 timewise_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='tab20')
 
 # Customizing the plot
-ax.set_title('Hourly Alerts by Event Title')
+ax.set_title(f'Hourly Alerts by Event Title for {selected_date}')
 ax.set_xlabel('Hour of the Day (0 to 24)')
 ax.set_ylabel('Number of Alerts')
 
@@ -55,5 +62,5 @@ plt.tight_layout()
 plt.show()
 
 # Optional: Display processed data
-print("Processed DataFrame (Time-wise Event Title):")
+print(f"Processed DataFrame (Time-wise Event Title for {selected_date}):")
 print(timewise_alerts)
