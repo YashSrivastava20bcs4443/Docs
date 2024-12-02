@@ -1,6 +1,5 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
 
 # Step 1: Read data from Excel
 file_path = 'data.xlsx'  # Replace with your actual file path
@@ -16,34 +15,38 @@ df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
 # Convert the cleaned @timestamp to datetime
 df['@timestamp'] = pd.to_datetime(df['@timestamp'], format='%b %d, %Y %H:%M:%S.%f')
 
-# Extract Day
-df['Day'] = df['@timestamp'].dt.date
+# Extract Time
+df['Time'] = df['@timestamp'].dt.floor('H')  # Group by hour for better visualization
 
 # Group data for stacked bar chart
-daywise_alerts = df.groupby(['Day', 'EventSource'])['EventLevel'].count().unstack(fill_value=0)
+timewise_alerts = df.groupby(['Time', 'EventSource'])['EventLevel'].count().unstack(fill_value=0)
 
 # Calculate cumulative alerts (for line chart)
-daywise_alerts['Cumulative'] = daywise_alerts.sum(axis=1).cumsum()
+timewise_alerts['Cumulative'] = timewise_alerts.sum(axis=1).cumsum()
 
-# Step 3: Plot Stacked Bar Chart with Line Overlay
-fig, ax = plt.subplots(figsize=(12, 8))
+# Step 3: Plot Stacked Bar Chart with Line Chart
+fig, ax1 = plt.subplots(figsize=(12, 8))
 
 # Stacked Bar Chart
-bars = daywise_alerts.iloc[:, :-1].plot(kind='bar', stacked=True, ax=ax, colormap='tab10', alpha=0.8)
+timewise_alerts.iloc[:, :-1].plot(kind='bar', stacked=True, ax=ax1, colormap='tab20')
 
-# Overlay Line Chart (Cumulative Alerts)
-ax.plot(np.arange(len(daywise_alerts.index)), daywise_alerts['Cumulative'], color='black', marker='o', linewidth=2, label='Cumulative Alerts')
+# Line Chart (Cumulative Alerts)
+ax2 = ax1.twinx()
+ax2.plot(timewise_alerts.index, timewise_alerts['Cumulative'], color='black', marker='o', linewidth=2, label='Cumulative Alerts')
 
 # Customizing the plot
-ax.set_title('Day-wise Alerts (Stacked Bar) with Cumulative Alerts (Line)')
-ax.set_xlabel('Day')
-ax.set_ylabel('Number of Alerts')
-ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
-plt.xticks(ticks=np.arange(len(daywise_alerts.index)), labels=daywise_alerts.index, rotation=45)
+ax1.set_title('Time-wise Alerts (Stacked Bar) with Cumulative Alerts (Line)')
+ax1.set_xlabel('Time')
+ax1.set_ylabel('Number of Alerts')
+ax2.set_ylabel('Cumulative Alerts')
 
+ax1.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+ax2.legend(loc='upper left', bbox_to_anchor=(1.05, 0.9))
+
+plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
 
 # Optional: Display processed data
 print("Processed DataFrame:")
-print(daywise_alerts)
+print(timewise_alerts)
