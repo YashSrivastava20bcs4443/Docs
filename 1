@@ -12,8 +12,12 @@ df = pd.read_excel(file_path, sheet_name=sheet_name)
 # Clean the @timestamp column
 df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
 
-# Convert the cleaned @timestamp to datetime
-df['@timestamp'] = pd.to_datetime(df['@timestamp'], format='%b %d, %Y %H:%M:%S.%f')
+# Convert the cleaned @timestamp to datetime (be sure to handle the correct format)
+df['@timestamp'] = pd.to_datetime(df['@timestamp'], format='%b %d, %Y %H:%M:%S.%f', errors='coerce')
+
+# Check if any dates are not parsed correctly
+print("Rows with invalid date format (NaT):")
+print(df[df['@timestamp'].isna()])
 
 # Step 3: Allow user to filter by a specific date
 selected_date = 'Dec 2, 2024'  # Set this to any date you want to filter (or use a date input)
@@ -22,8 +26,16 @@ df['Date'] = df['@timestamp'].dt.strftime('%b %d, %Y')  # Extract date from time
 # Filter data for the selected date
 filtered_df = df[df['Date'] == selected_date]
 
+# Check if filtering works correctly
+print(f"\nData after filtering by date {selected_date}:")
+print(filtered_df.head())
+
 # Step 4: Extract hour of the day (0 to 24) from the filtered data
 filtered_df['Hour'] = filtered_df['@timestamp'].dt.hour
+
+# Check if Hour extraction is correct
+print(f"\nData with extracted Hour for {selected_date}:")
+print(filtered_df[['@timestamp', 'Hour']].head())
 
 # Step 5: Apply Filters (Optional)
 # Example filter: Select rows where EventSource is "Prometheus"
@@ -33,8 +45,16 @@ filtered_df = filtered_df[filtered_df['EventSource'] == 'Prometheus']
 if 'EventTitle' not in filtered_df.columns:
     filtered_df['EventTitle'] = 'Unknown'  # Add a placeholder if missing
 
+# Check filtered data
+print(f"\nData after applying EventSource filter (Prometheus):")
+print(filtered_df.head())
+
 # Step 6: Group data by hour and EventTitle
 timewise_alerts = filtered_df.groupby(['Hour', 'EventTitle'])['EventSource'].count().unstack(fill_value=0)
+
+# Check grouped data
+print(f"\nGrouped Data by Hour and EventTitle:")
+print(timewise_alerts)
 
 # Step 7: Plot Stacked Bar Chart with Hour on X-axis (0 to 24)
 fig, ax = plt.subplots(figsize=(12, 8))
