@@ -15,10 +15,10 @@ df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
 # Convert the cleaned @timestamp to datetime
 df['@timestamp'] = pd.to_datetime(df['@timestamp'], format='%b %d, %Y %H:%M:%S.%f')
 
-# Extract Hour for time-wise grouping in 12-hour format with AM/PM
-df['Hour'] = df['@timestamp'].dt.strftime('%I:%M %p')  # 12-hour format with AM/PM
+# Step 3: Round the timestamp to the nearest 4-hour interval
+df['Hour'] = df['@timestamp'].dt.floor('4H').dt.strftime('%I:%M %p')  # Round to 4-hour intervals
 
-# Step 3: Apply Filters (Optional)
+# Step 4: Apply Filters (Optional)
 # Example filter: Select rows where EventSource is "Prometheus"
 filtered_df = df[df['EventSource'] == 'Prometheus']
 
@@ -26,18 +26,18 @@ filtered_df = df[df['EventSource'] == 'Prometheus']
 if 'EventTitle' not in filtered_df.columns:
     filtered_df['EventTitle'] = 'Unknown'  # Add a placeholder if missing
 
-# Step 4: Group data time-wise by Hour and EventTitle
+# Step 5: Group data by 4-hour intervals and EventTitle
 timewise_alerts = filtered_df.groupby(['Hour', 'EventTitle'])['EventSource'].count().unstack(fill_value=0)
 
-# Step 5: Plot Stacked Bar Chart with Hour on X-axis (12-hour format)
+# Step 6: Plot Stacked Bar Chart with Hour on X-axis (4-hour intervals)
 fig, ax = plt.subplots(figsize=(12, 8))
 
 # Stacked Bar Chart
 timewise_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='tab20')
 
 # Customizing the plot
-ax.set_title('Hour-wise Alerts by Event Title')
-ax.set_xlabel('Hour of the Day (12-hour format)')
+ax.set_title('4-hour Interval Alerts by Event Title')
+ax.set_xlabel('Hour of the Day (4-hour intervals)')
 ax.set_ylabel('Number of Alerts')
 
 # Rotate x-axis labels for better visibility
