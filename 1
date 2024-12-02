@@ -15,50 +15,36 @@ df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
 # Convert the cleaned @timestamp to datetime
 df['@timestamp'] = pd.to_datetime(df['@timestamp'], format='%b %d, %Y %H:%M:%S.%f')
 
-# Extract Day
-df['Day'] = df['@timestamp'].dt.date
+# Extract Hour for time-wise grouping
+df['Hour'] = df['@timestamp'].dt.strftime('%Y-%m-%d %H:00:00')
 
-# Step 3: Apply Filters
+# Step 3: Apply Filters (Optional)
 # Example filter: Select rows where EventSource is "Prometheus"
-filtered_df = df[
-    (df['EventSource'] == 'Prometheus') &  # Filter for EventSource
-    (df['@timestamp'] >= '2024-12-01') &  # Start date filter
-    (df['@timestamp'] <= '2024-12-02')    # End date filter
-]
+filtered_df = df[df['EventSource'] == 'Prometheus']
 
 # Ensure EventTitle exists in filtered data
 if 'EventTitle' not in filtered_df.columns:
     filtered_df['EventTitle'] = 'Unknown'  # Add a placeholder if missing
 
-# Group data for stacked bar chart
-daywise_alerts = filtered_df.groupby(['Day', 'EventTitle'])['EventSource'].count().unstack(fill_value=0)
+# Step 4: Group data time-wise by Hour and EventTitle
+timewise_alerts = filtered_df.groupby(['Hour', 'EventTitle'])['EventSource'].count().unstack(fill_value=0)
 
-# Calculate cumulative alerts (for line chart)
-daywise_alerts['Cumulative'] = daywise_alerts.sum(axis=1).cumsum()
-
-# Step 4: Plot Stacked Bar Chart with Line Chart
-fig, ax1 = plt.subplots(figsize=(12, 8))
+# Step 5: Plot Stacked Bar Chart
+fig, ax = plt.subplots(figsize=(12, 8))
 
 # Stacked Bar Chart
-daywise_alerts.iloc[:, :-1].plot(kind='bar', stacked=True, ax=ax1, colormap='tab10')
-
-# Line Chart (Cumulative Alerts)
-ax2 = ax1.twinx()
-ax2.plot(daywise_alerts.index, daywise_alerts['Cumulative'], color='black', marker='o', linewidth=2, label='Cumulative Alerts')
+timewise_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='tab20')
 
 # Customizing the plot
-ax1.set_title('Day-wise Alerts (Stacked Bar) with Cumulative Alerts (Line)')
-ax1.set_xlabel('Day')
-ax1.set_ylabel('Number of Alerts')
-ax2.set_ylabel('Cumulative Alerts')
-
-ax1.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
-ax2.legend(loc='upper left', bbox_to_anchor=(1.05, 0.9))
+ax.set_title('Time-wise Alerts by Event Title')
+ax.set_xlabel('Time (Hour)')
+ax.set_ylabel('Number of Alerts')
+ax.legend(title='Event Title', loc='upper left', bbox_to_anchor=(1.05, 1))
 
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
 
-# Optional: Display filtered data
-print("Filtered DataFrame:")
-print(filtered_df)
+# Optional: Display processed data
+print("Processed DataFrame (Time-wise Event Title):")
+print(timewise_alerts)
