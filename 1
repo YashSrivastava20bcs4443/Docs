@@ -1,60 +1,46 @@
-Aap Linux mein commands ka use karke yeh jaan sakte hain ki kaunsa server running hai aur uski utilization kitni hai. Niche kuch commonly used commands diye gaye hain:
+import pandas as pd
+import matplotlib.pyplot as plt
 
-1. Server Running Status Check
+# Excel file path
+file_path = 'data.xlsx'
 
-uptime: Yeh command system uptime aur load average batati hai.
+# Read Excel file (make sure to save your data with relevant headers)
+df = pd.read_excel(file_path)
 
-uptime
+# Extract day and time from @timestamp
+df['Day'] = pd.to_datetime(df['@timestamp']).dt.date
+df['Time'] = pd.to_datetime(df['@timestamp']).dt.time
 
-top: Real-time mein running processes aur resource utilization dekhne ke liye.
+# Group by day for day-wise alerts
+daywise_alerts = df.groupby(['Day', 'EventSource', 'EventLevel']).size().reset_index(name='Count')
 
-top
+# Group by time for time-wise alerts
+timewise_alerts = df.groupby(['Time', 'EventSource', 'EventLevel']).size().reset_index(name='Count')
 
-ps: Specific services ya processes check karne ke liye.
+# Plotting day-wise alerts
+plt.figure(figsize=(10, 6))
+for source in daywise_alerts['EventSource'].unique():
+    subset = daywise_alerts[daywise_alerts['EventSource'] == source]
+    plt.plot(subset['Day'], subset['Count'], label=source)
 
-ps aux | grep <service-name>
+plt.title('Day-wise Alerts')
+plt.xlabel('Day')
+plt.ylabel('Count')
+plt.legend()
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
 
-systemctl: Service status check karne ke liye.
+# Plotting time-wise alerts
+plt.figure(figsize=(10, 6))
+for source in timewise_alerts['EventSource'].unique():
+    subset = timewise_alerts[timewise_alerts['EventSource'] == source]
+    plt.scatter(subset['Time'], subset['Count'], label=source)
 
-systemctl status <service-name>
-
-
-2. Utilization Check
-
-CPU Utilization:
-
-mpstat
-
-Memory Utilization:
-
-free -h
-
-Disk Utilization:
-
-df -h
-
-I/O Utilization:
-
-iostat
-
-Network Utilization:
-
-iftop
-
-
-3. Combine Server and Utilization Information
-
-CPU and Memory usage:
-
-top -b -n1 | head -n 15
-
-Specific process utilization:
-
-ps aux --sort=-%cpu | head -n 10
-
-Load average:
-
-cat /proc/loadavg
-
-
-Yeh commands apko server ke running hone aur resource utilization ki detail provide karengi. Agar aapko output ka analysis karna hai ya automation karni ho, toh cron, bash scripting, ya tools like Nagios aur Zabbix ka use kar sakte hain.
+plt.title('Time-wise Alerts')
+plt.xlabel('Time')
+plt.ylabel('Count')
+plt.legend()
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
