@@ -1,135 +1,60 @@
-Monitoring a Kubernetes (K8s) cluster involves observing both the cluster itself (infrastructure-level metrics) and the workloads running inside the cluster (application-level metrics). Here’s a categorized list of what you can monitor:
+Aap Linux mein commands ka use karke yeh jaan sakte hain ki kaunsa server running hai aur uski utilization kitni hai. Niche kuch commonly used commands diye gaye hain:
 
+1. Server Running Status Check
 
----
+uptime: Yeh command system uptime aur load average batati hai.
 
-1. Cluster-Level Monitoring
+uptime
 
-Focuses on the health and performance of the cluster infrastructure.
+top: Real-time mein running processes aur resource utilization dekhne ke liye.
 
-a. Node Metrics
+top
 
-CPU usage (utilization and throttling).
+ps: Specific services ya processes check karne ke liye.
 
-Memory usage (total and available).
+ps aux | grep <service-name>
 
-Disk I/O (read/write rates, disk space).
+systemctl: Service status check karne ke liye.
 
-Network I/O (throughput, errors, latency).
+systemctl status <service-name>
 
-Node availability (status: Ready, NotReady).
 
-Pod capacity (number of running vs. allocatable Pods).
+2. Utilization Check
 
+CPU Utilization:
 
-b. Cluster Resources
+mpstat
 
-API server metrics (latency, request rates, error rates).
+Memory Utilization:
 
-Cluster health (etcd health and performance metrics).
+free -h
 
-Resource allocation (cluster resource usage vs. capacity).
+Disk Utilization:
 
-Scheduler performance (scheduling latency and failures).
+df -h
 
-Controller metrics (e.g., replication controller errors).
+I/O Utilization:
 
+iostat
 
-c. Persistent Storage
+Network Utilization:
 
-Volume health (availability, provisioning errors).
+iftop
 
-Disk pressure (on nodes or volumes).
 
+3. Combine Server and Utilization Information
 
-d. Network
+CPU and Memory usage:
 
-Service discovery (DNS errors or latency).
+top -b -n1 | head -n 15
 
-Network policies (compliance and rules).
+Specific process utilization:
 
-Pod-to-Pod connectivity (packet loss, latency).
+ps aux --sort=-%cpu | head -n 10
 
+Load average:
 
+cat /proc/loadavg
 
----
 
-2. Inside-the-Cluster Monitoring
-
-Focuses on workloads and applications running in the cluster.
-
-a. Pod and Container Metrics
-
-Pod status (running, pending, failed).
-
-Container CPU and memory usage.
-
-Container restarts and crash loops.
-
-Container log errors or anomalies.
-
-
-b. Workload Performance
-
-Deployment status (desired vs. current replicas).
-
-Job completion (success/failure of CronJobs or Jobs).
-
-StatefulSet health (pod readiness, scaling issues).
-
-
-c. Application Metrics
-
-Request rates (e.g., HTTP requests per second).
-
-Error rates (e.g., 4xx, 5xx).
-
-Latency (response times).
-
-Custom application metrics (via Prometheus or similar tools).
-
-
-d. Networking
-
-Ingress traffic (latency, bandwidth, errors).
-
-Service metrics (availability, traffic distribution).
-
-Load balancer metrics.
-
-
-e. Logs
-
-Application logs (log patterns, errors).
-
-System logs (Kubelet, kube-proxy, etc.).
-
-
-f. Security and Compliance
-
-RBAC configuration issues.
-
-Image vulnerabilities (e.g., scanning container images).
-
-Pod security policies (non-compliance checks).
-
-
-
----
-
-3. Monitoring Tools Integration
-
-Prometheus/Grafana: For metrics collection and visualization.
-
-ELK Stack (Elasticsearch, Logstash, Kibana): For log monitoring.
-
-Kubernetes Dashboard: For a high-level cluster overview.
-
-Jaeger/Zipkin: For distributed tracing of applications.
-
-Tools like Lens, Datadog, or Dynatrace: For enhanced observability.
-
-
-Would you like details on configuring monitoring for specific metrics or tools?
-
-
+Yeh commands apko server ke running hone aur resource utilization ki detail provide karengi. Agar aapko output ka analysis karna hai ya automation karni ho, toh cron, bash scripting, ya tools like Nagios aur Zabbix ka use kar sakte hain.
