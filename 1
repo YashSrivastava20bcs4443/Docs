@@ -1,1 +1,135 @@
+Monitoring a Kubernetes (K8s) cluster involves observing both the cluster itself (infrastructure-level metrics) and the workloads running inside the cluster (application-level metrics). Here’s a categorized list of what you can monitor:
+
+
+---
+
+1. Cluster-Level Monitoring
+
+Focuses on the health and performance of the cluster infrastructure.
+
+a. Node Metrics
+
+CPU usage (utilization and throttling).
+
+Memory usage (total and available).
+
+Disk I/O (read/write rates, disk space).
+
+Network I/O (throughput, errors, latency).
+
+Node availability (status: Ready, NotReady).
+
+Pod capacity (number of running vs. allocatable Pods).
+
+
+b. Cluster Resources
+
+API server metrics (latency, request rates, error rates).
+
+Cluster health (etcd health and performance metrics).
+
+Resource allocation (cluster resource usage vs. capacity).
+
+Scheduler performance (scheduling latency and failures).
+
+Controller metrics (e.g., replication controller errors).
+
+
+c. Persistent Storage
+
+Volume health (availability, provisioning errors).
+
+Disk pressure (on nodes or volumes).
+
+
+d. Network
+
+Service discovery (DNS errors or latency).
+
+Network policies (compliance and rules).
+
+Pod-to-Pod connectivity (packet loss, latency).
+
+
+
+---
+
+2. Inside-the-Cluster Monitoring
+
+Focuses on workloads and applications running in the cluster.
+
+a. Pod and Container Metrics
+
+Pod status (running, pending, failed).
+
+Container CPU and memory usage.
+
+Container restarts and crash loops.
+
+Container log errors or anomalies.
+
+
+b. Workload Performance
+
+Deployment status (desired vs. current replicas).
+
+Job completion (success/failure of CronJobs or Jobs).
+
+StatefulSet health (pod readiness, scaling issues).
+
+
+c. Application Metrics
+
+Request rates (e.g., HTTP requests per second).
+
+Error rates (e.g., 4xx, 5xx).
+
+Latency (response times).
+
+Custom application metrics (via Prometheus or similar tools).
+
+
+d. Networking
+
+Ingress traffic (latency, bandwidth, errors).
+
+Service metrics (availability, traffic distribution).
+
+Load balancer metrics.
+
+
+e. Logs
+
+Application logs (log patterns, errors).
+
+System logs (Kubelet, kube-proxy, etc.).
+
+
+f. Security and Compliance
+
+RBAC configuration issues.
+
+Image vulnerabilities (e.g., scanning container images).
+
+Pod security policies (non-compliance checks).
+
+
+
+---
+
+3. Monitoring Tools Integration
+
+Prometheus/Grafana: For metrics collection and visualization.
+
+ELK Stack (Elasticsearch, Logstash, Kibana): For log monitoring.
+
+Kubernetes Dashboard: For a high-level cluster overview.
+
+Jaeger/Zipkin: For distributed tracing of applications.
+
+Tools like Lens, Datadog, or Dynatrace: For enhanced observability.
+
+
+Would you like details on configuring monitoring for specific metrics or tools?
+
 
