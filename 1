@@ -15,8 +15,8 @@ df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
 # Convert the cleaned @timestamp to datetime
 df['@timestamp'] = pd.to_datetime(df['@timestamp'], format='%b %d, %Y %H:%M:%S.%f')
 
-# Extract Hour for time-wise grouping
-df['Hour'] = df['@timestamp'].dt.strftime('%Y-%m-%d %H:00:00')  # Hourly time format
+# Extract Hour for time-wise grouping in 12-hour format with AM/PM
+df['Hour'] = df['@timestamp'].dt.strftime('%I:%M %p')  # 12-hour format with AM/PM
 
 # Step 3: Apply Filters (Optional)
 # Example filter: Select rows where EventSource is "Prometheus"
@@ -29,7 +29,7 @@ if 'EventTitle' not in filtered_df.columns:
 # Step 4: Group data time-wise by Hour and EventTitle
 timewise_alerts = filtered_df.groupby(['Hour', 'EventTitle'])['EventSource'].count().unstack(fill_value=0)
 
-# Step 5: Plot Stacked Bar Chart with Hour on X-axis
+# Step 5: Plot Stacked Bar Chart with Hour on X-axis (12-hour format)
 fig, ax = plt.subplots(figsize=(12, 8))
 
 # Stacked Bar Chart
@@ -37,7 +37,7 @@ timewise_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='tab20')
 
 # Customizing the plot
 ax.set_title('Hour-wise Alerts by Event Title')
-ax.set_xlabel('Hour of the Day')
+ax.set_xlabel('Hour of the Day (12-hour format)')
 ax.set_ylabel('Number of Alerts')
 
 # Rotate x-axis labels for better visibility
