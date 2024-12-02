@@ -15,44 +15,38 @@ df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
 # Convert the cleaned @timestamp to datetime
 df['@timestamp'] = pd.to_datetime(df['@timestamp'], format='%b %d, %Y %H:%M:%S.%f')
 
-# Extract Day and Time
+# Extract Day
 df['Day'] = df['@timestamp'].dt.date
-df['Time'] = df['@timestamp'].dt.time
 
-# Step 3: Group by Day for day-wise alerts
-daywise_alerts = df.groupby(['Day', 'EventSource', 'EventLevel']).size().reset_index(name='Count')
+# Group data for stacked bar chart
+daywise_alerts = df.groupby(['Day', 'EventSource'])['EventLevel'].count().unstack(fill_value=0)
 
-# Group by Time for time-wise alerts
-timewise_alerts = df.groupby(['Time', 'EventSource', 'EventLevel']).size().reset_index(name='Count')
+# Calculate cumulative alerts (for line chart)
+daywise_alerts['Cumulative'] = daywise_alerts.sum(axis=1).cumsum()
 
-# Step 4: Plot Day-wise Alerts
-plt.figure(figsize=(10, 6))
-for source in daywise_alerts['EventSource'].unique():
-    subset = daywise_alerts[daywise_alerts['EventSource'] == source]
-    plt.plot(subset['Day'], subset['Count'], label=source, marker='o')
+# Step 3: Plot Stacked Bar Chart with Line Chart
+fig, ax1 = plt.subplots(figsize=(12, 8))
 
-plt.title('Day-wise Alerts')
-plt.xlabel('Day')
-plt.ylabel('Count')
-plt.legend()
+# Stacked Bar Chart
+daywise_alerts.iloc[:, :-1].plot(kind='bar', stacked=True, ax=ax1, colormap='tab10')
+
+# Line Chart (Cumulative Alerts)
+ax2 = ax1.twinx()
+ax2.plot(daywise_alerts.index, daywise_alerts['Cumulative'], color='black', marker='o', linewidth=2, label='Cumulative Alerts')
+
+# Customizing the plot
+ax1.set_title('Day-wise Alerts (Stacked Bar) with Cumulative Alerts (Line)')
+ax1.set_xlabel('Day')
+ax1.set_ylabel('Number of Alerts')
+ax2.set_ylabel('Cumulative Alerts')
+
+ax1.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+ax2.legend(loc='upper left', bbox_to_anchor=(1.05, 0.9))
+
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
 
-# Step 5: Plot Time-wise Alerts
-plt.figure(figsize=(10, 6))
-for source in timewise_alerts['EventSource'].unique():
-    subset = timewise_alerts[timewise_alerts['EventSource'] == source]
-    plt.scatter(subset['Time'], subset['Count'], label=source)
-
-plt.title('Time-wise Alerts')
-plt.xlabel('Time')
-plt.ylabel('Count')
-plt.legend()
-plt.xticks(rotation=45)
-plt.tight_layout()
-plt.show()
-
-# Optional: Display processed DataFrame
+# Optional: Display processed data
 print("Processed DataFrame:")
-print(df)
+print(daywise_alerts)
