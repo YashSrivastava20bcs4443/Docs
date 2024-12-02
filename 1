@@ -1,27 +1,35 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Excel file path
-file_path = 'data.xlsx'
+# Step 1: Read data from Excel
+file_path = 'data.xlsx'  # Replace with your actual file path
+sheet_name = 'Sheet1'  # Replace with your Excel sheet name
 
-# Read Excel file (make sure to save your data with relevant headers)
-df = pd.read_excel(file_path)
+# Read the Excel file
+df = pd.read_excel(file_path, sheet_name=sheet_name)
 
-# Extract day and time from @timestamp
-df['Day'] = pd.to_datetime(df['@timestamp']).dt.date
-df['Time'] = pd.to_datetime(df['@timestamp']).dt.time
+# Step 2: Clean and process the data
+# Clean the @timestamp column
+df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
 
-# Group by day for day-wise alerts
+# Convert the cleaned @timestamp to datetime
+df['@timestamp'] = pd.to_datetime(df['@timestamp'], format='%b %d, %Y %H:%M:%S.%f')
+
+# Extract Day and Time
+df['Day'] = df['@timestamp'].dt.date
+df['Time'] = df['@timestamp'].dt.time
+
+# Step 3: Group by Day for day-wise alerts
 daywise_alerts = df.groupby(['Day', 'EventSource', 'EventLevel']).size().reset_index(name='Count')
 
-# Group by time for time-wise alerts
+# Group by Time for time-wise alerts
 timewise_alerts = df.groupby(['Time', 'EventSource', 'EventLevel']).size().reset_index(name='Count')
 
-# Plotting day-wise alerts
+# Step 4: Plot Day-wise Alerts
 plt.figure(figsize=(10, 6))
 for source in daywise_alerts['EventSource'].unique():
     subset = daywise_alerts[daywise_alerts['EventSource'] == source]
-    plt.plot(subset['Day'], subset['Count'], label=source)
+    plt.plot(subset['Day'], subset['Count'], label=source, marker='o')
 
 plt.title('Day-wise Alerts')
 plt.xlabel('Day')
@@ -31,7 +39,7 @@ plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
 
-# Plotting time-wise alerts
+# Step 5: Plot Time-wise Alerts
 plt.figure(figsize=(10, 6))
 for source in timewise_alerts['EventSource'].unique():
     subset = timewise_alerts[timewise_alerts['EventSource'] == source]
@@ -44,3 +52,7 @@ plt.legend()
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
+
+# Optional: Display processed DataFrame
+print("Processed DataFrame:")
+print(df)
