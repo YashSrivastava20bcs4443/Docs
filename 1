@@ -1,86 +1,75 @@
+# Import required libraries
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime
 
-# Step 1: Read data from Excel
-file_path = 'data.xlsx'  # Replace with your actual file path
-sheet_name = 'Sheet1'  # Replace with your Excel sheet name
+# Load the data from Excel
+file_path = 'your_excel_file.xlsx'  # Update with your Excel file path
+data = pd.read_excel(file_path)
 
-# Read the Excel file
-df = pd.read_excel(file_path, sheet_name=sheet_name)
+# Convert timestamp column to datetime
+data['@timestamp'] = pd.to_datetime(data['@timestamp'], errors='coerce')
 
-# Step 2: Clean and process the data
-# Clean the @timestamp column
-df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
+# Extract Day and Hour for analysis
+data['Day'] = data['@timestamp'].dt.date  # Day (YYYY-MM-DD)
+data['Hour'] = data['@timestamp'].dt.hour  # Hour (0-23)
 
-# Convert the cleaned @timestamp to datetime (be sure to handle the correct format)
-df['@timestamp'] = pd.to_datetime(df['@timestamp'], format='%b %d, %Y %H:%M:%S.%f', errors='coerce')
+# Filter relevant columns (adjust column names if necessary)
+columns_to_keep = ['@timestamp', 'Event Source', 'EventNode', 'EventLevel', 'EventTitle', 'Day', 'Hour']
+data = data[columns_to_keep]
 
-# Check if any dates are not parsed correctly
-print("Rows with invalid date format (NaT):")
-print(df[df['@timestamp'].isna()])
+### Table 1: Day-wise Analysis ###
+day_wise = data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
+day_wise['Total'] = day_wise.sum(axis=1)
+print("Day-wise Event Counts:")
+print(day_wise)
 
-# Step 3: Allow user to filter by a specific date
-selected_date = 'Dec 2, 2024'  # Set this to any date you want to filter (or use a date input)
-df['Date'] = df['@timestamp'].dt.strftime('%b %d, %Y')  # Extract date from timestamp
+### Table 2: Hourly Analysis ###
+hourly_analysis = data.groupby(['Hour', 'EventTitle']).size().unstack(fill_value=0)
+hourly_analysis['Total'] = hourly_analysis.sum(axis=1)
+print("\nHourly Event Counts:")
+print(hourly_analysis)
 
-# Filter data for the selected date
-filtered_df = df[df['Date'] == selected_date]
+### Graph 1: Day-wise Stacked Bar with Line Chart ###
+fig, ax1 = plt.subplots(figsize=(12, 6))
 
-# Check if filtering works correctly
-print(f"\nData after filtering by date {selected_date}:")
-print(filtered_df.head())
+# Stacked bar for daily event levels
+day_wise.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax1, colormap='viridis')
 
-# Step 4: Extract hour of the day (0 to 24) from the filtered data
-filtered_df['Hour'] = filtered_df['@timestamp'].dt.hour
+# Line plot for total counts
+ax2 = ax1.twinx()
+ax2.plot(day_wise.index, day_wise['Total'], color='red', marker='o', label='Total Events', linewidth=2)
 
-# Check if Hour extraction is correct
-print(f"\nData with extracted Hour for {selected_date}:")
-print(filtered_df[['@timestamp', 'Hour']].head())
-
-# Step 5: Apply Filters (Optional)
-# Example filter: Select rows where EventSource is "Prometheus"
-filtered_df = filtered_df[filtered_df['EventSource'] == 'Prometheus']
-
-# Ensure EventTitle exists in filtered data
-if 'EventTitle' not in filtered_df.columns:
-    filtered_df['EventTitle'] = 'Unknown'  # Add a placeholder if missing
-
-# Check filtered data
-print(f"\nData after applying EventSource filter (Prometheus):")
-print(filtered_df.head())
-
-# Step 6: Group data by hour and EventTitle
-timewise_alerts = filtered_df.groupby(['Hour', 'EventTitle'])['EventSource'].count().unstack(fill_value=0)
-
-# Check grouped data
-print(f"\nGrouped Data by Hour and EventTitle:")
-print(timewise_alerts)
-
-# Step 7: Plot Stacked Bar Chart with Hour on X-axis (0 to 24)
-fig, ax = plt.subplots(figsize=(12, 8))
-
-# Stacked Bar Chart
-timewise_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='tab20')
-
-# Customizing the plot
-ax.set_title(f'Hourly Alerts by Event Title for {selected_date}')
-ax.set_xlabel('Hour of the Day (0 to 24)')
-ax.set_ylabel('Number of Alerts')
-
-# Customizing x-axis to show hours from 0 to 24
-ax.set_xticks(range(24))  # Set ticks for each hour (0 to 23)
-ax.set_xticklabels([f'{i}:00' for i in range(24)])  # Label each tick as hour:00
-
-# Rotate x-axis labels for better visibility
+# Labels and formatting
+ax1.set_title('Day-wise Event Analysis (Stacked Bar + Line)', fontsize=14)
+ax1.set_xlabel('Day', fontsize=12)
+ax1.set_ylabel('Event Count (Stacked)', fontsize=12)
+ax2.set_ylabel('Total Event Count', fontsize=12)
+ax1.legend(title='Event Level')
+ax2.legend(loc='upper right')
 plt.xticks(rotation=45)
-
-# Show legend and fine-tune layout
-ax.legend(title='Event Title', loc='upper left', bbox_to_anchor=(1.05, 1))
 plt.tight_layout()
-
-# Display the plot
 plt.show()
 
-# Optional: Display processed data
-print(f"Processed DataFrame (Time-wise Event Title for {selected_date}):")
-print(timewise_alerts)
+### Graph 2: Hourly Event Count by Title with EventSource Filter ###
+# Function to plot hourly data based on EventSource
+def plot_hourly_event_count(event_source):
+    filtered_data = data[data['Event Source'] == event_source]
+    hourly_event = filtered_data.groupby(['Hour', 'EventTitle']).size().unstack(fill_value=0)
+    hourly_event['Total'] = hourly_event.sum(axis=1)
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(12, 6))
+    hourly_event.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='coolwarm')
+    
+    ax.set_title(f'Hourly Event Count by EventTitle (Source: {event_source})', fontsize=14)
+    ax.set_xlabel('Hour of Day', fontsize=12)
+    ax.set_ylabel('Event Count (Stacked)', fontsize=12)
+    plt.xticks(rotation=0)
+    plt.tight_layout()
+    plt.show()
+
+# Example: Plot for a specific EventSource
+event_source = 'Active Batch'  # Replace with desired EventSource
+plot_hourly_event_count(event_source)
