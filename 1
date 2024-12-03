@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
+from wordcloud import WordCloud
 
 # Load the data
 file_path = 'data.xlsx'  # Replace with your Excel file path
@@ -18,7 +19,7 @@ df['Weekday'] = df['@timestamp'].dt.day_name()
 # Streamlit App
 st.title("Event Analysis Dashboard")
 
-# Sidebar filters
+# Sidebar Filters
 st.sidebar.header("Filters")
 event_sources = df['EventSource'].unique()
 selected_source = st.sidebar.selectbox("Select Event Source:", options=event_sources)
@@ -34,63 +35,92 @@ if len(date_range) == 2:
 else:
     filtered_data = df
 
-# Filter data based on EventSource
 filtered_data = filtered_data[filtered_data['EventSource'] == selected_source]
 
-# Day-wise Alerts
-st.subheader("Day-wise Alerts Analysis")
+# Summary Statistics
+st.subheader("Summary Statistics")
+st.write(f"**Total Events:** {filtered_data.shape[0]}")
+st.write(f"**Earliest Event:** {filtered_data['@timestamp'].min()}")
+st.write(f"**Latest Event:** {filtered_data['@timestamp'].max()}")
+
+# Event Trends Over Time (Line Chart)
+st.subheader("Event Trends Over Time")
 if not filtered_data.empty:
-    daywise_alerts = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
-    daywise_alerts['Total'] = daywise_alerts.sum(axis=1)
+    daily_trends = filtered_data.groupby('Day').size()
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    daywise_alerts.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='tab10')
-    ax.set_title(f"Day-wise Alerts for Event Source: {selected_source}")
-    ax.set_xlabel("Day")
-    ax.set_ylabel("Number of Alerts")
+    daily_trends.plot(kind='line', ax=ax, color='blue', marker='o')
+    ax.set_title("Event Trends Over Time")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Number of Events")
     st.pyplot(fig)
-else:
-    st.write("No data available for the selected filters.")
 
-# Hourly Alerts
+# Event Source Comparison (Bar Chart)
+st.subheader("Event Source Comparison")
+if not filtered_data.empty:
+    source_comparison = df.groupby('EventSource').size().sort_values(ascending=False)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    source_comparison.plot(kind='bar', ax=ax, color='skyblue')
+    ax.set_title("Event Source Comparison")
+    ax.set_xlabel("Event Source")
+    ax.set_ylabel("Number of Events")
+    st.pyplot(fig)
+
+# Event Level Distribution (Heatmap)
+st.subheader("Event Level Distribution")
+if not filtered_data.empty:
+    level_distribution = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    sns.heatmap(level_distribution.T, cmap='coolwarm', ax=ax, annot=True, fmt="d")
+    ax.set_title("Event Level Distribution Heatmap")
+    st.pyplot(fig)
+
+# Hourly Alerts Analysis (Heatmap)
 st.subheader("Hourly Alerts Analysis")
 if not filtered_data.empty:
     hourly_alerts = filtered_data.groupby(['Hour', 'EventLevel']).size().unstack(fill_value=0)
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    hourly_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='coolwarm')
-    ax.set_title(f"Hourly Alerts for Event Source: {selected_source}")
-    ax.set_xlabel("Hour of Day")
-    ax.set_ylabel("Number of Alerts")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    sns.heatmap(hourly_alerts, cmap='coolwarm', annot=True, fmt="d")
+    ax.set_title("Hourly Alerts Heatmap")
     st.pyplot(fig)
 
-# Weekly Trends
-st.subheader("Weekly Trends Analysis")
+# Weekly Alerts Analysis (Bar Chart)
+st.subheader("Weekly Alerts Analysis")
 if not filtered_data.empty:
-    weekly_alerts = filtered_data.groupby('Weekday').size().reindex([
-        'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
-    ])
+    weekly_alerts = filtered_data.groupby('Weekday').size()
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    weekly_alerts.plot(kind='bar', ax=ax, color='teal')
-    ax.set_title(f"Weekly Alerts Trend for Event Source: {selected_source}")
+    weekly_alerts.plot(kind='bar', ax=ax, color='orange')
+    ax.set_title("Weekly Alerts Analysis")
     ax.set_xlabel("Day of the Week")
     ax.set_ylabel("Number of Alerts")
     st.pyplot(fig)
 
-# Event Level Distribution (Pie Chart)
-st.subheader("Event Level Distribution")
+# Word Cloud for Event Titles
+st.subheader("Word Cloud of Event Titles")
 if not filtered_data.empty:
-    event_level_counts = filtered_data['EventLevel'].value_counts()
+    text = " ".join(filtered_data['EventTitle'].dropna())
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
 
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.pie(event_level_counts, labels=event_level_counts.index, autopct='%1.1f%%', startangle=140)
-    ax.set_title(f"Event Level Distribution for {selected_source}")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.imshow(wordcloud, interpolation='bilinear')
+    ax.axis('off')
     st.pyplot(fig)
 
-# Data Table
-st.subheader("Filtered Data")
-st.write(filtered_data)
+# Event Level Trend (Stacked Area Chart)
+st.subheader("Event Level Trend")
+if not filtered_data.empty:
+    level_trends = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    level_trends.plot(kind='area', stacked=True, ax=ax, colormap='coolwarm')
+    ax.set_title("Event Level Trend Over Time")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Number of Events")
+    st.pyplot(fig)
 
 # Download Filtered Data as CSV
 st.subheader("Download Filtered Data")
