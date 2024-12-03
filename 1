@@ -10,11 +10,11 @@ data = pd.read_excel(file_path)
 print("Columns in dataset:", data.columns)
 print(data.head())  # Display first few rows to inspect the data
 
-# Step 3: Rename columns if necessary (adjust names based on your dataset)
+# Step 3: Rename columns to standardize
 data.rename(columns={
-    'YourActualTimestampColumn': '@timestamp',  # Replace with actual timestamp column name
-    'YourActualEventSourceColumn': 'Event Source',  # Replace with actual Event Source column name
-    'YourActualEventTitleColumn': 'EventTitle',  # Replace with actual Event Title column name
+    'timestamp': '@timestamp',  # Rename to standard name
+    'EventSource': 'Event Source',  # Rename to standard name
+    'EventTitle': 'Event Title',  # Rename to standard name
 }, inplace=True)
 
 # Step 4: Convert '@timestamp' to datetime
@@ -30,7 +30,7 @@ data['Day'] = data['@timestamp'].dt.date  # Extract date
 data['Hour'] = data['@timestamp'].dt.hour  # Extract hour
 
 # Step 7: Keep relevant columns
-columns_to_keep = ['@timestamp', 'Event Source', 'EventNode', 'EventLevel', 'EventTitle', 'Day', 'Hour']
+columns_to_keep = ['@timestamp', 'Event Source', 'EventNode', 'EventLevel', 'Event Title', 'Day', 'Hour']
 data = data[columns_to_keep]
 
 # Step 8: Day-wise Analysis
@@ -40,7 +40,7 @@ print("\nDay-wise Event Counts:")
 print(day_wise)
 
 # Step 9: Hourly Analysis
-hourly_analysis = data.groupby(['Hour', 'EventTitle']).size().unstack(fill_value=0)
+hourly_analysis = data.groupby(['Hour', 'Event Title']).size().unstack(fill_value=0)
 hourly_analysis['Total'] = hourly_analysis.sum(axis=1)
 print("\nHourly Event Counts:")
 print(hourly_analysis)
@@ -69,14 +69,14 @@ plt.show()
 # Step 11: Hourly Event Count by Title with EventSource Filter
 def plot_hourly_event_count(event_source):
     filtered_data = data[data['Event Source'] == event_source]
-    hourly_event = filtered_data.groupby(['Hour', 'EventTitle']).size().unstack(fill_value=0)
+    hourly_event = filtered_data.groupby(['Hour', 'Event Title']).size().unstack(fill_value=0)
     hourly_event['Total'] = hourly_event.sum(axis=1)
 
     # Plot
     fig, ax = plt.subplots(figsize=(12, 6))
     hourly_event.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='coolwarm')
     
-    ax.set_title(f'Hourly Event Count by EventTitle (Source: {event_source})', fontsize=14)
+    ax.set_title(f'Hourly Event Count by Event Title (Source: {event_source})', fontsize=14)
     ax.set_xlabel('Hour of Day', fontsize=12)
     ax.set_ylabel('Event Count (Stacked)', fontsize=12)
     plt.xticks(rotation=0)
