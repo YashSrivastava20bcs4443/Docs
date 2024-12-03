@@ -2,31 +2,87 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Load the data
-file_path = 'your_excel_file.xlsx'  # Replace with actual file path
+# Step 1: Load the data
+file_path = 'your_excel_file.xlsx'  # Replace with the actual file path
 data = pd.read_excel(file_path)
 
-# Check column names
+# Step 2: Debug - Check column names and sample data
 print("Columns in dataset:", data.columns)
+print(data.head())  # Display first few rows to inspect the data
 
-# Rename columns if necessary
+# Step 3: Rename columns if necessary (adjust names based on your dataset)
 data.rename(columns={
-    'TimestampColumnInExcel': '@timestamp',  # Replace with actual timestamp column name
-    'EventSourceColumnInExcel': 'Event Source',  # Replace with actual event source column name
-    # Add more renames as needed
+    'YourActualTimestampColumn': '@timestamp',  # Replace with actual timestamp column name
+    'YourActualEventSourceColumn': 'Event Source',  # Replace with actual Event Source column name
+    'YourActualEventTitleColumn': 'EventTitle',  # Replace with actual Event Title column name
 }, inplace=True)
 
-# Convert @timestamp to datetime
+# Step 4: Convert '@timestamp' to datetime
 data['@timestamp'] = pd.to_datetime(data['@timestamp'], errors='coerce')
-print(data['@timestamp'].isnull().sum(), "rows have invalid timestamps.")
 
-# Drop rows with invalid timestamps
-data = data.dropna(subset=['@timestamp'])
+# Step 5: Handle invalid timestamps
+invalid_timestamps = data['@timestamp'].isnull().sum()
+print(f"{invalid_timestamps} rows have invalid timestamps.")
+data = data.dropna(subset=['@timestamp'])  # Drop rows with invalid timestamps
 
-# Extract Day and Hour
-data['Day'] = data['@timestamp'].dt.date
-data['Hour'] = data['@timestamp'].dt.hour
+# Step 6: Extract Day and Hour for analysis
+data['Day'] = data['@timestamp'].dt.date  # Extract date
+data['Hour'] = data['@timestamp'].dt.hour  # Extract hour
 
-# Proceed with analysis and visualization
+# Step 7: Keep relevant columns
 columns_to_keep = ['@timestamp', 'Event Source', 'EventNode', 'EventLevel', 'EventTitle', 'Day', 'Hour']
 data = data[columns_to_keep]
+
+# Step 8: Day-wise Analysis
+day_wise = data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
+day_wise['Total'] = day_wise.sum(axis=1)
+print("\nDay-wise Event Counts:")
+print(day_wise)
+
+# Step 9: Hourly Analysis
+hourly_analysis = data.groupby(['Hour', 'EventTitle']).size().unstack(fill_value=0)
+hourly_analysis['Total'] = hourly_analysis.sum(axis=1)
+print("\nHourly Event Counts:")
+print(hourly_analysis)
+
+# Step 10: Day-wise Stacked Bar with Line Chart
+fig, ax1 = plt.subplots(figsize=(12, 6))
+
+# Stacked bar chart for daily event levels
+day_wise.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax1, colormap='viridis')
+
+# Line plot for total counts
+ax2 = ax1.twinx()
+ax2.plot(day_wise.index, day_wise['Total'], color='red', marker='o', label='Total Events', linewidth=2)
+
+# Format the plot
+ax1.set_title('Day-wise Event Analysis (Stacked Bar + Line)', fontsize=14)
+ax1.set_xlabel('Day', fontsize=12)
+ax1.set_ylabel('Event Count (Stacked)', fontsize=12)
+ax2.set_ylabel('Total Event Count', fontsize=12)
+ax1.legend(title='Event Level')
+ax2.legend(loc='upper right')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# Step 11: Hourly Event Count by Title with EventSource Filter
+def plot_hourly_event_count(event_source):
+    filtered_data = data[data['Event Source'] == event_source]
+    hourly_event = filtered_data.groupby(['Hour', 'EventTitle']).size().unstack(fill_value=0)
+    hourly_event['Total'] = hourly_event.sum(axis=1)
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(12, 6))
+    hourly_event.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='coolwarm')
+    
+    ax.set_title(f'Hourly Event Count by EventTitle (Source: {event_source})', fontsize=14)
+    ax.set_xlabel('Hour of Day', fontsize=12)
+    ax.set_ylabel('Event Count (Stacked)', fontsize=12)
+    plt.xticks(rotation=0)
+    plt.tight_layout()
+    plt.show()
+
+# Example: Plot for a specific EventSource
+event_source = 'Active Batch'  # Replace with the desired EventSource
+plot_hourly_event_count(event_source)
