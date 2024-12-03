@@ -39,8 +39,8 @@ else:
 if selected_source != 'All':
     filtered_data = filtered_data[filtered_data['EventSource'] == selected_source]
 
-# Day-wise Alerts
-st.subheader("Day-wise Alerts Analysis")
+# Day-wise Alerts (Original)
+st.subheader("Day-wise Alerts Analysis (Event Level Segmentation)")
 if not filtered_data.empty:
     daywise_alerts = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
     daywise_alerts['Total'] = daywise_alerts.sum(axis=1)
@@ -58,6 +58,23 @@ if not filtered_data.empty:
     st.pyplot(fig)
 else:
     st.write("No data available for the selected filters.")
+
+# New Graph: Day-wise Alerts (Event Source Total)
+st.subheader("Day-wise Alerts (Event Source Total)")
+if not filtered_data.empty:
+    daywise_alerts_total = filtered_data.groupby(['Day', 'EventSource']).size().unstack(fill_value=0)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    daywise_alerts_total.plot(kind='bar', stacked=False, ax=ax, colormap='viridis')
+
+    # Add value labels
+    for container in ax.containers:
+        ax.bar_label(container, label_type='center')
+
+    ax.set_title(f"Day-wise Alerts for Event Source: {selected_source}")
+    ax.set_xlabel("Day")
+    ax.set_ylabel("Number of Alerts")
+    st.pyplot(fig)
 
 # Hourly Alerts
 st.subheader("Hourly Alerts Analysis")
