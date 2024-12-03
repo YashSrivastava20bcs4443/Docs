@@ -1,88 +1,56 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
+import streamlit as st
 
-# Step 1: Load the data
-file_path = 'your_excel_file.xlsx'  # Replace with the actual file path
-data = pd.read_excel(file_path)
+# Load the data
+file_path = 'data.xlsx'  # Replace with your Excel file path
+df = pd.read_excel(file_path)
 
-# Step 2: Debug - Check column names and sample data
-print("Columns in dataset:", data.columns)
-print(data.head())  # Display first few rows to inspect the data
+# Clean the data
+df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
+df['@timestamp'] = pd.to_datetime(df['@timestamp'], errors='coerce')
+df = df.dropna(subset=['@timestamp'])  # Remove rows with invalid timestamps
+df['Day'] = df['@timestamp'].dt.date
+df['Hour'] = df['@timestamp'].dt.hour
 
-# Step 3: Rename columns to standardize
-data.rename(columns={
-    'timestamp': '@timestamp',  # Rename to standard name
-    'EventSource': 'Event Source',  # Rename to standard name
-    'EventTitle': 'Event Title',  # Rename to standard name
-}, inplace=True)
+# Streamlit App
+st.title("Interactive Dashboard for Event Analysis")
 
-# Step 4: Convert '@timestamp' to datetime
-data['@timestamp'] = pd.to_datetime(data['@timestamp'], errors='coerce')
+# Filters
+event_sources = df['EventSource'].unique()
+selected_source = st.selectbox("Select Event Source:", options=event_sources)
 
-# Step 5: Handle invalid timestamps
-invalid_timestamps = data['@timestamp'].isnull().sum()
-print(f"{invalid_timestamps} rows have invalid timestamps.")
-data = data.dropna(subset=['@timestamp'])  # Drop rows with invalid timestamps
+date_range = st.date_input("Select Date Range:", [])
+if len(date_range) == 2:
+    start_date, end_date = date_range
+    df = df[(df['Day'] >= start_date) & (df['Day'] <= end_date)]
 
-# Step 6: Extract Day and Hour for analysis
-data['Day'] = data['@timestamp'].dt.date  # Extract date
-data['Hour'] = data['@timestamp'].dt.hour  # Extract hour
+# Filter data
+filtered_data = df[df['EventSource'] == selected_source]
 
-# Step 7: Keep relevant columns
-columns_to_keep = ['@timestamp', 'Event Source', 'EventNode', 'EventLevel', 'Event Title', 'Day', 'Hour']
-data = data[columns_to_keep]
+# Day-wise Analysis
+st.subheader("Day-wise Alerts Analysis")
+daywise_alerts = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
+daywise_alerts['Total'] = daywise_alerts.sum(axis=1)
 
-# Step 8: Day-wise Analysis
-day_wise = data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
-day_wise['Total'] = day_wise.sum(axis=1)
-print("\nDay-wise Event Counts:")
-print(day_wise)
+fig, ax = plt.subplots(figsize=(10, 6))
+daywise_alerts.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='tab10')
+ax.set_title(f"Day-wise Alerts for Event Source: {selected_source}")
+ax.set_xlabel("Day")
+ax.set_ylabel("Number of Alerts")
+st.pyplot(fig)
 
-# Step 9: Hourly Analysis
-hourly_analysis = data.groupby(['Hour', 'Event Title']).size().unstack(fill_value=0)
-hourly_analysis['Total'] = hourly_analysis.sum(axis=1)
-print("\nHourly Event Counts:")
-print(hourly_analysis)
+# Hourly Analysis
+st.subheader("Hourly Alerts Analysis")
+hourly_alerts = filtered_data.groupby(['Hour', 'EventTitle']).size().unstack(fill_value=0)
 
-# Step 10: Day-wise Stacked Bar with Line Chart
-fig, ax1 = plt.subplots(figsize=(12, 6))
+fig, ax = plt.subplots(figsize=(10, 6))
+hourly_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='coolwarm')
+ax.set_title(f"Hourly Alerts for Event Source: {selected_source}")
+ax.set_xlabel("Hour of Day")
+ax.set_ylabel("Number of Alerts")
+st.pyplot(fig)
 
-# Stacked bar chart for daily event levels
-day_wise.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax1, colormap='viridis')
-
-# Line plot for total counts
-ax2 = ax1.twinx()
-ax2.plot(day_wise.index, day_wise['Total'], color='red', marker='o', label='Total Events', linewidth=2)
-
-# Format the plot
-ax1.set_title('Day-wise Event Analysis (Stacked Bar + Line)', fontsize=14)
-ax1.set_xlabel('Day', fontsize=12)
-ax1.set_ylabel('Event Count (Stacked)', fontsize=12)
-ax2.set_ylabel('Total Event Count', fontsize=12)
-ax1.legend(title='Event Level')
-ax2.legend(loc='upper right')
-plt.xticks(rotation=45)
-plt.tight_layout()
-plt.show()
-
-# Step 11: Hourly Event Count by Title with EventSource Filter
-def plot_hourly_event_count(event_source):
-    filtered_data = data[data['Event Source'] == event_source]
-    hourly_event = filtered_data.groupby(['Hour', 'Event Title']).size().unstack(fill_value=0)
-    hourly_event['Total'] = hourly_event.sum(axis=1)
-
-    # Plot
-    fig, ax = plt.subplots(figsize=(12, 6))
-    hourly_event.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='coolwarm')
-    
-    ax.set_title(f'Hourly Event Count by Event Title (Source: {event_source})', fontsize=14)
-    ax.set_xlabel('Hour of Day', fontsize=12)
-    ax.set_ylabel('Event Count (Stacked)', fontsize=12)
-    plt.xticks(rotation=0)
-    plt.tight_layout()
-    plt.show()
-
-# Example: Plot for a specific EventSource
-event_source = 'Active Batch'  # Replace with the desired EventSource
-plot_hourly_event_count(event_source)
+# Data Table
+st.subheader("Filtered Data")
+st.write(filtered_data)
