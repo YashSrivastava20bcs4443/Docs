@@ -13,11 +13,12 @@ df['@timestamp'] = pd.to_datetime(df['@timestamp'], errors='coerce')
 df = df.dropna(subset=['@timestamp'])  # Remove rows with invalid timestamps
 df['Day'] = df['@timestamp'].dt.date
 df['Hour'] = df['@timestamp'].dt.hour
+df['Weekday'] = df['@timestamp'].dt.day_name()
 
 # Streamlit App
-st.title("Interactive Dashboard for Event Analysis")
+st.title("Event Analysis Dashboard")
 
-# Filters
+# Sidebar filters
 st.sidebar.header("Filters")
 event_sources = df['EventSource'].unique()
 selected_source = st.sidebar.selectbox("Select Event Source:", options=event_sources)
@@ -29,98 +30,63 @@ date_range = st.sidebar.date_input(
 
 if len(date_range) == 2:
     start_date, end_date = date_range
-    df = df[(df['Day'] >= start_date) & (df['Day'] <= end_date)]
+    filtered_data = df[(df['Day'] >= start_date) & (df['Day'] <= end_date)]
+else:
+    filtered_data = df
 
-# Filter data based on selected event source
-filtered_data = df[df['EventSource'] == selected_source]
+# Filter data based on EventSource
+filtered_data = filtered_data[filtered_data['EventSource'] == selected_source]
 
-# Day-wise Analysis
+# Day-wise Alerts
 st.subheader("Day-wise Alerts Analysis")
-daywise_alerts = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
-daywise_alerts['Total'] = daywise_alerts.sum(axis=1)
+if not filtered_data.empty:
+    daywise_alerts = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
+    daywise_alerts['Total'] = daywise_alerts.sum(axis=1)
 
-fig, ax = plt.subplots(figsize=(10, 6))
-daywise_alerts.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='tab10')
-ax.set_title(f"Day-wise Alerts for Event Source: {selected_source}")
-ax.set_xlabel("Day")
-ax.set_ylabel("Number of Alerts")
-st.pyplot(fig)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    daywise_alerts.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='tab10')
+    ax.set_title(f"Day-wise Alerts for Event Source: {selected_source}")
+    ax.set_xlabel("Day")
+    ax.set_ylabel("Number of Alerts")
+    st.pyplot(fig)
+else:
+    st.write("No data available for the selected filters.")
 
-# Hourly Analysis
+# Hourly Alerts
 st.subheader("Hourly Alerts Analysis")
-hourly_alerts = filtered_data.groupby(['Hour', 'EventTitle']).size().unstack(fill_value=0)
+if not filtered_data.empty:
+    hourly_alerts = filtered_data.groupby(['Hour', 'EventLevel']).size().unstack(fill_value=0)
 
-fig, ax = plt.subplots(figsize=(10, 6))
-hourly_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='coolwarm')
-ax.set_title(f"Hourly Alerts for Event Source: {selected_source}")
-ax.set_xlabel("Hour of Day")
-ax.set_ylabel("Number of Alerts")
-st.pyplot(fig)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    hourly_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='coolwarm')
+    ax.set_title(f"Hourly Alerts for Event Source: {selected_source}")
+    ax.set_xlabel("Hour of Day")
+    ax.set_ylabel("Number of Alerts")
+    st.pyplot(fig)
 
-# Weekly Trends Analysis
+# Weekly Trends
 st.subheader("Weekly Trends Analysis")
-df['Weekday'] = df['Day'].apply(lambda x: x.strftime('%A'))
-weekly_alerts = filtered_data.groupby('Weekday').size()
+if not filtered_data.empty:
+    weekly_alerts = filtered_data.groupby('Weekday').size().reindex([
+        'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+    ])
 
-fig, ax = plt.subplots(figsize=(10, 6))
-weekly_alerts.plot(kind='bar', ax=ax, color='teal')
-ax.set_title(f"Weekly Alerts Trend for Event Source: {selected_source}")
-ax.set_xlabel("Day of the Week")
-ax.set_ylabel("Number of Alerts")
-st.pyplot(fig)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    weekly_alerts.plot(kind='bar', ax=ax, color='teal')
+    ax.set_title(f"Weekly Alerts Trend for Event Source: {selected_source}")
+    ax.set_xlabel("Day of the Week")
+    ax.set_ylabel("Number of Alerts")
+    st.pyplot(fig)
 
-# Pie Chart for Event Levels
-st.subheader("Distribution of Event Levels")
-event_level_counts = filtered_data['EventLevel'].value_counts()
+# Event Level Distribution (Pie Chart)
+st.subheader("Event Level Distribution")
+if not filtered_data.empty:
+    event_level_counts = filtered_data['EventLevel'].value_counts()
 
-fig, ax = plt.subplots(figsize=(8, 8))
-ax.pie(event_level_counts, labels=event_level_counts.index, autopct='%1.1f%%', startangle=140, colors=['#ff9999','#66b3ff','#99ff99'])
-ax.set_title(f"Event Level Distribution for {selected_source}")
-st.pyplot(fig)
-
-# Heatmap of Alerts by Day and Hour
-st.subheader("Heatmap of Alerts by Day and Hour")
-day_hour_data = filtered_data.groupby(['Day', 'Hour']).size().unstack(fill_value=0)
-
-fig, ax = plt.subplots(figsize=(12, 8))
-sns.heatmap(day_hour_data, cmap='YlGnBu', linewidths=0.5, ax=ax)
-ax.set_title(f"Heatmap of Alerts by Day and Hour for {selected_source}")
-ax.set_xlabel("Hour")
-ax.set_ylabel("Day")
-st.pyplot(fig)
-
-# Trendline Over Time
-st.subheader("Alerts Trend Over Time")
-time_trend = filtered_data.groupby('Day').size()
-
-fig, ax = plt.subplots(figsize=(10, 6))
-time_trend.plot(kind='line', ax=ax, marker='o', color='purple')
-ax.set_title(f"Trend of Alerts Over Time for Event Source: {selected_source}")
-ax.set_xlabel("Day")
-ax.set_ylabel("Number of Alerts")
-st.pyplot(fig)
-
-# Top Event Titles
-st.subheader("Top Event Titles")
-top_events = filtered_data['EventTitle'].value_counts().head(10)
-
-fig, ax = plt.subplots(figsize=(10, 6))
-top_events.plot(kind='bar', ax=ax, color='orange')
-ax.set_title(f"Top 10 Event Titles for {selected_source}")
-ax.set_xlabel("Event Title")
-ax.set_ylabel("Number of Occurrences")
-st.pyplot(fig)
-
-# Correlation Matrix
-st.subheader("Correlation Matrix")
-numeric_data = filtered_data[['Hour']]  # Add more columns if available
-numeric_data['Alert_Count'] = 1
-correlation = numeric_data.corr()
-
-fig, ax = plt.subplots(figsize=(8, 6))
-sns.heatmap(correlation, annot=True, cmap='coolwarm', ax=ax)
-ax.set_title("Correlation Matrix")
-st.pyplot(fig)
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.pie(event_level_counts, labels=event_level_counts.index, autopct='%1.1f%%', startangle=140)
+    ax.set_title(f"Event Level Distribution for {selected_source}")
+    st.pyplot(fig)
 
 # Data Table
 st.subheader("Filtered Data")
@@ -135,4 +101,3 @@ st.download_button(
     file_name='filtered_data.csv',
     mime='text/csv',
 )
-
