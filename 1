@@ -1,172 +1,29 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import streamlit as st
-from wordcloud import WordCloud
-
-# Load the data
-file_path = 'data.xlsx'  # Replace with your Excel file path
-df = pd.read_excel(file_path)
-
-# Clean the data
-df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
-df['@timestamp'] = pd.to_datetime(df['@timestamp'], errors='coerce')
-df = df.dropna(subset=['@timestamp'])  # Remove rows with invalid timestamps
-df['Day'] = df['@timestamp'].dt.date
-df['Hour'] = df['@timestamp'].dt.hour
-df['Weekday'] = df['@timestamp'].dt.day_name()
-
-# Streamlit App
-st.title("Event Analysis Dashboard")
-
-# Sidebar Filters
+# Sidebar filters
 st.sidebar.header("Filters")
+
+# Event Source Filter with 'All' Option
 event_sources = df['EventSource'].unique()
+event_sources = ['All'] + list(event_sources)  # Add 'All' option at the beginning
 selected_source = st.sidebar.selectbox("Select Event Source:", options=event_sources)
 
-event_levels = df['EventLevel'].unique()
-selected_levels = st.sidebar.multiselect("Select Event Levels:", options=event_levels, default=event_levels)
+# Apply Event Source Filter
+if selected_source != 'All':
+    filtered_data = df[(df['EventSource'] == selected_source)]
+else:
+    filtered_data = df  # If 'All' is selected, use the entire dataset
 
+# Date Range Filter
 date_range = st.sidebar.date_input(
     "Select Date Range:",
     [df['Day'].min(), df['Day'].max()]
 )
-
 if len(date_range) == 2:
     start_date, end_date = date_range
-    filtered_data = df[(df['Day'] >= start_date) & (df['Day'] <= end_date)]
-else:
-    filtered_data = df
+    filtered_data = filtered_data[(filtered_data['Day'] >= start_date) & (filtered_data['Day'] <= end_date)]
 
-# Filter data based on EventSource and EventLevel
-filtered_data = filtered_data[
-    (filtered_data['EventSource'] == selected_source) &
-    (filtered_data['EventLevel'].isin(selected_levels))
-]
+# Event Level Filter with Multi-Selection
+event_levels = df['EventLevel'].unique()
+selected_levels = st.sidebar.multiselect("Select Event Level(s):", options=event_levels, default=event_levels)
 
-# Day-wise Alerts
-st.subheader("Day-wise Alerts Analysis")
-if not filtered_data.empty:
-    daywise_alerts = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
-    daywise_alerts['Total'] = daywise_alerts.sum(axis=1)
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    daywise_alerts.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='tab10')
-    ax.set_title(f"Day-wise Alerts for Event Source: {selected_source}")
-    ax.set_xlabel("Day")
-    ax.set_ylabel("Number of Alerts")
-    st.pyplot(fig)
-else:
-    st.write("No data available for the selected filters.")
-
-# Hourly Alerts
-st.subheader("Hourly Alerts Analysis")
-if not filtered_data.empty:
-    hourly_alerts = filtered_data.groupby(['Hour', 'EventLevel']).size().unstack(fill_value=0)
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    hourly_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='coolwarm')
-    ax.set_title(f"Hourly Alerts for Event Source: {selected_source}")
-    ax.set_xlabel("Hour of Day")
-    ax.set_ylabel("Number of Alerts")
-    st.pyplot(fig)
-
-# Weekly Trends Analysis (Average Alerts per Weekday)
-st.subheader("Weekly Trends Analysis")
-if not filtered_data.empty:
-    weekly_alerts = filtered_data.groupby(['Weekday', 'Day']).size().reset_index()
-    weekly_avg_alerts = weekly_alerts.groupby('Weekday').size().reindex([
-        'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
-    ]).fillna(0)
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    weekly_avg_alerts.plot(kind='bar', ax=ax, color='teal')
-    ax.set_title(f"Weekly Alerts Trend (Average) for Event Source: {selected_source}")
-    ax.set_xlabel("Day of the Week")
-    ax.set_ylabel("Average Number of Alerts")
-    st.pyplot(fig)
-
-# Event Level Distribution (Pie Chart)
-st.subheader("Event Level Distribution")
-if not filtered_data.empty:
-    event_level_counts = filtered_data['EventLevel'].value_counts()
-
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.pie(event_level_counts, labels=event_level_counts.index, autopct='%1.1f%%', startangle=140)
-    ax.set_title(f"Event Level Distribution for {selected_source}")
-    st.pyplot(fig)
-
-# Data Table
-st.subheader("Filtered Data")
-st.write(filtered_data)
-
-# Summary Statistics
-st.subheader("Summary Statistics")
-st.write(f"**Total Events:** {filtered_data.shape[0]}")
-st.write(f"**Earliest Event:** {filtered_data['@timestamp'].min()}")
-st.write(f"**Latest Event:** {filtered_data['@timestamp'].max()}")
-
-# Event Trends Over Time (Line Chart)
-st.subheader("Event Trends Over Time")
-if not filtered_data.empty:
-    daily_trends = filtered_data.groupby('Day').size()
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    daily_trends.plot(kind='line', ax=ax, color='blue', marker='o')
-    ax.set_title("Event Trends Over Time")
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Number of Events")
-    st.pyplot(fig)
-
-# Event Source Comparison (Bar Chart)
-st.subheader("Event Source Comparison")
-if not filtered_data.empty:
-    source_comparison = df.groupby('EventSource').size().sort_values(ascending=False)
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    source_comparison.plot(kind='bar', ax=ax, color='skyblue')
-    ax.set_title("Event Source Comparison")
-    ax.set_xlabel("Event Source")
-    ax.set_ylabel("Number of Events")
-    st.pyplot(fig)
-
-# Event Level Distribution (Heatmap)
-st.subheader("Event Level Distribution Heatmap")
-if not filtered_data.empty:
-    level_distribution = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
-
-    fig, ax = plt.subplots(figsize=(12, 6))
-    sns.heatmap(level_distribution.T, cmap='coolwarm', ax=ax, annot=True, fmt="d")
-    ax.set_title("Event Level Distribution Heatmap")
-    st.pyplot(fig)
-
-# Hourly Alerts Analysis (Heatmap)
-st.subheader("Hourly Alerts Analysis (Heatmap)")
-if not filtered_data.empty:
-    hourly_alerts = filtered_data.groupby(['Hour', 'EventLevel']).size().unstack(fill_value=0)
-
-    fig, ax = plt.subplots(figsize=(12, 6))
-    sns.heatmap(hourly_alerts, cmap='coolwarm', annot=True, fmt="d")
-    ax.set_title("Hourly Alerts Heatmap")
-    st.pyplot(fig)
-
-# Word Cloud for Event Titles
-st.subheader("Word Cloud of Event Titles")
-if not filtered_data.empty:
-    text = " ".join(filtered_data['EventTitle'].dropna())
-    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.imshow(wordcloud, interpolation='bilinear')
-    ax.axis('off')
-    st.pyplot(fig)
-
-# Download Filtered Data as CSV
-st.subheader("Download Filtered Data")
-csv = filtered_data.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="Download data as CSV",
-    data=csv,
-    file_name='filtered_data.csv',
-    mime='text/csv',
-)
+# Apply Event Level Filter
+filtered_data = filtered_data[filtered_data['EventLevel'].isin(selected_levels)]
