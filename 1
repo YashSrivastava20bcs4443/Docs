@@ -1,16 +1,37 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import streamlit as st
+from wordcloud import WordCloud
+
+# Load the data
+file_path = 'data.xlsx'  # Replace with your Excel file path
+df = pd.read_excel(file_path)
+
+# Clean the data
+df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
+df['@timestamp'] = pd.to_datetime(df['@timestamp'], errors='coerce')
+df = df.dropna(subset=['@timestamp'])  # Remove rows with invalid timestamps
+df['Day'] = df['@timestamp'].dt.date
+df['Hour'] = df['@timestamp'].dt.hour
+df['Weekday'] = df['@timestamp'].dt.day_name()
+
+# Streamlit App
+st.title("Event Analysis Dashboard")
+
 # Sidebar filters
 st.sidebar.header("Filters")
 
-# Event Source Filter with 'All' Option
+# Event Source Filter with Multi-Select Option
 event_sources = df['EventSource'].unique()
-event_sources = ['All'] + list(event_sources)  # Add 'All' option at the beginning
-selected_source = st.sidebar.selectbox("Select Event Source:", options=event_sources)
+selected_sources = st.sidebar.multiselect("Select Event Source(s):", options=event_sources, default=event_sources)
 
-# Apply Event Source Filter
-if selected_source != 'All':
-    filtered_data = df[(df['EventSource'] == selected_source)]
-else:
-    filtered_data = df  # If 'All' is selected, use the entire dataset
+# Event Level Filter with Multi-Select Option
+event_levels = df['EventLevel'].unique()
+selected_levels = st.sidebar.multiselect("Select Event Level(s):", options=event_levels, default=event_levels)
+
+# Apply Filters
+filtered_data = df[(df['EventSource'].isin(selected_sources)) & (df['EventLevel'].isin(selected_levels))]
 
 # Date Range Filter
 date_range = st.sidebar.date_input(
@@ -21,9 +42,94 @@ if len(date_range) == 2:
     start_date, end_date = date_range
     filtered_data = filtered_data[(filtered_data['Day'] >= start_date) & (filtered_data['Day'] <= end_date)]
 
-# Event Level Filter with Multi-Selection
-event_levels = df['EventLevel'].unique()
-selected_levels = st.sidebar.multiselect("Select Event Level(s):", options=event_levels, default=event_levels)
+# Day-wise Alerts Analysis
+st.subheader("Day-wise Alerts Analysis")
+if not filtered_data.empty:
+    daywise_alerts = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    daywise_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='tab10')
 
-# Apply Event Level Filter
-filtered_data = filtered_data[filtered_data['EventLevel'].isin(selected_levels)]
+    # Add values on top of bars
+    for p in ax.patches:
+        ax.annotate(f'{int(p.get_height())}', (p.get_x() + p.get_width() / 2, p.get_height()), ha='center', va='bottom')
+
+    ax.set_title("Day-wise Alerts Analysis")
+    ax.set_xlabel("Day")
+    ax.set_ylabel("Number of Alerts")
+    st.pyplot(fig)
+
+# Hourly Alerts Analysis (Stacked Line Chart)
+st.subheader("Hourly Alerts Analysis")
+if not filtered_data.empty:
+    hourly_alerts = filtered_data.groupby(['Hour', 'EventLevel']).size().unstack(fill_value=0)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    hourly_alerts.plot(kind='line', stacked=True, ax=ax, colormap='coolwarm', marker='o')
+
+    ax.set_title("Hourly Alerts Analysis")
+    ax.set_xlabel("Hour of Day")
+    ax.set_ylabel("Number of Alerts")
+    st.pyplot(fig)
+
+# Weekly Trends Analysis
+st.subheader("Weekly Trends Analysis")
+if not filtered_data.empty:
+    weekly_alerts = filtered_data.groupby('Weekday').size().reindex(
+        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    )
+    fig, ax = plt.subplots(figsize=(10, 6))
+    weekly_alerts.plot(kind='bar', ax=ax, color='teal')
+
+    # Add values on top of bars
+    for p in ax.patches:
+        ax.annotate(f'{int(p.get_height())}', (p.get_x() + p.get_width() / 2, p.get_height()), ha='center', va='bottom')
+
+    ax.set_title("Weekly Trends Analysis")
+    ax.set_xlabel("Day of the Week")
+    ax.set_ylabel("Number of Alerts")
+    st.pyplot(fig)
+
+# Event Trends Over Time
+st.subheader("Event Trends Over Time")
+if not filtered_data.empty:
+    daily_trends = filtered_data.groupby('Day').size()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    daily_trends.plot(kind='line', ax=ax, color='blue', marker='o')
+
+    # Add values on line points
+    for i, v in enumerate(daily_trends):
+        ax.text(i, v, str(v), ha='center', va='bottom')
+
+    ax.set_title("Event Trends Over Time")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Number of Events")
+    st.pyplot(fig)
+
+# Event Source Comparison
+st.subheader("Event Source Comparison")
+if not filtered_data.empty:
+    source_comparison = filtered_data.groupby('EventSource').size().sort_values(ascending=False)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    source_comparison.plot(kind='bar', ax=ax, color='skyblue')
+
+    # Add values on top of bars
+    for p in ax.patches:
+        ax.annotate(f'{int(p.get_height())}', (p.get_x() + p.get_width() / 2, p.get_height()), ha='center', va='bottom')
+
+    ax.set_title("Event Source Comparison")
+    ax.set_xlabel("Event Source")
+    ax.set_ylabel("Number of Events")
+    st.pyplot(fig)
+
+# Data Table
+st.subheader("Filtered Data")
+st.write(filtered_data)
+
+# Download Filtered Data as CSV
+st.subheader("Download Filtered Data")
+csv = filtered_data.to_csv(index=False).encode('utf-8')
+st.download_button(
+    label="Download data as CSV",
+    data=csv,
+    file_name='filtered_data.csv',
+    mime='text/csv',
+)
