@@ -22,113 +22,124 @@ st.title("Event Analysis Dashboard")
 # Sidebar filters
 st.sidebar.header("Filters")
 
-# Event Source Filter with Multi-Select Option
-event_sources = df['EventSource'].unique()
-selected_sources = st.sidebar.multiselect("Select Event Source(s):", options=event_sources, default=event_sources)
+# EventSource filter
+event_sources = df['EventSource'].unique().tolist()
+event_sources.insert(0, 'All')  # Add 'All' option for selecting all event sources
+selected_sources = st.sidebar.multiselect("Select Event Sources:", options=event_sources, default='All')
 
-# Event Level Filter with Multi-Select Option
-event_levels = df['EventLevel'].unique()
-selected_levels = st.sidebar.multiselect("Select Event Level(s):", options=event_levels, default=event_levels)
+# EventLevel filter
+event_levels = df['EventLevel'].unique().tolist()
+selected_levels = st.sidebar.multiselect("Select Event Levels:", options=event_levels, default=event_levels)
 
-# Date Range Filter
+# Date Range filter
 date_range = st.sidebar.date_input(
     "Select Date Range:",
     [df['Day'].min(), df['Day'].max()]
 )
 
-# Apply Filters
-filtered_data = df[
-    (df['EventSource'].isin(selected_sources)) &
-    (df['EventLevel'].isin(selected_levels)) &
-    (df['Day'] >= date_range[0]) &
-    (df['Day'] <= date_range[1])
-]
+# Filter the data
+filtered_data = df[(df['Day'] >= date_range[0]) & (df['Day'] <= date_range[1])]
 
-# Day-wise Alerts Analysis
+if 'All' not in selected_sources:
+    filtered_data = filtered_data[filtered_data['EventSource'].isin(selected_sources)]
+
+filtered_data = filtered_data[filtered_data['EventLevel'].isin(selected_levels)]
+
+# Day-wise Alerts
 st.subheader("Day-wise Alerts Analysis")
 if not filtered_data.empty:
     daywise_alerts = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
+    daywise_alerts['Total'] = daywise_alerts.sum(axis=1)
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    daywise_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='tab10')
-
-    # Add values on top of bars
-    for p in ax.patches:
-        if p.get_height() > 0:
-            ax.annotate(f'{int(p.get_height())}', (p.get_x() + p.get_width() / 2, p.get_height()),
-                        ha='center', va='bottom')
-
-    ax.set_title("Day-wise Alerts Analysis")
+    daywise_alerts.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='tab10')
+    ax.set_title("Day-wise Alerts")
     ax.set_xlabel("Day")
     ax.set_ylabel("Number of Alerts")
     st.pyplot(fig)
+else:
+    st.write("No data available for the selected filters.")
 
-# Hourly Alerts Analysis (Stacked Line Chart)
+# Hourly Alerts Analysis (Line Stacked Graph)
 st.subheader("Hourly Alerts Analysis")
 if not filtered_data.empty:
     hourly_alerts = filtered_data.groupby(['Hour', 'EventLevel']).size().unstack(fill_value=0)
-    fig, ax = plt.subplots(figsize=(10, 6))
-    hourly_alerts.plot(kind='line', stacked=True, ax=ax, colormap='coolwarm', marker='o')
 
+    fig, ax = plt.subplots(figsize=(10, 6))
+    hourly_alerts.plot(kind='line', stacked=True, ax=ax, colormap='coolwarm')
     ax.set_title("Hourly Alerts Analysis")
     ax.set_xlabel("Hour of Day")
     ax.set_ylabel("Number of Alerts")
+
+    # Annotate values
+    for hour in hourly_alerts.index:
+        for level, value in hourly_alerts.loc[hour].items():
+            if value > 0:
+                ax.text(hour, value, str(value), fontsize=8, ha='center')
+
     st.pyplot(fig)
 
-# Weekly Trends Analysis
+# Weekly Trends
 st.subheader("Weekly Trends Analysis")
 if not filtered_data.empty:
     weekly_alerts = filtered_data.groupby('Weekday').size().reindex(
-        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    )
+        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
+
     fig, ax = plt.subplots(figsize=(10, 6))
     weekly_alerts.plot(kind='bar', ax=ax, color='teal')
-
-    # Add values on top of bars
-    for p in ax.patches:
-        ax.annotate(f'{int(p.get_height())}', (p.get_x() + p.get_width() / 2, p.get_height()),
-                    ha='center', va='bottom')
-
-    ax.set_title("Weekly Trends Analysis")
+    ax.set_title("Weekly Alerts Trend")
     ax.set_xlabel("Day of the Week")
     ax.set_ylabel("Number of Alerts")
+
+    # Annotate values
+    for i, v in enumerate(weekly_alerts):
+        ax.text(i, v, str(v), ha='center', va='bottom')
+
+    st.pyplot(fig)
+
+# Event Level Distribution (Pie Chart)
+st.subheader("Event Level Distribution")
+if not filtered_data.empty:
+    event_level_counts = filtered_data['EventLevel'].value_counts()
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.pie(event_level_counts, labels=event_level_counts.index, autopct='%1.1f%%', startangle=140)
+    ax.set_title("Event Level Distribution")
     st.pyplot(fig)
 
 # Event Trends Over Time
 st.subheader("Event Trends Over Time")
 if not filtered_data.empty:
     daily_trends = filtered_data.groupby('Day').size()
+
     fig, ax = plt.subplots(figsize=(10, 6))
     daily_trends.plot(kind='line', ax=ax, color='blue', marker='o')
-
-    # Add values on line points
-    for i, v in enumerate(daily_trends):
-        ax.text(i, v, str(v), ha='center', va='bottom')
-
     ax.set_title("Event Trends Over Time")
     ax.set_xlabel("Date")
     ax.set_ylabel("Number of Events")
+
+    # Annotate values
+    for x, y in zip(daily_trends.index, daily_trends.values):
+        ax.text(x, y, str(y), fontsize=8, ha='center', va='bottom')
+
     st.pyplot(fig)
 
 # Event Source Comparison
 st.subheader("Event Source Comparison")
 if not filtered_data.empty:
-    source_comparison = filtered_data.groupby('EventSource').size().sort_values(ascending=False)
+    source_comparison = df.groupby('EventSource').size().sort_values(ascending=False)
+
     fig, ax = plt.subplots(figsize=(10, 6))
     source_comparison.plot(kind='bar', ax=ax, color='skyblue')
-
-    # Add values on top of bars
-    for p in ax.patches:
-        ax.annotate(f'{int(p.get_height())}', (p.get_x() + p.get_width() / 2, p.get_height()),
-                    ha='center', va='bottom')
-
     ax.set_title("Event Source Comparison")
     ax.set_xlabel("Event Source")
     ax.set_ylabel("Number of Events")
-    st.pyplot(fig)
 
-# Data Table
-st.subheader("Filtered Data")
-st.write(filtered_data)
+    # Annotate values
+    for i, v in enumerate(source_comparison):
+        ax.text(i, v, str(v), ha='center', va='bottom')
+
+    st.pyplot(fig)
 
 # Word Cloud for Event Titles
 st.subheader("Word Cloud of Event Titles")
@@ -140,6 +151,10 @@ if not filtered_data.empty:
     ax.imshow(wordcloud, interpolation='bilinear')
     ax.axis('off')
     st.pyplot(fig)
+
+# Data Table
+st.subheader("Filtered Data")
+st.write(filtered_data)
 
 # Download Filtered Data as CSV
 st.subheader("Download Filtered Data")
