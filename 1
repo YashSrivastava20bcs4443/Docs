@@ -1,12 +1,20 @@
-# Weekly Alerts Analysis (Grouped Bar Chart: Day of Week on X-axis, Weeks Grouped)
+# Weekly Alerts Analysis (Grouped Bar Chart: Day of Week on X-axis, Weeks Grouped with Dates)
 st.subheader("Weekly Alerts Analysis")
 
 if not filtered_data.empty:
-    # Add Week number to the data
+    # Add Week number and Date to the data
     filtered_data['WeekNumber'] = filtered_data['@timestamp'].dt.isocalendar().week
+    filtered_data['DateLabel'] = filtered_data['@timestamp'].dt.strftime('%Y-%m-%d')
 
-    # Group by Day of the week and Week number
-    weekly_alerts = filtered_data.groupby(['Weekday', 'WeekNumber']).size().unstack(fill_value=0)
+    # Group by Day of the week, Week number, and Date
+    weekly_alerts = (
+        filtered_data.groupby(['Weekday', 'WeekNumber', 'DateLabel'])
+        .size()
+        .unstack(fill_value=0)
+        .groupby(level=[0, 1])
+        .sum()
+        .unstack(fill_value=0)
+    )
 
     # Sort the index (weekdays) in correct order
     weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -19,14 +27,18 @@ if not filtered_data.empty:
     # Handling the case where multiple sources are selected
     sources_display = ", ".join(selected_sources) if len(selected_sources) > 1 else selected_sources[0]
 
-    ax.set_title(f"Weekly Alerts Analysis: Comparison of Weeks for Each Day for {sources_display}")
-    ax.set_xlabel("Day of the Week")
+    ax.set_title(f"Weekly Alerts Analysis: Comparison of Weeks for Each Day with Dates for {sources_display}")
+    ax.set_xlabel("Day of the Week (with Dates)")
     ax.set_ylabel("Number of Alerts")
     ax.legend(title="Week Number")
 
     # Displaying values on top of each bar
     for container in ax.containers:
         ax.bar_label(container, fmt='%d', label_type='edge', fontsize=8, padding=3)
+
+    # Add vertical labels for each bar
+    day_labels = [f"{day}\n({date})" for (day, _, date) in weekly_alerts.columns]
+    ax.set_xticklabels(day_labels, rotation=45, ha='right')
 
     st.pyplot(fig)
 else:
