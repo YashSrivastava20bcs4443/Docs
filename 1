@@ -1,45 +1,43 @@
-# Weekly Alerts Analysis (Grouped Bar Chart: Day of Week on X-axis, Weeks Grouped with Dates)
+# Weekly Alerts Analysis (Grouped Bar Chart: Day of Week with Vertical Date Labels)
 st.subheader("Weekly Alerts Analysis")
 
 if not filtered_data.empty:
-    # Add Week number and Date to the data
-    filtered_data['WeekNumber'] = filtered_data['@timestamp'].dt.isocalendar().week
+    # Add Date and Week Number
     filtered_data['DateLabel'] = filtered_data['@timestamp'].dt.strftime('%Y-%m-%d')
+    filtered_data['WeekNumber'] = filtered_data['@timestamp'].dt.isocalendar().week
 
-    # Group by Day of the week, Week number, and Date
+    # Group by Day of the week and DateLabel
     weekly_alerts = (
-        filtered_data.groupby(['Weekday', 'WeekNumber', 'DateLabel'])
+        filtered_data.groupby(['Weekday', 'DateLabel'])
         .size()
         .unstack(fill_value=0)
-        .groupby(level=[0, 1])
-        .sum()
-        .unstack(fill_value=0)
+        .reindex(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], fill_value=0)
     )
 
-    # Sort the index (weekdays) in correct order
-    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    weekly_alerts = weekly_alerts.reindex(weekday_order)
-
-    # Plot grouped bar chart
+    # Plot the grouped bar chart
     fig, ax = plt.subplots(figsize=(12, 6))
     weekly_alerts.plot(kind='bar', ax=ax, colormap='tab10', width=0.8)
 
     # Handling the case where multiple sources are selected
     sources_display = ", ".join(selected_sources) if len(selected_sources) > 1 else selected_sources[0]
 
-    ax.set_title(f"Weekly Alerts Analysis: Comparison of Weeks for Each Day with Dates for {sources_display}")
-    ax.set_xlabel("Day of the Week (with Dates)")
+    ax.set_title(f"Weekly Alerts Analysis: Comparison of Days Across Weeks for {sources_display}")
+    ax.set_xlabel("Day of the Week")
     ax.set_ylabel("Number of Alerts")
-    ax.legend(title="Week Number")
+    ax.legend(title="Date")
 
-    # Displaying values on top of each bar
+    # Display values on top of each bar
     for container in ax.containers:
         ax.bar_label(container, fmt='%d', label_type='edge', fontsize=8, padding=3)
 
-    # Add vertical labels for each bar
-    day_labels = [f"{day}\n({date})" for (day, _, date) in weekly_alerts.columns]
+    # Add custom labels to each bar (day of the week with dates)
+    day_labels = [
+        f"{day}\n({weekly_alerts.columns[i]})"
+        for i, day in enumerate(weekly_alerts.index)
+    ]
     ax.set_xticklabels(day_labels, rotation=45, ha='right')
 
     st.pyplot(fig)
+
 else:
     st.write("No data available for the selected filters.")
