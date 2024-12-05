@@ -42,3 +42,13 @@ LimitNOFILE=4096
 
 [Install]
 WantedBy=multi-user.target
+
+
+logging:
+  level: info
+  to_files: true
+  files:
+    path: /var/log/filebeat
+    name: filebeat
+    keepfiles: 7
+    permissions: 0644
