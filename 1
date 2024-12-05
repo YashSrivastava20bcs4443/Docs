@@ -18,3 +18,9 @@ filebeat.inputs:
   paths:
     - /var/log/syslog
     - /var/log/*.log
+
+
+ sudo tail -f /var/log/filebeat/filebeat.log
+
+ 
+curl -X GET "http://<ELASTICSEARCH_SERVER_IP>:9200/_cat/indices?v"
