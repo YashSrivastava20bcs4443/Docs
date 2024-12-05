@@ -11,3 +11,10 @@ sudo chown root:root filebeat.yml
 sudo chmod 600 filebeat.yml
 
 sudo ./filebeat -e -c filebeat.yml
+
+
+filebeat.inputs:
+- type: log
+  paths:
+    - /var/log/syslog
+    - /var/log/*.log
