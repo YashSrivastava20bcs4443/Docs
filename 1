@@ -2,3 +2,12 @@ output.elasticsearch:
   hosts: ["<ELASTICSEARCH_SERVER_IP>:9200"]
 paths:
   - /var/log/syslog
+
+
+ls -l filebeat.yml
+
+sudo chown root:root filebeat.yml
+
+sudo chmod 600 filebeat.yml
+
+sudo ./filebeat -e -c filebeat.yml
