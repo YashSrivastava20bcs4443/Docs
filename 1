@@ -1,29 +1,31 @@
-# Weekly Alerts Analysis (Bar Chart showing comparison of the same day across weeks)
+# Weekly Alerts Analysis (Grouped Bar Chart: Week on X-axis, Days as separate bars)
 st.subheader("Weekly Alerts Analysis")
 
 if not filtered_data.empty:
-    # Add Week number to the data
+    # Add Week number and Day name to the data
     filtered_data['WeekNumber'] = filtered_data['@timestamp'].dt.isocalendar().week
 
-    # Group by Week number and Day of the week
+    # Group by Week number and Day of the week, sum the size
     weekly_alerts = filtered_data.groupby(['WeekNumber', 'Weekday']).size().unstack(fill_value=0)
 
-    # Plot the bar chart with Week number and Day comparison
+    # Sort the columns based on weekday order
+    weekly_alerts = weekly_alerts.reindex(columns=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
+
+    # Plot grouped bar chart
     fig, ax = plt.subplots(figsize=(12, 6))
-    weekly_alerts.plot(kind='bar', ax=ax, stacked=True, colormap='tab20')
-    
-    ax.set_title(f"Weekly Alerts Analysis: Comparison of Days Across Weeks for {selected_source}")
-    ax.set_xlabel("Week Number and Day of the Week")
+    weekly_alerts.plot(kind='bar', ax=ax, colormap='tab20', width=0.8)
+
+    # Handling the case where multiple sources are selected
+    sources_display = ", ".join(selected_sources) if len(selected_sources) > 1 else selected_sources[0]
+
+    ax.set_title(f"Weekly Alerts Analysis: Comparison of Days Across Weeks for {sources_display}")
+    ax.set_xlabel("Week Number")
     ax.set_ylabel("Number of Alerts")
     ax.legend(title="Day of the Week")
-    
-    # Displaying the value on top of each bar
-    for p in ax.patches:
-        ax.annotate(f'{int(p.get_height())}', 
-                    (p.get_x() + p.get_width() / 2., p.get_height()), 
-                    ha='center', va='center', 
-                    fontsize=8, color='black', xytext=(0, 5),
-                    textcoords='offset points')
+
+    # Displaying values on top of each bar
+    for container in ax.containers:
+        ax.bar_label(container, fmt='%d', label_type='edge', fontsize=8, padding=3)
 
     st.pyplot(fig)
 else:
