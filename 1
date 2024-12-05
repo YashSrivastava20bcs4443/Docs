@@ -24,3 +24,21 @@ filebeat.inputs:
 
  
 curl -X GET "http://<ELASTICSEARCH_SERVER_IP>:9200/_cat/indices?v"
+
+sudo nano /etc/systemd/system/filebeat.service
+
+[Unit]
+Description=Filebeat
+Documentation=https://www.elastic.co/guide/en/beats/filebeat/current/index.html
+After=network.target
+
+[Service]
+ExecStart=/home/yash/filebeat-8.16.1-linux-x86_64/filebeat -e
+Restart=always
+User=root
+Group=root
+WorkingDirectory=/home/yash/filebeat-8.16.1-linux-x86_64
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target
