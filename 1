@@ -42,6 +42,7 @@ if contamination:
 
     st.write("Anomaly Breakdown:")
     st.dataframe(data.groupby('Anomaly')['AlertCount'].agg(['count', 'mean']))
+    
 
 # Predictive Analysis with LSTM
 st.subheader("Predictive Analysis with LSTM")
