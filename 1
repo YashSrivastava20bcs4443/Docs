@@ -1,21 +1,219 @@
-import shutil
-from webdriver_auto_update.chrome_app_utils import ChromeAppUtils
-from webdriver_auto_update.webdriver_manager import WebDriverManager
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import streamlit as st
+from wordcloud import WordCloud
 
-# Get the Chrome application version
-chrome_app_utils = ChromeAppUtils()
-chrome_app_version = chrome_app_utils.get_chrome_version()
-print("Chrome application version: ", chrome_app_version)
+# Load the data
+file_path = 'data.xlsx'  # Replace with your Excel file path
+df = pd.read_excel(file_path)
 
-# Directory to store the WebDriver
-driver_directory = "C:\\chromedriver-win64\\"
+# Clean the data
+df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
+df['@timestamp'] = pd.to_datetime(df['@timestamp'], errors='coerce')
+df = df.dropna(subset=['@timestamp'])  # Remove rows with invalid timestamps
+df['Day'] = df['@timestamp'].dt.date
+df['Hour'] = df['@timestamp'].dt.hour
+df['Weekday'] = df['@timestamp'].dt.day_name()
 
-# Initialize WebDriverManager with the specific version
-driver_manager = WebDriverManager(driver_directory)
+# Streamlit App
+st.title("Event Analysis Dashboard")
 
-# Set a specific version (replace 'X.Y.Z' with your required version)
-specific_version = "X.Y.Z"
-driver_manager.set_version(specific_version)
+# Sidebar filters
+st.sidebar.header("Filters")
 
-# Download and setup the specific version
-driver_manager.main()
+# EventSource filter
+event_sources = df['EventSource'].unique().tolist()
+event_sources.insert(0, 'All')  # Add 'All' option for selecting all event sources
+selected_sources = st.sidebar.multiselect("Select Event Sources:", options=event_sources, default='All')
+
+# EventLevel filter
+event_levels = df['EventLevel'].unique().tolist()
+selected_levels = st.sidebar.multiselect("Select Event Levels:", options=event_levels, default=event_levels)
+
+# Date Range filter
+date_range = st.sidebar.date_input(
+    "Select Date Range:",
+    [df['Day'].min(), df['Day'].max()]
+)
+
+# Filter the data
+filtered_data = df[(df['Day'] >= date_range[0]) & (df['Day'] <= date_range[1])]
+
+if 'All' not in selected_sources:
+    filtered_data = filtered_data[filtered_data['EventSource'].isin(selected_sources)]
+
+filtered_data = filtered_data[filtered_data['EventLevel'].isin(selected_levels)]
+
+# Day-wise Alerts
+st.subheader("Day-wise Alerts Analysis")
+if not filtered_data.empty:
+    daywise_alerts = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
+    daywise_alerts['Total'] = daywise_alerts.sum(axis=1)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    daywise_alerts.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='tab10')
+    ax.set_title("Day-wise Alerts")
+    ax.set_xlabel("Day")
+    ax.set_ylabel("Number of Alerts")
+    st.pyplot(fig)
+else:
+    st.write("No data available for the selected filters.")
+
+# Hourly Alerts Analysis (Line Stacked Graph)
+st.subheader("Hourly Alerts Analysis")
+if not filtered_data.empty:
+    hourly_alerts = filtered_data.groupby(['Hour', 'EventLevel']).size().unstack(fill_value=0)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    hourly_alerts.plot(kind='line', stacked=True, ax=ax, colormap='coolwarm')
+    ax.set_title("Hourly Alerts Analysis")
+    ax.set_xlabel("Hour of Day")
+    ax.set_ylabel("Number of Alerts")
+
+    # Annotate values with improved positioning
+    for hour in hourly_alerts.index:
+        for level, value in hourly_alerts.loc[hour].items():
+            if value > 0:
+                ax.text(hour, value + 0.2, str(value), fontsize=8, ha='center', va='bottom', color='black')
+
+    st.pyplot(fig)
+
+# Weekly Trends
+st.subheader("Weekly Alerts Trend")
+if not filtered_data.empty:
+    weekly_alerts = filtered_data.groupby('Weekday').size().reindex(
+        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    weekly_alerts.plot(kind='bar', ax=ax, color='teal')
+    ax.set_title("Weekly Alerts Trend")
+    ax.set_xlabel("Day of the Week")
+    ax.set_ylabel("Number of Alerts")
+
+    # Annotate values with improved positioning
+    for i, v in enumerate(weekly_alerts):
+        ax.text(i, v + 0.5, str(v), ha='center', va='bottom', fontsize=10, color='black')
+
+    st.pyplot(fig)
+
+# Weekly Alerts Analysis (Grouped Bar Chart: Day of Week with Correct Vertical Date Labels)
+st.subheader("Weekly Alerts Analysis")
+if not filtered_data.empty:
+    # Add Date and Week Number
+    filtered_data['DateLabel'] = filtered_data['@timestamp'].dt.strftime('%Y-%m-%d')
+    filtered_data['Weekday'] = filtered_data['@timestamp'].dt.day_name()
+    filtered_data['WeekNumber'] = filtered_data['@timestamp'].dt.isocalendar().week
+
+    # Group by Weekday and Date
+    weekly_alerts = (
+        filtered_data.groupby(['Weekday', 'DateLabel'])
+        .size()
+        .unstack(fill_value=0)
+        .reindex(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], fill_value=0)
+    )
+
+    # Plot the grouped bar chart
+    fig, ax = plt.subplots(figsize=(12, 6))
+    bar_plot = weekly_alerts.plot(kind='bar', ax=ax, colormap='tab10', width=0.8)
+
+    # Display the source names if multiple are selected
+    sources_display = ", ".join(selected_sources) if len(selected_sources) > 1 else selected_sources[0]
+    ax.set_title(f"Weekly Alerts Analysis: Comparison of Days Across Weeks for {sources_display}")
+    ax.set_xlabel("Day of the Week")
+    ax.set_ylabel("Number of Alerts")
+
+    # Display the corresponding dates vertically inside each bar (better position)
+    for bars, dates in zip(ax.containers, weekly_alerts.columns):
+        for bar, date in zip(bars, weekly_alerts[dates].index):
+            height = bar.get_height()
+            if height > 0:
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,  # X-coordinate (center of the bar)
+                    height + 0.2,  # Y-coordinate (above the bar)
+                    date,  # Text (date corresponding to the bar)
+                    ha='center',
+                    va='bottom',  # Position below the text if needed
+                    fontsize=8,
+                    rotation=90,  # Rotate vertically
+                    color='black',  # Black for better visibility
+                    fontweight='bold'
+                )
+
+    # Set weekday labels for X-axis
+    ax.set_xticks(range(len(weekly_alerts.index)))
+    ax.set_xticklabels(weekly_alerts.index, rotation=0)
+
+    st.pyplot(fig)
+
+else:
+    st.write("No data available for the selected filters.")
+
+# Event Level Distribution (Pie Chart)
+st.subheader("Event Level Distribution")
+if not filtered_data.empty:
+    event_level_counts = filtered_data['EventLevel'].value_counts()
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.pie(event_level_counts, labels=event_level_counts.index, autopct='%1.1f%%', startangle=140)
+    ax.set_title("Event Level Distribution")
+    st.pyplot(fig)
+
+# Event Trends Over Time
+st.subheader("Event Trends Over Time")
+if not filtered_data.empty:
+    daily_trends = filtered_data.groupby('Day').size()
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    daily_trends.plot(kind='line', ax=ax, color='blue', marker='o')
+    ax.set_title("Event Trends Over Time")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Number of Events")
+
+    # Annotate values
+    for x, y in zip(daily_trends.index, daily_trends.values):
+        ax.text(x, y, str(y), fontsize=8, ha='center', va='bottom')
+
+    st.pyplot(fig)
+
+# Event Source Comparison
+st.subheader("Event Source Comparison")
+if not filtered_data.empty:
+    source_comparison = df.groupby('EventSource').size().sort_values(ascending=False)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    source_comparison.plot(kind='bar', ax=ax, color='skyblue')
+    ax.set_title("Event Source Comparison")
+    ax.set_xlabel("Event Source")
+    ax.set_ylabel("Number of Events")
+
+    # Annotate values with better positioning and adjusted font size
+    for i, v in enumerate(source_comparison):
+        ax.text(i, v + 0.2, str(v), ha='center', va='bottom', fontsize=10, color='black')
+
+    st.pyplot(fig)
+
+# Word Cloud for Event Titles
+st.subheader("Word Cloud of Event Titles")
+if not filtered_data.empty:
+    text = " ".join(filtered_data['EventTitle'].dropna())
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.imshow(wordcloud, interpolation='bilinear')
+    ax.axis('off')
+    st.pyplot(fig)
+
+# Data Table
+st.subheader("Filtered Data")
+st.write(filtered_data)
+
+# Download Filtered Data as CSV
+st.subheader("Download Filtered Data")
+csv = filtered_data.to_csv(index=False).encode('utf-8')
+st.download_button(
+    label="Download data as CSV",
+    data=csv,
+    file_name='filtered_data.csv',
+    mime='text/csv',
+)
