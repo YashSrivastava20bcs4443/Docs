@@ -1,88 +1,145 @@
-st.subheader("Weekly Alerts Analysis")
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import streamlit as st
+from wordcloud import WordCloud
+from fbprophet import Prophet
+import folium
+from streamlit_folium import st_folium
+import io
+
+# Load the data
+file_path = 'data.xlsx'  # Replace with your Excel file path
+df = pd.read_excel(file_path)
+
+# Data Cleaning and Transformation
+df['@timestamp'] = df['@timestamp'].str.replace('@', '').str.strip()
+df['@timestamp'] = pd.to_datetime(df['@timestamp'], errors='coerce')
+df = df.dropna(subset=['@timestamp'])  # Remove rows with invalid timestamps
+df['Day'] = df['@timestamp'].dt.date
+df['Hour'] = df['@timestamp'].dt.hour
+df['Weekday'] = df['@timestamp'].dt.day_name()
+
+# Streamlit App
+st.title("Enhanced Event Analysis Dashboard")
+
+# Sidebar Filters
+st.sidebar.header("Filters")
+
+# EventSource filter
+event_sources = df['EventSource'].unique().tolist()
+event_sources.insert(0, 'All')  # Add 'All' option
+selected_sources = st.sidebar.multiselect("Select Event Sources:", options=event_sources, default='All')
+
+# EventLevel filter
+event_levels = df['EventLevel'].unique().tolist()
+selected_levels = st.sidebar.multiselect("Select Event Levels:", options=event_levels, default=event_levels)
+
+# Date Range filter
+date_range = st.sidebar.date_input("Select Date Range:", [df['Day'].min(), df['Day'].max()])
+
+# Filter the data
+filtered_data = df[(df['Day'] >= date_range[0]) & (df['Day'] <= date_range[1])]
+if 'All' not in selected_sources:
+    filtered_data = filtered_data[filtered_data['EventSource'].isin(selected_sources)]
+filtered_data = filtered_data[filtered_data['EventLevel'].isin(selected_levels)]
+
+# Summary Insights Panel
+st.subheader("Insights Summary")
 if not filtered_data.empty:
-    weekly_alerts = filtered_data.groupby(['Weekday', 'Day']).size().unstack(fill_value=0)
-    weekly_alerts = weekly_alerts.reindex(
-        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], 
-        fill_value=0
-    )
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    bars = weekly_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='tab20c', width=0.8)
-    ax.set_title("Weekly Alerts Analysis")
-    ax.set_xlabel("Weekdays")
-    ax.set_ylabel("Number of Alerts")
-
-    # Annotate dates inside the bars
-    for container in ax.containers:
-        for bar, (day, count) in zip(container, weekly_alerts.stack().index):
-            height = bar.get_height()
-            if height > 0:
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2, height / 2, day.strftime('%Y-%m-%d'), 
-                    ha='center', va='center', fontsize=8, color='white', rotation=90
-                )
-    st.pyplot(fig)
+    st.write(f"Total Alerts: {filtered_data.shape[0]}")
+    st.write(f"Most Frequent Source: {filtered_data['EventSource'].value_counts().idxmax()}")
+    st.write(f"Most Common Event Level: {filtered_data['EventLevel'].value_counts().idxmax()}")
 else:
-    st.write("No data available for Weekly Alerts Analysis.")
+    st.write("No data available for the selected filters.")
 
-
-
+# Day-wise Alerts
 st.subheader("Day-wise Alerts Analysis")
 if not filtered_data.empty:
     daywise_alerts = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
-    fig, ax = plt.subplots(figsize=(10, 6))
-    daywise_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='tab10')
+    daywise_alerts['Total'] = daywise_alerts.sum(axis=1)
 
-    # Enhance annotation visibility
-    for i, bar_group in enumerate(ax.containers):
-        for bar in bar_group:
-            height = bar.get_height()
-            if height > 0:
-                text_color = 'white' if bar.get_facecolor()[0] < 0.5 else 'black'
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2, height + 1, int(height),
-                    ha='center', va='bottom', fontsize=10, color=text_color, fontweight='bold'
-                )
-    ax.set_title("Day-wise Alerts Analysis")
-    ax.set_xlabel("Days")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    daywise_alerts.drop('Total', axis=1).plot(kind='bar', stacked=True, ax=ax, colormap='tab10')
+    ax.set_title("Day-wise Alerts")
+    ax.set_xlabel("Day")
     ax.set_ylabel("Number of Alerts")
     st.pyplot(fig)
-else:
-    st.write("No data available for Day-wise Alerts Analysis.")
 
-
-
-st.subheader("Alert Correlation Engine")
+# Weekly Alerts Analysis (Grouped Bar Chart with Vertical Labels)
+st.subheader("Weekly Alerts Analysis")
 if not filtered_data.empty:
-    correlation_threshold = st.slider("Time Correlation Threshold (minutes):", 1, 30, 5)
-
-    # Step 1: Prepare Data
-    filtered_data['TimeDiff'] = filtered_data['@timestamp'].diff().dt.total_seconds().abs() / 60
-    filtered_data['Group'] = (filtered_data['TimeDiff'] > correlation_threshold).cumsum()
-
-    # Step 2: Group Alerts
-    correlations = (
-        filtered_data.groupby(['Group', 'EventSource', 'EventLevel'])[['EventTitle']]
-        .size()
-        .reset_index(name='Count')
-    )
-    st.write("Correlated Alerts Summary:", correlations)
-
-    # Step 3: Heatmap for Visualization
-    heatmap_data = correlations.pivot_table(
-        index='EventSource', columns='EventLevel', values='Count', aggfunc='sum', fill_value=0
-    )
-    fig, ax = plt.subplots(figsize=(12, 6))
-    sns.heatmap(heatmap_data, annot=True, fmt="d", cmap="Blues", linewidths=0.5, ax=ax)
-    ax.set_title("Alert Correlation Heatmap")
+    weekly_alerts = filtered_data.groupby(['Weekday', 'EventLevel']).size().unstack(fill_value=0)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    weekly_alerts.plot(kind='bar', stacked=True, ax=ax, colormap='viridis')
+    ax.set_title("Weekly Alerts Analysis")
+    ax.set_xlabel("Day of the Week")
+    ax.set_ylabel("Number of Alerts")
     st.pyplot(fig)
 
-    # Export Correlated Alerts
-    st.download_button(
-        label="Download Correlation Report",
-        data=correlations.to_csv(index=False).encode('utf-8'),
-        file_name='correlation_report.csv',
-        mime='text/csv'
-    )
-else:
-    st.write("No data available for Alert Correlation Engine.")
+# Hourly Alerts Heatmap
+st.subheader("Alerts Heatmap by Day and Hour")
+if not filtered_data.empty:
+    heatmap_data = filtered_data.groupby(['Weekday', 'Hour']).size().unstack(fill_value=0)
+    fig, ax = plt.subplots(figsize=(12, 6))
+    sns.heatmap(heatmap_data, annot=True, fmt='d', cmap='coolwarm', ax=ax)
+    ax.set_title("Alerts Heatmap by Day and Hour")
+    st.pyplot(fig)
+
+# Predictive Analysis
+st.subheader("Predictive Analysis (Future Alerts)")
+if not filtered_data.empty:
+    daily_trends = filtered_data.groupby('Day').size().reset_index()
+    daily_trends.columns = ['ds', 'y']
+
+    model = Prophet()
+    model.fit(daily_trends)
+    future = model.make_future_dataframe(periods=30)  # Predict next 30 days
+    forecast = model.predict(future)
+
+    fig1 = model.plot(forecast)
+    st.pyplot(fig1)
+
+# Word Cloud for Event Titles
+st.subheader("Word Cloud of Event Titles")
+if not filtered_data.empty:
+    text = " ".join(filtered_data['EventTitle'].dropna())
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.imshow(wordcloud, interpolation='bilinear')
+    ax.axis('off')
+    st.pyplot(fig)
+
+# Geographical Map Visualization (Dummy Coordinates for Example)
+st.subheader("Geographical Distribution of Alerts")
+if not filtered_data.empty:
+    filtered_data['Latitude'] = [28.7041] * len(filtered_data)  # Dummy latitudes
+    filtered_data['Longitude'] = [77.1025] * len(filtered_data)  # Dummy longitudes
+    m = folium.Map(location=[28.7041, 77.1025], zoom_start=10)
+
+    for _, row in filtered_data.iterrows():
+        folium.Marker([row['Latitude'], row['Longitude']],
+                      popup=row['EventTitle']).add_to(m)
+
+    st_folium(m, width=700, height=500)
+
+# Download Filtered Data
+st.subheader("Download Filtered Data")
+csv = filtered_data.to_csv(index=False).encode('utf-8')
+st.download_button(
+    label="Download data as CSV",
+    data=csv,
+    file_name='filtered_data.csv',
+    mime='text/csv',
+)
+
+# Export Correlated Alerts
+st.subheader("Export Correlation Report")
+correlations = filtered_data.groupby(['EventSource', 'EventLevel']).size().reset_index(name='Count')
+st.download_button(
+    label="Download Correlation Report",
+    data=correlations.to_csv(index=False).encode('utf-8'),
+    file_name='correlation_report.csv',
+    mime='text/csv'
+)
