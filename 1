@@ -7,11 +7,19 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import IsolationForest
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
+import os
+
+# Suppress TensorFlow oneDNN custom operation warnings
+os.environ['TF_ENABLE_ONEDAN_OPTS'] = '0'
 
 # Load data
 file_path = 'data.xlsx'
 df = pd.read_excel(file_path)
-df['@timestamp'] = pd.to_datetime(df['@timestamp'])
+
+# Fix timestamp parsing with specific format
+df['@timestamp'] = pd.to_datetime(df['@timestamp'], format='%b %d, %Y @ %H:%M:%S.%f')
+
+# Set timestamp as index
 df.set_index('@timestamp', inplace=True)
 
 # Aggregate daily alerts
@@ -42,7 +50,6 @@ if contamination:
 
     st.write("Anomaly Breakdown:")
     st.dataframe(data.groupby('Anomaly')['AlertCount'].agg(['count', 'mean']))
-    
 
 # Predictive Analysis with LSTM
 st.subheader("Predictive Analysis with LSTM")
