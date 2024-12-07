@@ -1,27 +1,48 @@
-# Day-wise Alerts
-st.subheader("Day-wise Alerts Analysis")
+# Weekly Alerts Analysis (Grouped Bar Chart by Date)
+st.subheader("Weekly Alerts Analysis (Grouped by Date)")
 if not filtered_data.empty:
-    daywise_alerts = filtered_data.groupby(['Day', 'EventLevel']).size().unstack(fill_value=0)
-    daywise_alerts['Total'] = daywise_alerts.sum(axis=1)
+    # Add Weekday and Date labels
+    filtered_data['DateLabel'] = filtered_data['Day'].astype(str)  # Convert dates to strings for labels
+    filtered_data['Weekday'] = filtered_data['@timestamp'].dt.day_name()
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    colors = sns.color_palette("tab20", len(daywise_alerts.columns) - 1)  # Define a color palette
-    daywise_alerts.drop('Total', axis=1).plot(
-        kind='bar',
-        stacked=True,
-        ax=ax,
-        color=colors  # Pass the list of colors directly
+    # Group by Weekday and Date
+    weekly_alerts = (
+        filtered_data.groupby(['Weekday', 'DateLabel'])
+        .size()
+        .unstack(fill_value=0)
+        .reindex(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], fill_value=0)
     )
-    ax.set_title("Day-wise Alerts Analysis", fontsize=14)
-    ax.set_xlabel("Day", fontsize=12)
+
+    # Plot the grouped bar chart
+    fig, ax = plt.subplots(figsize=(12, 8))
+    weekly_alerts.plot(
+        kind='bar',
+        ax=ax,
+        colormap='tab20',  # Color palette for better distinction
+        width=0.8,
+        edgecolor='black'
+    )
+    ax.set_title("Weekly Alerts Analysis (By Date)", fontsize=16)
+    ax.set_xlabel("Day of the Week", fontsize=12)
     ax.set_ylabel("Number of Alerts", fontsize=12)
-    ax.legend(title="Event Levels", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
 
-    # Annotate values for each bar segment
-    for bars in ax.containers:
-        ax.bar_label(bars, fmt='%d', label_type='center', fontsize=9)
+    # Annotate each bar with its corresponding date and value
+    for bars, date in zip(ax.containers, weekly_alerts.columns):
+        for bar in bars:
+            height = bar.get_height()
+            if height > 0:  # Only annotate bars with values greater than 0
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,  # X-coordinate
+                    height + 0.1,  # Slightly above the bar
+                    f"{date}\n({int(height)})",  # Show the date and count
+                    ha='center', va='bottom', fontsize=8, rotation=90
+                )
 
-    plt.xticks(rotation=45)
+    # Adjust legend and X-axis ticks
+    ax.legend(title="Dates", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
+    ax.set_xticks(range(len(weekly_alerts.index)))
+    ax.set_xticklabels(weekly_alerts.index, rotation=0)  # Keep weekday labels horizontal
+
     st.pyplot(fig)
 else:
     st.write("No data available for the selected filters.")
