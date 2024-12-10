@@ -1,1 +1,15 @@
-
+input {
+  beats {
+    port => 5044
+  }
+}
+filter {
+  mutate {
+    add_field => { "processed_by" => "logstash" }
+  }
+}
+output {
+  elasticsearch {
+    hosts => ["<ELASTICSEARCH_SERVER_IP>:9200"]
+  }
+}
