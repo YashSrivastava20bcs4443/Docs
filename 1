@@ -1,15 +1,92 @@
-input {
-  beats {
-    port => 5044
-  }
-}
-filter {
-  mutate {
-    add_field => { "processed_by" => "logstash" }
-  }
-}
-output {
-  elasticsearch {
-    hosts => ["<ELASTICSEARCH_SERVER_IP>:9200"]
-  }
-}
+import json
+import base64
+import csv
+from elasticsearch import Elasticsearch
+from demo_config import e_password, e_username, elasticsearch_url
+
+# Create the authorization header
+auth_header = base64.b64encode(f"{e_username}:{e_password}".encode()).decode()
+
+# Initialize the Elasticsearch client
+es = Elasticsearch(
+    [elasticsearch_url],
+    basic_auth=(e_username, e_password)
+)
+
+# Define the common index
+common_index = "common-events-*"
+
+def fetch_alerts():
+    """
+    Fetch alerts related to Airflow from Elasticsearch.
+    """
+    e_url = f"{elasticsearch_url}/{common_index}/_search"
+
+    # Define the payload for the Elasticsearch query
+    payload = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"match": {"EventSource": "Airflow"}}
+                ],
+                "filter": {
+                    "range": {
+                        "@timestamp": {
+                            "gte": "now-41d/d",
+                            "lte": "now/d",
+                            "format": "strict_date_optional_time"
+                        }
+                    }
+                }
+            }
+        },
+        "sort": [{"@timestamp": {"order": "desc"}}],
+        "_source": ["EventNode", "@timestamp", "EventSource", "Message"]  # Add other required fields here
+    }
+
+    try:
+        # Search Elasticsearch
+        result = es.search(index=common_index, body=json.dumps(payload))
+
+        if result['hits']['total']['value'] > 0:
+            # Extract alerts
+            alerts = [hit['_source'] for hit in result['hits']['hits']]
+            return alerts
+        else:
+            print("No alerts found.")
+            return []
+    except Exception as e:
+        print(f"Error in fetch_alerts: {e}")
+        return []
+
+def save_alerts_to_csv(alerts, filename="airflow_alerts.csv"):
+    """
+    Save the fetched alerts to a CSV file.
+    """
+    if not alerts:
+        print("No alerts to save.")
+        return
+
+    # Define the CSV headers based on the keys in the alerts
+    headers = alerts[0].keys()
+
+    try:
+        with open(filename, mode='w', newline='', encoding='utf-8') as file:
+            writer = csv.DictWriter(file, fieldnames=headers)
+            writer.writeheader()
+            writer.writerows(alerts)
+
+        print(f"Alerts saved to {filename}.")
+    except Exception as e:
+        print(f"Error saving alerts to CSV: {e}")
+
+# Main function
+def process_alerts():
+    """
+    Fetch and save alerts to CSV.
+    """
+    alerts = fetch_alerts()
+    save_alerts_to_csv(alerts)
+
+if __name__ == "__main__":
+    process_alerts()
