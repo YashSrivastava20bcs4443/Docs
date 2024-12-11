@@ -1,4 +1,4 @@
-import json
+import csv
 from elasticsearch import Elasticsearch
 from demo_config import e_password, e_username, elasticsearch_url
 
@@ -8,8 +8,8 @@ es = Elasticsearch(
     basic_auth=(e_username, e_password)
 )
 
-# Function to fetch all alerts using scroll API and save them
-def fetch_and_save_all_alerts():
+# Function to fetch all alerts using scroll API and save them as CSV
+def fetch_and_save_all_alerts_to_csv():
     common_index = "common-events-*"
     query = {
         "query": {
@@ -37,26 +37,33 @@ def fetch_and_save_all_alerts():
         total_hits = response['hits']['total']['value']
         print(f"Total alerts found: {total_hits}")
 
-        # Collect results
-        all_alerts = [hit['_source'] for hit in response['hits']['hits']]
+        # Open CSV file for writing
+        with open("all_airflow_alerts.csv", "w", newline="") as csvfile:
+            csv_writer = csv.writer(csvfile)
+            
+            # Write header row (based on the keys in the first document)
+            if total_hits > 0:
+                first_hit = response['hits']['hits'][0]['_source']
+                headers = list(first_hit.keys())
+                csv_writer.writerow(headers)
 
-        # Continue scrolling until all results are fetched
-        while len(response['hits']['hits']) > 0:
-            response = es.scroll(scroll_id=scroll_id, scroll="2m")  # Fetch next batch
-            all_alerts.extend(hit['_source'] for hit in response['hits']['hits'])
+            # Collect results and write to CSV
+            while len(response['hits']['hits']) > 0:
+                for hit in response['hits']['hits']:
+                    row = [hit['_source'].get(header, "") for header in headers]
+                    csv_writer.writerow(row)
+                
+                # Fetch next batch
+                response = es.scroll(scroll_id=scroll_id, scroll="2m")
 
-        # Save results to JSON file
-        with open("all_airflow_alerts.json", "w") as json_file:
-            json.dump(all_alerts, json_file, indent=4)
-
-        print(f"Saved {len(all_alerts)} alerts to 'all_airflow_alerts.json'.")
+        print("Data successfully saved to 'all_airflow_alerts.csv'.")
 
     except Exception as e:
         print(f"Error fetching alerts: {e}")
 
 # Main function
 def process_alerts():
-    fetch_and_save_all_alerts()
+    fetch_and_save_all_alerts_to_csv()
 
 if __name__ == "__main__":
     process_alerts()
