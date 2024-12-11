@@ -8,10 +8,10 @@ es = Elasticsearch(
     basic_auth=(e_username, e_password)
 )
 
-# Function to fetch alerts and save to JSON
-def fetch_and_save_alerts():
+# Function to fetch all alerts using scroll API and save them
+def fetch_and_save_all_alerts():
     common_index = "common-events-*"
-    payload = {
+    query = {
         "query": {
             "bool": {
                 "must": [
@@ -26,29 +26,37 @@ def fetch_and_save_alerts():
                 ]
             }
         },
-        "sort": [{"@timestamp": {"order": "desc"}}],
-        "size": 10000  # Maximum number of results per query
+        "sort": [{"@timestamp": {"order": "desc"}}],  # Sort by most recent first
+        "size": 1000  # Batch size for each scroll
     }
 
     try:
-        # Perform search query
-        result = es.search(index=common_index, body=payload)
-        if result['hits']['total']['value'] > 0:
-            alerts = [hit['_source'] for hit in result['hits']['hits']]
+        # Initialize scrolling
+        response = es.search(index=common_index, body=query, scroll="2m")  # Scroll context valid for 2 minutes
+        scroll_id = response["_scroll_id"]  # Get scroll ID
+        total_hits = response['hits']['total']['value']
+        print(f"Total alerts found: {total_hits}")
 
-            # Save the data to a JSON file
-            with open("airflow_alerts.json", "w") as json_file:
-                json.dump(alerts, json_file, indent=4)
+        # Collect results
+        all_alerts = [hit['_source'] for hit in response['hits']['hits']]
 
-            print(f"Saved {len(alerts)} alerts to 'airflow_alerts.json'")
-        else:
-            print("No alerts found.")
+        # Continue scrolling until all results are fetched
+        while len(response['hits']['hits']) > 0:
+            response = es.scroll(scroll_id=scroll_id, scroll="2m")  # Fetch next batch
+            all_alerts.extend(hit['_source'] for hit in response['hits']['hits'])
+
+        # Save results to JSON file
+        with open("all_airflow_alerts.json", "w") as json_file:
+            json.dump(all_alerts, json_file, indent=4)
+
+        print(f"Saved {len(all_alerts)} alerts to 'all_airflow_alerts.json'.")
+
     except Exception as e:
         print(f"Error fetching alerts: {e}")
 
 # Main function
 def process_alerts():
-    fetch_and_save_alerts()
+    fetch_and_save_all_alerts()
 
 if __name__ == "__main__":
     process_alerts()
