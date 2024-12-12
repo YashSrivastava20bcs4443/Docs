@@ -1,1 +1,7 @@
-
+output.elasticsearch:
+  hosts: ["https://<elasticsearch_server>:9200"]
+  ssl:
+    enabled: true
+    certificate_authorities: ["/path/to/ca.crt"]  # CA certificate ka path
+    certificate: "/path/to/client.crt"           # Client certificate (optional)
+    key: "/path/to/client.key"                   # Private key (optional)
