@@ -1,7 +1,55 @@
-output.elasticsearch:
-  hosts: ["https://<elasticsearch_server>:9200"]
-  ssl:
-    enabled: true
-    certificate_authorities: ["/path/to/ca.crt"]  # CA certificate ka path
-    certificate: "/path/to/client.crt"           # Client certificate (optional)
-    key: "/path/to/client.key"                   # Private key (optional)
+sudo apt update
+sudo apt install nginx -y
+
+upstream backend {
+    server <RedVM_Private_IP>:80;
+    server <BlueVM_Private_IP>:80;
+}
+
+server {
+    listen 80;
+    server_name <Your_Domain_or_Public_IP>;
+
+    # Redirect all HTTP traffic to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name <Your_Domain_or_Public_IP>;
+
+    ssl_certificate /etc/letsencrypt/live/<Your_Domain_or_Public_IP>/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/<Your_Domain_or_Public_IP>/privkey.pem;
+
+    location / {
+        proxy_pass http://backend;
+    }
+}
+
+
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/selfsigned.key -out /etc/nginx/selfsigned.crt
+
+
+sudo openssl dhparam -out /etc/nginx/dhparam.pem 2048
+
+sudo nano /etc/nginx/sites-available/default
+
+server {
+    listen 443 ssl;
+    server_name <Your_Public_IP>;
+
+    ssl_certificate /etc/nginx/selfsigned.crt;
+    ssl_certificate_key /etc/nginx/selfsigned.key;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_dhparam /etc/nginx/dhparam.pem;
+
+    location / {
+        proxy_pass http://backend;
+    }
+}
+
+
+sudo nginx -t
+sudo systemctl reload nginx
