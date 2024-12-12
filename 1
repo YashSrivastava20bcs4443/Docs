@@ -1,109 +1,12 @@
-When you run the openssl req command to create a self-signed certificate, it will prompt you to provide several details. Below is an example of how to fill in these details with realistic, industry-standard values for a company:
+Subject: Leave Request for December 26-27 and Work from Home Notification
 
+Dear [Manager's Name],
 
----
+I hope this email finds you well. I would like to request leave for December 26 and 27, 2024. Additionally, I plan to work from home on December 30 and 31, 2024.
 
-Details Prompted During the Command
+Please let me know if you need any further information or adjustments from my end.
 
-You are about to be asked to enter information that will be incorporated
-into your certificate request.
-What you are about to enter is what is called a Distinguished Name or a DN.
-There are quite a few fields but you can leave some blank.
-For some fields, there will be a default value.
+Thank you for your understanding and support.
 
-Country Name (2 letter code) [AU]:
-State or Province Name (full name) [Some-State]:
-Locality Name (eg, city) []:
-Organization Name (eg, company) [Internet Widgits Pty Ltd]:
-Organizational Unit Name (eg, section) []:
-Common Name (e.g. server FQDN or YOUR name) []:
-Email Address []:
-
-
----
-
-Example Input for an IT Organization
-
-Country Name (2 letter code) [AU]: US
-State or Province Name (full name) [Some-State]: New York
-Locality Name (eg, city) []: New York City
-Organization Name (eg, company) [Internet Widgits Pty Ltd]: Tech Solutions Inc.
-Organizational Unit Name (eg, section) []: IT Operations
-Common Name (e.g. server FQDN or YOUR name) []: www.techsolutions.com
-Email Address []: admin@techsolutions.com
-
-
----
-
-Field Explanation
-
-1. Country Name (2-letter code):
-
-Enter the 2-letter ISO code of your country.
-
-Example: US for United States, IN for India, UK for United Kingdom.
-
-
-
-2. State or Province Name:
-
-Full name of the state or province where the organization is located.
-
-Example: New York, California, Delhi.
-
-
-
-3. Locality Name (City):
-
-Name of the city where your organization is based.
-
-Example: New York City, San Francisco, Bangalore.
-
-
-
-4. Organization Name:
-
-The official name of your organization.
-
-Example: Tech Solutions Inc., Acme Corp, XYZ Pvt Ltd.
-
-
-
-5. Organizational Unit Name:
-
-Department or division within the organization.
-
-Example: IT Operations, Web Services, DevOps Team.
-
-
-
-6. Common Name (CN):
-
-The Fully Qualified Domain Name (FQDN) or public IP address of your server.
-
-Example: www.techsolutions.com, app.techsolutions.com, 192.168.1.1.
-
-
-
-7. Email Address:
-
-Administrative email address to contact in case of certificate issues.
-
-Example: admin@techsolutions.com, support@techsolutions.com.
-
-
-
-
-
----
-
-Resulting Certificate
-
-After filling in these details, the command will generate:
-
-selfsigned.key: The private key.
-
-selfsigned.crt: The self-signed certificate containing the provided information.
-
-
-These files can now be used to configure SSL in Nginx or other web servers.
+Best regards,
+Yash
