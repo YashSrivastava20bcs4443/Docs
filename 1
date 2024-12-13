@@ -1,1 +1,106 @@
+Approach 1: JSON Dump + Prometheus Integration
 
+1. fetch data via Python Script into JSON File.
+
+import json
+
+def fetch_data():
+    # Example data
+    data = {
+        'agents_logged_in': 371,
+        'inbound_calls': 136,
+        'inbound_phone_calls': 107,
+        'inbound_chat_calls': 29,
+        'outbound_calls': 33,
+        'outbound_phone_calls': 33,
+        'outbound_chat_calls': 0,
+    }
+    return data
+
+def save_to_json(data):
+    with open('metrics.json', 'w') as f:
+        json.dump(data, f)
+
+if __name__ == '__main__':
+    data = fetch_data()
+    save_to_json(data)
+
+2. use this script to push data to Prometheus Exporter 
+
+    from prometheus_client import start_http_server, Gauge
+import json
+import time
+
+# Define Prometheus Gauges
+agents_logged_in = Gauge('agents_logged_in', 'Number of agents logged in')
+inbound_calls = Gauge('inbound_calls', 'Number of inbound calls')
+inbound_phone_calls = Gauge('inbound_phone_calls', 'Count of inbound phone calls')
+inbound_chat_calls = Gauge('inbound_chat_calls', 'Count of inbound chat calls')
+outbound_calls = Gauge('outbound_calls', 'Number of outbound calls')
+outbound_phone_calls = Gauge('outbound_phone_calls', 'Count of outbound phone calls')
+outbound_chat_calls = Gauge('outbound_chat_calls', 'Count of outbound chat calls')
+
+def update_metrics():
+    with open('metrics.json', 'r') as f:
+        data = json.load(f)
+
+    # Update Prometheus metrics
+    agents_logged_in.set(data['agents_logged_in'])
+    inbound_calls.set(data['inbound_calls'])
+    inbound_phone_calls.set(data['inbound_phone_calls'])
+    inbound_chat_calls.set(data['inbound_chat_calls'])
+    outbound_calls.set(data['outbound_calls'])
+    outbound_phone_calls.set(data['outbound_phone_calls'])
+    outbound_chat_calls.set(data['outbound_chat_calls'])
+
+if __name__ == '__main__':
+    start_http_server(8000)
+    while True:
+        update_metrics()
+        time.sleep(60)  # Scrape interval
+
+
+
+
+
+Approach 2: Directly Expose Data to Prometheus in the Same Script
+
+
+from prometheus_client import start_http_server, Gauge
+import time
+
+# Define Prometheus Gauges
+agents_logged_in = Gauge('agents_logged_in', 'Number of agents logged in')
+inbound_calls = Gauge('inbound_calls', 'Number of inbound calls')
+inbound_phone_calls = Gauge('inbound_phone_calls', 'Count of inbound phone calls')
+inbound_chat_calls = Gauge('inbound_chat_calls', 'Count of inbound chat calls')
+outbound_calls = Gauge('outbound_calls', 'Number of outbound calls')
+outbound_phone_calls = Gauge('outbound_phone_calls', 'Count of outbound phone calls')
+outbound_chat_calls = Gauge('outbound_chat_calls', 'Count of outbound chat calls')
+
+def fetch_and_update_metrics():
+    # Example data fetching
+    data = {
+        'agents_logged_in': 371,
+        'inbound_calls': 136,
+        'inbound_phone_calls': 107,
+        'inbound_chat_calls': 29,
+        'outbound_calls': 33,
+        'outbound_phone_calls': 33,
+        'outbound_chat_calls': 0,
+    }
+
+    # Update Prometheus metrics
+    agents_logged_in.set(data['agents_logged_in'])
+    inbound_calls.set(data['inbound_calls'])
+    inbound_phone_calls.set(data['inbound_phone_calls'])
+    inbound_chat_calls.set(data['inbound_chat_calls'])
+    outbound_calls.set(data['outbound_calls'])
+    outbound_phone_calls.set(data['outbound_phone_calls'])
+    outbound_chat_calls.set(data['outbound_chat_calls'])
+
+if __name__ == '__main__':
+    start_http_server(8000)  # Prometheus scrapes this port
+    while True:
+        fetch_and_update_metrics()
+        time.sleep(900)  # Run every 15 minutes
