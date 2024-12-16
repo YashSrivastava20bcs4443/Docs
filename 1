@@ -30,17 +30,28 @@ if __name__ == "__main__":
 
 
 import requests
+from datetime import datetime, timedelta
 
-# Define the API endpoint for alerts
+# Define the API endpoint for alerts with query parameters
 url = "https://<your_vsp_endpoint>/simple/v1/objects/alerts"
+
+# Example: Filter for alerts in the past 24 hours
+end_time = datetime.utcnow()
+start_time = end_time - timedelta(days=1)
+
+params = {
+    "startTime": start_time.isoformat(),
+    "endTime": end_time.isoformat()
+}
+
 headers = {
     "Authorization": "Bearer <your_token>"
 }
 
-response = requests.get(url, headers=headers)
+response = requests.get(url, headers=headers, params=params)
 
 if response.status_code == 200:
     alert_data = response.json()
     print(alert_data)
 else:
-    print(f"Failed to fetch alerts: {response.status_code}")
+    print(f"Failed to fetch alerts: {response.status_code}, {response.text}")
