@@ -27,3 +27,20 @@ def test_endpoint(endpoint):
 
 if __name__ == "__main__":
     test_endpoint("sessions")  # Test session endpoint
+
+
+import requests
+
+# Define the API endpoint for alerts
+url = "https://<your_vsp_endpoint>/simple/v1/objects/alerts"
+headers = {
+    "Authorization": "Bearer <your_token>"
+}
+
+response = requests.get(url, headers=headers)
+
+if response.status_code == 200:
+    alert_data = response.json()
+    print(alert_data)
+else:
+    print(f"Failed to fetch alerts: {response.status_code}")
