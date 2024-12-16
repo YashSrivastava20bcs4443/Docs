@@ -2,40 +2,13 @@ import requests
 from requests.auth import HTTPBasicAuth
 import urllib3
 
-# Suppress SSL warnings (if using self-signed certificates)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Base configuration
-BASE_URL = "https://<storage-system-ip>/ConfigurationManager/v1/objects"  # Replace with your storage system IP
-USERNAME = "<your-username>"  # Replace with your username
-PASSWORD = "<your-password>"  # Replace with your password
+BASE_URL = "https://<storage-system-ip>/ConfigurationManager/v1"  # Replace with correct base URL
+USERNAME = "<your-username>"
+PASSWORD = "<your-password>"
 
-def authenticate():
-    """
-    Authenticate with the API and return the session ID (if required).
-    """
-    try:
-        response = requests.get(
-            BASE_URL,
-            auth=HTTPBasicAuth(USERNAME, PASSWORD),
-            headers={"Accept": "application/json"},
-            verify=False  # Skip SSL verification for self-signed certificates
-        )
-        if response.status_code == 200:
-            print("Authentication successful.")
-            return True
-        else:
-            print(f"Authentication failed: {response.status_code}")
-            print(response.text)
-            return False
-    except Exception as e:
-        print(f"Error during authentication: {e}")
-        return False
-
-def fetch_data(endpoint):
-    """
-    Fetch data from a specific API endpoint.
-    """
+def test_endpoint(endpoint):
     url = f"{BASE_URL}/{endpoint}"
     try:
         response = requests.get(
@@ -44,29 +17,13 @@ def fetch_data(endpoint):
             headers={"Accept": "application/json"},
             verify=False
         )
+        print(f"Status Code: {response.status_code}")
         if response.status_code == 200:
-            return response.json()
+            print(response.json())
         else:
-            print(f"Failed to fetch data from {endpoint}. Status code: {response.status_code}")
             print(response.text)
-            return None
     except Exception as e:
-        print(f"Error fetching data: {e}")
-        return None
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
-    # Authenticate
-    if authenticate():
-        # Fetch capacity metrics
-        capacity_data = fetch_data("storages")
-        if capacity_data:
-            print("Storage Capacity Data:")
-            print(capacity_data)
-
-        # Fetch performance metrics
-        performance_data = fetch_data("performance")
-        if performance_data:
-            print("\nPerformance Metrics:")
-            print(performance_data)
-    else:
-        print("Exiting script due to failed authentication.")
+    test_endpoint("sessions")  # Test session endpoint
