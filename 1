@@ -1,59 +1,72 @@
 import requests
-
-# Suppress SSL warnings for self-signed certificates
+from requests.auth import HTTPBasicAuth
 import urllib3
+
+# Suppress SSL warnings (if using self-signed certificates)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Base configuration
-BASE_URL = "https://<storage-system-ip>/api/v1"  # Replace with actual system IP
-USERNAME = "<your-username>"  # Replace with your API username
-PASSWORD = "<your-password>"  # Replace with your API password
+BASE_URL = "https://<storage-system-ip>/ConfigurationManager/v1/objects"  # Replace with your storage system IP
+USERNAME = "<your-username>"  # Replace with your username
+PASSWORD = "<your-password>"  # Replace with your password
 
-# Function to authenticate and get the token
 def authenticate():
-    auth_url = f"{BASE_URL}/auth/login"
-    auth_payload = {"username": USERNAME, "password": PASSWORD}
-    
+    """
+    Authenticate with the API and return the session ID (if required).
+    """
     try:
-        response = requests.post(auth_url, json=auth_payload, verify=False)
-        response.raise_for_status()  # Raise an error for bad responses
-        token = response.json().get("token")
-        print("Authentication successful.")
-        return token
-    except requests.exceptions.RequestException as e:
-        print(f"Authentication failed: {e}")
+        response = requests.get(
+            BASE_URL,
+            auth=HTTPBasicAuth(USERNAME, PASSWORD),
+            headers={"Accept": "application/json"},
+            verify=False  # Skip SSL verification for self-signed certificates
+        )
+        if response.status_code == 200:
+            print("Authentication successful.")
+            return True
+        else:
+            print(f"Authentication failed: {response.status_code}")
+            print(response.text)
+            return False
+    except Exception as e:
+        print(f"Error during authentication: {e}")
+        return False
+
+def fetch_data(endpoint):
+    """
+    Fetch data from a specific API endpoint.
+    """
+    url = f"{BASE_URL}/{endpoint}"
+    try:
+        response = requests.get(
+            url,
+            auth=HTTPBasicAuth(USERNAME, PASSWORD),
+            headers={"Accept": "application/json"},
+            verify=False
+        )
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"Failed to fetch data from {endpoint}. Status code: {response.status_code}")
+            print(response.text)
+            return None
+    except Exception as e:
+        print(f"Error fetching data: {e}")
         return None
 
-# Function to fetch data from a specific endpoint
-def fetch_metrics(endpoint, token):
-    headers = {"Authorization": f"Bearer {token}"}
-    url = f"{BASE_URL}{endpoint}"
-    
-    try:
-        response = requests.get(url, headers=headers, verify=False)
-        response.raise_for_status()  # Raise an error for bad responses
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Failed to fetch data from {endpoint}: {e}")
-        return None
-
-# Main script
 if __name__ == "__main__":
-    token = authenticate()
-    if token:
+    # Authenticate
+    if authenticate():
         # Fetch capacity metrics
-        capacity_metrics = fetch_metrics("/storage/capacity", token)
-        if capacity_metrics:
-            print("Capacity Metrics:")
-            print(f"Used Capacity: {capacity_metrics.get('used_capacity')}")
-            print(f"Total Efficiency: {capacity_metrics.get('total_efficiency')}")
-            print(f"Data Reduction: {capacity_metrics.get('data_reduction')}")
-        
+        capacity_data = fetch_data("storages")
+        if capacity_data:
+            print("Storage Capacity Data:")
+            print(capacity_data)
+
         # Fetch performance metrics
-        performance_metrics = fetch_metrics("/storage/performance", token)
-        if performance_metrics:
+        performance_data = fetch_data("performance")
+        if performance_data:
             print("\nPerformance Metrics:")
-            for key, value in performance_metrics.items():
-                print(f"{key}: {value}")
+            print(performance_data)
     else:
-        print("Exiting due to authentication failure.")
+        print("Exiting script due to failed authentication.")
