@@ -47,10 +47,10 @@ def get_storage_device_ids():
         return [device["storageDeviceId"] for device in devices["data"]]
     return []
 
-# Fetch processor data for a given storage device ID
-def fetch_processor_data(storage_device_id):
-    endpoint = f"objects/storages/{storage_device_id}/processors"
-    logging.info(f"Fetching processor data for storage device ID: {storage_device_id}")
+# Fetch data for a given resource (e.g., processors, summaries, performance)
+def fetch_resource(storage_device_id, resource):
+    endpoint = f"objects/storages/{storage_device_id}/{resource}"
+    logging.info(f"Fetching {resource} data for storage device ID: {storage_device_id}")
     return fetch_data(endpoint)
 
 # Main script
@@ -64,8 +64,10 @@ if __name__ == "__main__":
         logging.error("No storage devices found!")
     else:
         for device_id in storage_ids:
-            processor_data = fetch_processor_data(device_id)
-            if processor_data:
-                logging.info(f"Processor Data for {device_id}: {processor_data}")
-            else:
-                logging.warning(f"Failed to fetch processor data for {device_id}.")
+            # Test multiple possible resources
+            for resource in ["processors", "storage-summaries/instance", "performance"]:
+                data = fetch_resource(device_id, resource)
+                if data:
+                    logging.info(f"Data for {resource}: {data}")
+                else:
+                    logging.warning(f"Failed to fetch {resource} data for {device_id}.")
