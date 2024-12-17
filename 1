@@ -1,14 +1,22 @@
 import requests
 from requests.auth import HTTPBasicAuth
 import urllib3
+import os
+import logging
 
+# Disable insecure request warnings (for self-signed certificates)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-BASE_URL = "https://<storage-system-ip>/ConfigurationManager/v1"  # Replace with correct base URL
-USERNAME = "<your-username>"
-PASSWORD = "<your-password>"
+# Configuration
+BASE_URL = "https://<storage-system-ip>/ConfigurationManager/v1"  # Replace with your storage system's IP
+USERNAME = os.getenv("HITACHI_API_USER", "<your-username>")        # Fetch from environment variables if available
+PASSWORD = os.getenv("HITACHI_API_PASS", "<your-password>")        # Fetch from environment variables if available
 
-def test_endpoint(endpoint):
+# Logging setup
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Function to fetch data from an endpoint
+def fetch_data(endpoint):
     url = f"{BASE_URL}/{endpoint}"
     try:
         response = requests.get(
@@ -17,41 +25,47 @@ def test_endpoint(endpoint):
             headers={"Accept": "application/json"},
             verify=False
         )
-        print(f"Status Code: {response.status_code}")
+        logging.info(f"Request URL: {url}")
+        logging.info(f"Status Code: {response.status_code}")
+        
+        # Handle responses
         if response.status_code == 200:
-            print(response.json())
+            logging.info("Response JSON: %s", response.json())
+            return response.json()
         else:
-            print(response.text)
+            logging.error("Error Response: %s", response.text)
+            return None
     except Exception as e:
-        print(f"Error: {e}")
+        logging.error(f"An error occurred: {e}")
+        return None
 
+# Fetch storage device IDs
+def get_storage_device_ids():
+    logging.info("Fetching available storage devices...")
+    devices = fetch_data("objects/storages")
+    if devices and "data" in devices:
+        return [device["storageDeviceId"] for device in devices["data"]]
+    return []
+
+# Fetch processor data for a given storage device ID
+def fetch_processor_data(storage_device_id):
+    endpoint = f"objects/storages/{storage_device_id}/processors"
+    logging.info(f"Fetching processor data for storage device ID: {storage_device_id}")
+    return fetch_data(endpoint)
+
+# Main script
 if __name__ == "__main__":
-    test_endpoint("sessions")  # Test session endpoint
-
-
-import requests
-from datetime import datetime, timedelta
-
-# Define the API endpoint for alerts with query parameters
-url = "https://<your_vsp_endpoint>/simple/v1/objects/alerts"
-
-# Example: Filter for alerts in the past 24 hours
-end_time = datetime.utcnow()
-start_time = end_time - timedelta(days=1)
-
-params = {
-    "startTime": start_time.isoformat(),
-    "endTime": end_time.isoformat()
-}
-
-headers = {
-    "Authorization": "Bearer <your_token>"
-}
-
-response = requests.get(url, headers=headers, params=params)
-
-if response.status_code == 200:
-    alert_data = response.json()
-    print(alert_data)
-else:
-    print(f"Failed to fetch alerts: {response.status_code}, {response.text}")
+    logging.info("Starting the script...")
+    
+    # Fetch all storage device IDs
+    storage_ids = get_storage_device_ids()
+    
+    if not storage_ids:
+        logging.error("No storage devices found!")
+    else:
+        for device_id in storage_ids:
+            processor_data = fetch_processor_data(device_id)
+            if processor_data:
+                logging.info(f"Processor Data for {device_id}: {processor_data}")
+            else:
+                logging.warning(f"Failed to fetch processor data for {device_id}.")
