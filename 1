@@ -1,3 +1,55 @@
+import requests
+from requests.auth import HTTPBasicAuth
+import urllib3
+import os
+import logging
+
+# Disable warnings for self-signed certificates
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Configuration
+BASE_URL = "https://<storage-system-ip>/ConfigurationManager/v3"  # Replace with your storage system's IP
+USERNAME = os.getenv("HITACHI_API_USER", "<your-username>")        # Fetch from environment variables if available
+PASSWORD = os.getenv("HITACHI_API_PASS", "<your-password>")        # Fetch from environment variables if available
+
+# Logging setup
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Function to fetch data from an endpoint
+def fetch_data(endpoint):
+    url = f"{BASE_URL}/{endpoint}"
+    try:
+        response = requests.get(
+            url,
+            auth=HTTPBasicAuth(USERNAME, PASSWORD),
+            headers={"Accept": "application/json"},
+            verify=False
+        )
+        logging.info(f"Request URL: {url}")
+        logging.info(f"Status Code: {response.status_code}")
+        
+        if response.status_code == 200:
+            logging.info("Response JSON: %s", response.json())
+            return response.json()
+        else:
+            logging.error("Error Response: %s", response.text)
+            return None
+    except Exception as e:
+        logging.error(f"Error occurred: {e}")
+        return None
+
+# Function to discover basic info for a storage device
+def discover_resources(storage_device_id):
+    logging.info(f"Discovering resources for storage device ID: {storage_device_id}")
+    return fetch_data(f"objects/storages/{storage_device_id}")
+
+# Function to fetch data for additional resources (e.g., ldevs, pools, controllers)
+def fetch_resource(storage_device_id, resource):
+    endpoint = f"objects/storages/{storage_device_id}/{resource}"
+    logging.info(f"Fetching {resource} data for storage device ID: {storage_device_id}")
+    return fetch_data(endpoint)
+
+# Main script
 if __name__ == "__main__":
     logging.info("Starting the script...")
     
@@ -10,7 +62,7 @@ if __name__ == "__main__":
             storage_device_id = device["storageDeviceId"]
             logging.info(f"Exploring storage device: {storage_device_id}")
             
-            # Discover resources
+            # Discover basic resources
             base_info = discover_resources(storage_device_id)
             if base_info:
                 logging.info(f"Discovered basic info for {storage_device_id}: {base_info}")
@@ -18,7 +70,8 @@ if __name__ == "__main__":
                 logging.warning(f"Failed to fetch basic info for {storage_device_id}.")
             
             # Test additional resources
-            for resource in ["ldevs", "pools", "controllers", "hardware", "monitoring"]:
+            additional_resources = ["ldevs", "pools", "controllers", "hardware", "monitoring"]
+            for resource in additional_resources:
                 logging.info(f"Fetching {resource} data for storage device ID: {storage_device_id}")
                 data = fetch_resource(storage_device_id, resource)
                 if data:
