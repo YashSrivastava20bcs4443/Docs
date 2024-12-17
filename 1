@@ -4,18 +4,18 @@ import urllib3
 import os
 import logging
 
-# Disable insecure request warnings (for self-signed certificates)
+# Disable warnings for self-signed certificates
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Configuration
-BASE_URL = "https://<storage-system-ip>/ConfigurationManager/v1"  # Replace with your storage system's IP
-USERNAME = os.getenv("HITACHI_API_USER", "<your-username>")        # Fetch from environment variables if available
-PASSWORD = os.getenv("HITACHI_API_PASS", "<your-password>")        # Fetch from environment variables if available
+# Configurations
+BASE_URL = "https://<storage-system-ip>/ConfigurationManager/v1"
+USERNAME = os.getenv("HITACHI_API_USER", "<your-username>")
+PASSWORD = os.getenv("HITACHI_API_PASS", "<your-password>")
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Function to fetch data from an endpoint
+# Function to fetch data
 def fetch_data(endpoint):
     url = f"{BASE_URL}/{endpoint}"
     try:
@@ -28,7 +28,6 @@ def fetch_data(endpoint):
         logging.info(f"Request URL: {url}")
         logging.info(f"Status Code: {response.status_code}")
         
-        # Handle responses
         if response.status_code == 200:
             logging.info("Response JSON: %s", response.json())
             return response.json()
@@ -36,38 +35,30 @@ def fetch_data(endpoint):
             logging.error("Error Response: %s", response.text)
             return None
     except Exception as e:
-        logging.error(f"An error occurred: {e}")
+        logging.error(f"Error occurred: {e}")
         return None
 
-# Fetch storage device IDs
-def get_storage_device_ids():
-    logging.info("Fetching available storage devices...")
-    devices = fetch_data("objects/storages")
-    if devices and "data" in devices:
-        return [device["storageDeviceId"] for device in devices["data"]]
-    return []
+# Function to fetch supported resources for a storage device
+def discover_resources(storage_device_id):
+    logging.info(f"Discovering resources for storage device ID: {storage_device_id}")
+    return fetch_data(f"objects/storages/{storage_device_id}")
 
-# Fetch data for a given resource (e.g., processors, summaries, performance)
-def fetch_resource(storage_device_id, resource):
-    endpoint = f"objects/storages/{storage_device_id}/{resource}"
-    logging.info(f"Fetching {resource} data for storage device ID: {storage_device_id}")
-    return fetch_data(endpoint)
-
-# Main script
+# Main function
 if __name__ == "__main__":
     logging.info("Starting the script...")
     
-    # Fetch all storage device IDs
-    storage_ids = get_storage_device_ids()
-    
-    if not storage_ids:
+    # Fetch all storage devices
+    devices = fetch_data("objects/storages")
+    if not devices or "data" not in devices:
         logging.error("No storage devices found!")
     else:
-        for device_id in storage_ids:
-            # Test multiple possible resources
-            for resource in ["processors", "storage-summaries/instance", "performance"]:
-                data = fetch_resource(device_id, resource)
-                if data:
-                    logging.info(f"Data for {resource}: {data}")
-                else:
-                    logging.warning(f"Failed to fetch {resource} data for {device_id}.")
+        for device in devices["data"]:
+            storage_device_id = device["storageDeviceId"]
+            logging.info(f"Exploring storage device: {storage_device_id}")
+            
+            # Discover available resources
+            resources = discover_resources(storage_device_id)
+            if resources:
+                logging.info(f"Discovered resources for {storage_device_id}: {resources}")
+            else:
+                logging.warning(f"No resources found for {storage_device_id}.")
