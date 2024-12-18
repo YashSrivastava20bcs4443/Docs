@@ -1,80 +1,29 @@
-import requests
-from requests.auth import HTTPBasicAuth
-import urllib3
-import os
-import logging
+Subject: Update on Health Status Automation Schedule
 
-# Disable warnings for self-signed certificates
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+Dear Team,
 
-# Configuration
-BASE_URL = "https://<storage-system-ip>/ConfigurationManager/v3"  # Replace with your storage system's IP
-USERNAME = os.getenv("HITACHI_API_USER", "<your-username>")        # Fetch from environment variables if available
-PASSWORD = os.getenv("HITACHI_API_PASS", "<your-password>")        # Fetch from environment variables if available
+I hope this email finds you well.
 
-# Logging setup
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+This is to inform you that the automation schedule for health status checks has been updated as per the request from the SysEng team:
 
-# Function to fetch data from an endpoint
-def fetch_data(endpoint):
-    url = f"{BASE_URL}/{endpoint}"
-    try:
-        response = requests.get(
-            url,
-            auth=HTTPBasicAuth(USERNAME, PASSWORD),
-            headers={"Accept": "application/json"},
-            verify=False
-        )
-        logging.info(f"Request URL: {url}")
-        logging.info(f"Status Code: {response.status_code}")
-        
-        if response.status_code == 200:
-            logging.info("Response JSON: %s", response.json())
-            return response.json()
-        else:
-            logging.error("Error Response: %s", response.text)
-            return None
-    except Exception as e:
-        logging.error(f"Error occurred: {e}")
-        return None
+1. Hitachi Health Status Automation
 
-# Function to discover basic info for a storage device
-def discover_resources(storage_device_id):
-    logging.info(f"Discovering resources for storage device ID: {storage_device_id}")
-    return fetch_data(f"objects/storages/{storage_device_id}")
+Frequency: 3 times a day
 
-# Function to fetch data for additional resources (e.g., ldevs, pools, controllers)
-def fetch_resource(storage_device_id, resource):
-    endpoint = f"objects/storages/{storage_device_id}/{resource}"
-    logging.info(f"Fetching {resource} data for storage device ID: {storage_device_id}")
-    return fetch_data(endpoint)
+Timings: 10:30 AM, 6:30 PM, and 2:30 AM IST
 
-# Main script
-if __name__ == "__main__":
-    logging.info("Starting the script...")
-    
-    # Fetch all storage devices
-    devices = fetch_data("objects/storages")
-    if not devices or "data" not in devices:
-        logging.error("No storage devices found!")
-    else:
-        for device in devices["data"]:
-            storage_device_id = device["storageDeviceId"]
-            logging.info(f"Exploring storage device: {storage_device_id}")
-            
-            # Discover basic resources
-            base_info = discover_resources(storage_device_id)
-            if base_info:
-                logging.info(f"Discovered basic info for {storage_device_id}: {base_info}")
-            else:
-                logging.warning(f"Failed to fetch basic info for {storage_device_id}.")
-            
-            # Test additional resources
-            additional_resources = ["ldevs", "pools", "controllers", "hardware", "monitoring"]
-            for resource in additional_resources:
-                logging.info(f"Fetching {resource} data for storage device ID: {storage_device_id}")
-                data = fetch_resource(storage_device_id, resource)
-                if data:
-                    logging.info(f"Data for {resource}: {data}")
-                else:
-                    logging.warning(f"No data found for resource: {resource}")
+
+
+2. VPLEX and Unity Health Status Automation
+
+Frequency: Once a day
+
+Timing: Remains unchanged
+
+
+
+
+Please let me know if you have any concerns or require further clarification regarding this schedule change.
+
+Best regards,
+Yash
