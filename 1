@@ -1,1 +1,36 @@
+Approach
+Data Preparation:
+
+Ensure the dataset includes the following fields:
+Timestamp (@timestamp)
+Event Source (e.g., server, application, network device)
+Event Type (e.g., server down, application issue, network timeout)
+Event Severity (e.g., Critical, Warning)
+Event Dependencies (Define known dependencies, such as which application runs on which server).
+Correlation Logic:
+
+Sort events by timestamp.
+Use a dependency map that defines relationships (e.g., Server → Application → Network).
+Group events into "correlation windows" based on time intervals.
+For each window:
+Identify a root cause (e.g., server down).
+Aggregate dependent alerts (e.g., alerts from applications or devices connected to the server).
+Implementation:
+
+Create a function to find root causes and related alerts.
+Generate a timeline or visualization to show the hierarchy of alerts.
+
+
+Key Features in the Code:
+Dependency Map:
+
+Defines relationships between systems (e.g., servers, apps, databases).
+Uses a directed graph to trace dependencies.
+Correlation Logic:
+
+Groups alerts based on timestamps and dependencies.
+Identifies the root cause (e.g., server down) and matches dependent alerts.
+Result:
+
+Produces a structured output showing the root cause and related alerts.
 
