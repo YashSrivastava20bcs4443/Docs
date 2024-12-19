@@ -1,64 +1,73 @@
-# Enhanced Function for Cascading Alerts
-def correlate_cascading_alerts_v2(data, time_threshold=10):
+def analyze_cascading_dependencies(filtered_data):
     """
-    Function to correlate cascading alerts (e.g., Server → Network → Application).
-
-    Parameters:
-        data (pd.DataFrame): Filtered event data.
-        time_threshold (int): Time difference threshold in minutes to group related alerts.
-
-    Returns:
-        pd.DataFrame: DataFrame with grouped cascading alert information.
+    Analyzes cascading alert dependencies based on predefined rules and updates the Streamlit dashboard.
+    
+    Args:
+        filtered_data (pd.DataFrame): The filtered data from your existing Streamlit app.
     """
+    # Define cascading dependencies
+    dependency_map = {
+        'Server': ['Network', 'Application'],
+        'Network': ['Application'],
+        'Application': ['Application'],  # Application to Application dependency
+    }
+
+    # Ensure data has necessary columns
+    required_columns = ['@timestamp', 'EventSource', 'EventTitle', 'EventLevel']
+    if not all(col in filtered_data.columns for col in required_columns):
+        st.error("Filtered data is missing required columns for cascading analysis.")
+        return
+
+    # Convert timestamp to datetime if not already done
+    filtered_data['@timestamp'] = pd.to_datetime(filtered_data['@timestamp'], errors='coerce')
+
     # Sort data by timestamp
-    data = data.sort_values('@timestamp')
+    filtered_data = filtered_data.sort_values(by='@timestamp')
 
-    # Add a new column for time differences
-    data['TimeDiff'] = data['@timestamp'].diff().dt.total_seconds().abs() / 60
+    # Analyze dependencies
+    cascading_results = []
+    for index, row in filtered_data.iterrows():
+        current_source = row['EventSource']
+        current_time = row['@timestamp']
+        dependencies = dependency_map.get(current_source, [])
 
-    # Group data based on time threshold
-    data['CascadeGroup'] = (data['TimeDiff'] > time_threshold).cumsum()
+        for dependency in dependencies:
+            related_alerts = filtered_data[
+                (filtered_data['EventSource'] == dependency)
+                & (filtered_data['@timestamp'] > current_time)
+                & (filtered_data['@timestamp'] <= current_time + pd.Timedelta(minutes=30))
+            ]
 
-    # Define priority for cascading relationships
-    cascading_priority = {'Server': 1, 'Network': 2, 'Application': 3}
-    data['Priority'] = data['EventSource'].map(cascading_priority)
+            for _, related_row in related_alerts.iterrows():
+                cascading_results.append({
+                    'Primary Alert Source': current_source,
+                    'Primary Alert Time': current_time,
+                    'Dependent Alert Source': related_row['EventSource'],
+                    'Dependent Alert Time': related_row['@timestamp'],
+                    'Dependent Event Title': related_row['EventTitle'],
+                })
 
-    # Analyze cascading patterns
-    cascading_patterns = []
-    grouped = data.groupby('CascadeGroup')
-    for group_id, group in grouped:
-        group = group.sort_values('Priority')  # Sort by priority: Server → Network → Application
-        pattern = " → ".join(group['EventSource'].unique())  # Build the cascading pattern
-        cascading_patterns.append({
-            'CascadeGroup': group_id,
-            'Pattern': pattern,
-            'StartTime': group['@timestamp'].min(),
-            'EndTime': group['@timestamp'].max(),
-            'Sources': group['EventSource'].tolist(),
-            'Levels': group['EventLevel'].tolist(),
-            'Titles': group['EventTitle'].tolist(),
-        })
+    # Create a DataFrame for cascading results
+    cascading_df = pd.DataFrame(cascading_results)
 
-    # Convert cascading patterns to DataFrame
-    cascade_summary = pd.DataFrame(cascading_patterns)
+    if cascading_df.empty:
+        st.write("No cascading dependencies found in the selected data.")
+    else:
+        st.subheader("Cascading Dependency Analysis")
 
-    return cascade_summary
+        # Display results in Streamlit
+        st.write("### Cascading Dependency Results")
+        st.write(cascading_df)
 
-# Use the function in the Streamlit dashboard
-st.subheader("Enhanced Cascading Alert Correlation")
+        # Download option for cascading results
+        csv_data = cascading_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Cascading Results as CSV",
+            data=csv_data,
+            file_name='cascading_results.csv',
+            mime='text/csv',
+        )
+
+# Integrate the function into your existing Streamlit app
 if not filtered_data.empty:
-    cascade_time_threshold = st.slider("Cascading Time Threshold (minutes):", 1, 30, 10)
-    cascading_patterns = correlate_cascading_alerts_v2(filtered_data, time_threshold=cascade_time_threshold)
-
-    st.write("Cascading Alert Patterns Summary:")
-    st.dataframe(cascading_patterns[['CascadeGroup', 'Pattern', 'StartTime', 'EndTime']])
-
-    # Download cascading patterns
-    st.download_button(
-        label="Download Enhanced Cascading Alert Report",
-        data=cascading_patterns.to_csv(index=False).encode('utf-8'),
-        file_name='enhanced_cascading_alert_report.csv',
-        mime='text/csv'
-    )
-else:
-    st.write("No data available for enhanced cascading alert correlation.")
+    analyze_cascading_dependencies(filtered_data)
