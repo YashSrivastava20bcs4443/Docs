@@ -1,41 +1,64 @@
-Approach
-Data Preparation:
+# Enhanced Function for Cascading Alerts
+def correlate_cascading_alerts_v2(data, time_threshold=10):
+    """
+    Function to correlate cascading alerts (e.g., Server → Network → Application).
 
-Ensure the dataset includes the following fields:
-Timestamp (@timestamp)
-Event Source (e.g., server, application, network device)
-Event Type (e.g., server down, application issue, network timeout)
-Event Severity (e.g., Critical, Warning)
-Event Dependencies (Define known dependencies, such as which application runs on which server).
-Correlation Logic:
+    Parameters:
+        data (pd.DataFrame): Filtered event data.
+        time_threshold (int): Time difference threshold in minutes to group related alerts.
 
-Sort events by timestamp.
-Use a dependency map that defines relationships (e.g., Server → Application → Network).
-Group events into "correlation windows" based on time intervals.
-For each window:
-Identify a root cause (e.g., server down).
-Aggregate dependent alerts (e.g., alerts from applications or devices connected to the server).
-Implementation:
+    Returns:
+        pd.DataFrame: DataFrame with grouped cascading alert information.
+    """
+    # Sort data by timestamp
+    data = data.sort_values('@timestamp')
 
-Create a function to find root causes and related alerts.
-Generate a timeline or visualization to show the hierarchy of alerts.
+    # Add a new column for time differences
+    data['TimeDiff'] = data['@timestamp'].diff().dt.total_seconds().abs() / 60
 
+    # Group data based on time threshold
+    data['CascadeGroup'] = (data['TimeDiff'] > time_threshold).cumsum()
 
-Key Features in the Code:
-Dependency Map:
+    # Define priority for cascading relationships
+    cascading_priority = {'Server': 1, 'Network': 2, 'Application': 3}
+    data['Priority'] = data['EventSource'].map(cascading_priority)
 
-Defines relationships between systems (e.g., servers, apps, databases).
-Uses a directed graph to trace dependencies.
-Correlation Logic:
+    # Analyze cascading patterns
+    cascading_patterns = []
+    grouped = data.groupby('CascadeGroup')
+    for group_id, group in grouped:
+        group = group.sort_values('Priority')  # Sort by priority: Server → Network → Application
+        pattern = " → ".join(group['EventSource'].unique())  # Build the cascading pattern
+        cascading_patterns.append({
+            'CascadeGroup': group_id,
+            'Pattern': pattern,
+            'StartTime': group['@timestamp'].min(),
+            'EndTime': group['@timestamp'].max(),
+            'Sources': group['EventSource'].tolist(),
+            'Levels': group['EventLevel'].tolist(),
+            'Titles': group['EventTitle'].tolist(),
+        })
 
-Groups alerts based on timestamps and dependencies.
-Identifies the root cause (e.g., server down) and matches dependent alerts.
-Result:
+    # Convert cascading patterns to DataFrame
+    cascade_summary = pd.DataFrame(cascading_patterns)
 
-Produces a structured output showing the root cause and related alerts.
+    return cascade_summary
 
+# Use the function in the Streamlit dashboard
+st.subheader("Enhanced Cascading Alert Correlation")
+if not filtered_data.empty:
+    cascade_time_threshold = st.slider("Cascading Time Threshold (minutes):", 1, 30, 10)
+    cascading_patterns = correlate_cascading_alerts_v2(filtered_data, time_threshold=cascade_time_threshold)
 
-Next Steps
-Test this logic with your dataset.
-Add more sophisticated checks, such as anomaly detection, to identify unusual patterns in alert dependencies.
-Refine the dependency map as needed for your environment.
+    st.write("Cascading Alert Patterns Summary:")
+    st.dataframe(cascading_patterns[['CascadeGroup', 'Pattern', 'StartTime', 'EndTime']])
+
+    # Download cascading patterns
+    st.download_button(
+        label="Download Enhanced Cascading Alert Report",
+        data=cascading_patterns.to_csv(index=False).encode('utf-8'),
+        file_name='enhanced_cascading_alert_report.csv',
+        mime='text/csv'
+    )
+else:
+    st.write("No data available for enhanced cascading alert correlation.")
