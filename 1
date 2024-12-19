@@ -1,73 +1,76 @@
-def analyze_cascading_dependencies(filtered_data):
+def process_cascading_dependencies(data, time_window=30):
     """
-    Analyzes cascading alert dependencies based on predefined rules and updates the Streamlit dashboard.
-    
+    Processes cascading dependencies in the event data while excluding irrelevant sources.
+
     Args:
-        filtered_data (pd.DataFrame): The filtered data from your existing Streamlit app.
+        data (pd.DataFrame): The input DataFrame containing event data.
+        time_window (int): Time window (in minutes) to evaluate cascading dependencies.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing cascading dependency relationships.
     """
-    # Define cascading dependencies
+    import pandas as pd
+
+    # Define dependency relationships
     dependency_map = {
-        'Server': ['Network', 'Application'],
-        'Network': ['Application'],
-        'Application': ['Application'],  # Application to Application dependency
+        "Prometheus": ["Airflow", "Active Batch"],
+        "Airflow": ["App Insights"],
+        "App Insights": ["Rigor"],
+        "SCOM": ["SolarWinds"],
     }
 
-    # Ensure data has necessary columns
-    required_columns = ['@timestamp', 'EventSource', 'EventTitle', 'EventLevel']
-    if not all(col in filtered_data.columns for col in required_columns):
-        st.error("Filtered data is missing required columns for cascading analysis.")
-        return
+    # Define sources to exclude
+    excluded_sources = ["Business Metrics", "Power BI", "Nessus"]
 
-    # Convert timestamp to datetime if not already done
-    filtered_data['@timestamp'] = pd.to_datetime(filtered_data['@timestamp'], errors='coerce')
+    # Check for required columns
+    required_columns = [
+        '@timestamp', 'EventSource', 'EventTitle', 'EventLevel', 'EventStatus'
+    ]
+    if not all(col in data.columns for col in required_columns):
+        raise ValueError("Data is missing one or more required columns.")
 
-    # Sort data by timestamp
-    filtered_data = filtered_data.sort_values(by='@timestamp')
+    # Filter out excluded sources
+    data = data[~data['EventSource'].isin(excluded_sources)]
 
-    # Analyze dependencies
+    # Convert timestamp to datetime and sort by it
+    data['@timestamp'] = pd.to_datetime(data['@timestamp'])
+    data = data.sort_values('@timestamp')
+
+    # Initialize results for cascading dependencies
     cascading_results = []
-    for index, row in filtered_data.iterrows():
-        current_source = row['EventSource']
-        current_time = row['@timestamp']
-        dependencies = dependency_map.get(current_source, [])
 
-        for dependency in dependencies:
-            related_alerts = filtered_data[
-                (filtered_data['EventSource'] == dependency)
-                & (filtered_data['@timestamp'] > current_time)
-                & (filtered_data['@timestamp'] <= current_time + pd.Timedelta(minutes=30))
-            ]
+    # Iterate through each event in the dataset
+    for i, row in data.iterrows():
+        parent_source = row['EventSource']
+        parent_timestamp = row['@timestamp']
+        parent_title = row['EventTitle']
 
-            for _, related_row in related_alerts.iterrows():
-                cascading_results.append({
-                    'Primary Alert Source': current_source,
-                    'Primary Alert Time': current_time,
-                    'Dependent Alert Source': related_row['EventSource'],
-                    'Dependent Alert Time': related_row['@timestamp'],
-                    'Dependent Event Title': related_row['EventTitle'],
-                })
+        # Find dependent sources
+        if parent_source in dependency_map:
+            dependent_sources = dependency_map[parent_source]
 
-    # Create a DataFrame for cascading results
-    cascading_df = pd.DataFrame(cascading_results)
+            # Filter for dependent alerts within the time window
+            for dep_source in dependent_sources:
+                time_condition = (
+                    (data['@timestamp'] > parent_timestamp) &
+                    (data['@timestamp'] <= parent_timestamp + pd.Timedelta(minutes=time_window))
+                )
+                dependent_alerts = data[
+                    (data['EventSource'] == dep_source) & time_condition
+                ]
 
-    if cascading_df.empty:
-        st.write("No cascading dependencies found in the selected data.")
-    else:
-        st.subheader("Cascading Dependency Analysis")
+                # Record cascading relationships
+                for _, dep_row in dependent_alerts.iterrows():
+                    cascading_results.append({
+                        "ParentSource": parent_source,
+                        "ParentTitle": parent_title,
+                        "ParentTimestamp": parent_timestamp,
+                        "DependentSource": dep_row['EventSource'],
+                        "DependentTitle": dep_row['EventTitle'],
+                        "DependentTimestamp": dep_row['@timestamp'],
+                        "EventLevel": dep_row['EventLevel'],
+                        "EventStatus": dep_row['EventStatus']
+                    })
 
-        # Display results in Streamlit
-        st.write("### Cascading Dependency Results")
-        st.write(cascading_df)
-
-        # Download option for cascading results
-        csv_data = cascading_df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download Cascading Results as CSV",
-            data=csv_data,
-            file_name='cascading_results.csv',
-            mime='text/csv',
-        )
-
-# Integrate the function into your existing Streamlit app
-if not filtered_data.empty:
-    analyze_cascading_dependencies(filtered_data)
+    # Return the cascading relationships as a DataFrame
+    return pd.DataFrame(cascading_results)
