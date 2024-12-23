@@ -1,9 +1,27 @@
-sudo apt-get install -y software-properties-common
-wget -q -O - https://packages.grafana.com/gpg.key | sudo apt-key add -
-sudo add-apt-repository "deb https://packages.grafana.com/oss/deb stable main"
-sudo apt update
-sudo apt install grafana -y
+sudo mv grafana-11.4.0 /usr/local/grafana
 
+cd /usr/local/grafana/bin
+./grafana-server
 
-sudo systemctl start grafana-server
-sudo systemctl enable grafana-server
+nohup ./grafana-server &
+
+sudo nano /etc/systemd/system/grafana.service
+
+[Unit]
+Description=Grafana Server
+After=network.target
+
+[Service]
+User=root
+Group=root
+Type=simple
+ExecStart=/usr/local/grafana/bin/grafana-server --homepath=/usr/local/grafana
+
+[Install]
+WantedBy=multi-user.target
+
+sudo systemctl daemon-reload
+
+sudo systemctl start grafana
+sudo systemctl enable grafana
+
