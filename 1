@@ -1,14 +1,9 @@
-100 - (avg by (instance) (rate(windows_cpu_time_total{mode="idle"}[5m])) * 100) 
-100 - ((windows_memory_available_bytes / windows_memory_total_bytes) * 100)
+sudo apt-get install -y software-properties-common
+wget -q -O - https://packages.grafana.com/gpg.key | sudo apt-key add -
+sudo add-apt-repository "deb https://packages.grafana.com/oss/deb stable main"
+sudo apt update
+sudo apt install grafana -y
 
 
-topk(5, sum(rate(windows_service_cpu_time_total[5m])) by (service)) or topk(5, sum(windows_service_memory_bytes) by (service))
-
-
-sum(rate(windows_process_cpu_time_total[5m])) by (process)
-
-
-topk(5, sum(rate(windows_process_cpu_time_total[5m])) by (process))
-
-
-topk(5, sum(windows_process_working_set) by (process))
+sudo systemctl start grafana-server
+sudo systemctl enable grafana-server
