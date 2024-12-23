@@ -1,25 +1,94 @@
-tar -xvf node_exporter-<version>.linux-amd64.tar.gz
-
-sudo mv node_exporter-<version> /usr/local/node_exporter
-
-sudo nano /etc/systemd/system/node_exporter.service
-
-[Unit]
-Description=Node Exporter
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-User=prometheus
-Group=prometheus
-Type=simple
-ExecStart=/usr/local/node_exporter/node_exporter
-
-[Install]
-WantedBy=multi-user.target
+Here’s a polished explanation of the value added by each automation task:
 
 
+---
 
-sudo systemctl daemon-reload
-sudo systemctl start node_exporter
-sudo systemctl enable node_exporter
+1. Server Hygiene Check Automation
+
+Value Add:
+Streamlined compliance across Windows and Linux servers by automating hygiene checks, significantly reducing manual efforts, improving accuracy, and ensuring consistent adherence to standards.
+
+
+---
+
+2. Dell Unisphere Health Status Automation
+
+Value Add:
+Enabled proactive infrastructure maintenance by automating health status checks and reporting, minimizing downtime and improving system reliability.
+
+
+---
+
+3. Historical CPU and Memory Utilization Dashboard
+
+Value Add:
+Facilitated informed decision-making by automating data collection from Prometheus, optimizing resource allocation, and visualizing trends on a Kibana dashboard to enhance infrastructure performance.
+
+
+---
+
+4. Power BI Refresh Data Dashboard
+
+Value Add:
+Increased visibility into dashboard refresh status by automating data capture and visualization on the Monitor Everything dashboard, ensuring timely updates and improved stakeholder communication.
+
+
+---
+
+5. VPLEX Health Status Automation
+
+Value Add:
+Enhanced monitoring capabilities by automating the extraction of VPLEX health status, allowing quick detection and resolution of issues to maintain system performance.
+
+
+---
+
+6. FortiGate Firewall Configuration Change Detection
+
+Value Add:
+Improved security and change management by automating the detection of configuration changes, reducing the risk of unauthorized modifications, and ensuring audit readiness.
+
+
+---
+
+7. Infra Auto-Healing
+
+Value Add:
+Reduced network downtime and enhanced resilience by automating packet loss monitoring and implementing self-healing mechanisms to address issues without manual intervention.
+
+
+---
+
+8. Automated Switch Route Policy Adjustment
+
+Value Add:
+Optimized network performance by automating route policy adjustments based on real-time packet loss alerts, ensuring seamless traffic flow and reduced latency.
+
+
+---
+
+9. Hitachi Health Status Automation
+
+Value Add:
+Improved reliability of Hitachi systems by automating health status reporting, enabling faster troubleshooting and minimizing service disruptions.
+
+
+---
+
+10. Dell Unity CPU SPA & SPB Graph Automation
+
+Value Add:
+Enhanced stakeholder communication by automating CPU utilization data extraction, creating insightful graphs, and sharing reports via email for better capacity planning.
+
+
+---
+
+11. Syslog Centralized Dashboard
+
+Value Add:
+Centralized log management by leveraging Filebeat and Elasticsearch to collect and visualize syslogs on Kibana, streamlining troubleshooting and improving system observability.
+
+
+---
+
+These automations not only saved time and reduced manual efforts but also improved system performance, reliability, and visibility across multiple layers of infrastructure.
