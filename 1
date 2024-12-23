@@ -33,3 +33,20 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl start prometheus
 sudo systemctl enable prometheus
+
+
+sudo chmod +x /home/yash/ELK/prometheus/prometheus
+
+[Unit]
+Description=Prometheus Monitoring
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=prometheus
+Group=prometheus
+Type=simple
+ExecStart=/home/yash/ELK/prometheus/prometheus --config.file=/home/yash/ELK/prometheus/prometheus.yml --storage.tsdb.path=/home/yash/ELK/prometheus/data
+
+[Install]
+WantedBy=multi-user.target
