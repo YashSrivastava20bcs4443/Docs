@@ -1,27 +1,35 @@
-sudo mv grafana-11.4.0 /usr/local/grafana
+tar -xvf prometheus-<version>.linux-amd64.tar.gz
 
-cd /usr/local/grafana/bin
-./grafana-server
+sudo mv prometheus-<version> /usr/local/prometheus
 
-nohup ./grafana-server &
+sudo useradd --no-create-home --shell /bin/false prometheus
+sudo chown -R prometheus:prometheus /usr/local/prometheus
 
-sudo nano /etc/systemd/system/grafana.service
+sudo nano /usr/local/prometheus/prometheus.yml
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+
+sudo nano /etc/systemd/system/prometheus.service
 
 [Unit]
-Description=Grafana Server
-After=network.target
+Description=Prometheus Monitoring
+Wants=network-online.target
+After=network-online.target
 
 [Service]
-User=root
-Group=root
+User=prometheus
+Group=prometheus
 Type=simple
-ExecStart=/usr/local/grafana/bin/grafana-server --homepath=/usr/local/grafana
+ExecStart=/usr/local/prometheus/prometheus --config.file=/usr/local/prometheus/prometheus.yml --storage.tsdb.path=/usr/local/prometheus/data
 
 [Install]
 WantedBy=multi-user.target
 
+
 sudo systemctl daemon-reload
-
-sudo systemctl start grafana
-sudo systemctl enable grafana
-
+sudo systemctl start prometheus
+sudo systemctl enable prometheus
