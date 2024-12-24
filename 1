@@ -1,1 +1,6 @@
 topk(5,sum(rate(process_cpu_secon ds_total[1m])) by (process))
+
+
+topk(5, sum(rate(process_cpu_seconds_total[1m])) by (service))
+
+label_values(process_cpu_seconds_total, job)
