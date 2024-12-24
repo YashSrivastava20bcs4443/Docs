@@ -1,4 +1,1 @@
-scrape_configs:
-  - job_name: 'windows'
-    static_configs:
-      - targets: ['<HOSTNAME>:9182']
+topk(5,sum(rate(process_cpu_secon ds_total[1m])) by (process))
