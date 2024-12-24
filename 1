@@ -25,3 +25,9 @@ scrape_configs:
         regex: '(.*)\.company\.com.*'
         target_label: 'service'
         replacement: '$1'
+
+
+topk(5, (
+  (sum(irate(windows_process_cpu_time_total{job="windows", instance="172.16.130.247:9182"}[5m])) by (process, process_id) 
+  / ignoring(process, process_id) group_left sum(windows_cs_logical_processors)) * 100
+))
