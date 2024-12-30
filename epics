@@ -1,245 +1,256 @@
-Epic 1: Network Firewall Backup Automation
-Description:
+1. Network Firewall Backup Automation
+Epic: Automate the backup process for FortiGate firewalls in Hub and Spoke locations.
+Description: Automate the backup of FortiGate firewalls to centralized SFTP servers with a retention policy of 35 days, ensuring up-to-date backups and quick restoration during incidents.
 
-Automate the process of backing up firewall configurations across the network to ensure recoverability and compliance.
 Features:
+Centralized Backup Automation
+Task 1: Develop Ansible playbook to automate backup of firewall configurations.
+Description: Write the Ansible playbook that fetches the configuration of FortiGate firewalls and pushes them to the centralized SFTP server.
+Task 2: Set up automated deletion of backups older than 35 days.
+Description: Implement a retention mechanism to delete backup files older than 35 days to ensure storage optimization and compliance with the retention policy.
+Task 3: Implement backup monitoring and alerting system.
+Description: Set up monitoring to ensure backups are performed successfully and generate alerts in case of failure.
+2. Network Firewall Configuration Automation
+Epic: Automate the deployment and modification of FortiGate firewall configurations.
+Description: Automate firewall configuration deployment for the LI office using Ansible, integrating centralized CICD pipelines for new device deployment and configuration changes.
 
-    Automated Backup Process
-        Task: Create Ansible playbooks for various firewall vendors.
-        Description: Write vendor-specific playbooks to fetch and store configuration files.
-        Task: Test backup processes in staging environments.
-        Description: Validate the playbooks for error-free backups.
-        Task: Schedule backups.
-        Description: Use tools like cron or Ansible Tower to schedule periodic backups.
-
-    Centralized Backup Storage
-        Task: Set up a centralized repository for storing backups.
-        Description: Use a network file server or cloud storage for centralized management.
-
-Epic 2: Network Firewall Configuration Automation
-Description:
-
-Streamline and automate the deployment of configurations to network firewalls to reduce manual intervention and errors.
 Features:
+Automated Configuration Deployment
+Task 1: Create Ansible playbook for firewall configuration deployment.
+Description: Write an Ansible playbook that deploys the desired configuration on FortiGate devices.
+Task 2: Implement CI/CD pipeline for configuration updates.
+Description: Set up a pipeline in Azure DevOps for pushing updates to firewalls in a controlled and automated manner.
+Task 3: Validate deployment process in staging environment.
+Description: Test the automated configuration deployment in a non-production environment to ensure smooth execution.
+3. Automated Firewall Policy Auditing
+Epic: Automate firewall policy auditing for security compliance.
+Description: Automate auditing of firewall security policies to identify unused rules, aiding in compliance reviews like PCI and ISO.
 
-    Configuration Deployment
-        Task: Develop Ansible scripts for pushing configurations.
-        Description: Write reusable Ansible roles for deploying configurations.
-        Task: Validate configurations in staging.
-        Description: Ensure the configurations work as expected in controlled environments.
-
-    Rollback Mechanism
-        Task: Create a rollback mechanism for failed configurations.
-        Description: Ensure Ansible playbooks can revert to the last known good state.
-
-Epic 3: Automated Firewall Policy Auditing
-Description:
-
-Automate auditing of firewall policies to ensure compliance with organizational and regulatory standards.
 Features:
+Policy Auditing and Cleanup
+Task 1: Develop Python scripts for automated policy auditing.
+Description: Write Python scripts using Selenium to automate the review of firewall policies via the web interface.
+Task 2: Automate the removal of unused firewall policies.
+Description: Create automation to identify and remove unused firewall policies, reducing complexity and increasing security.
+Task 3: Integrate auditing with compliance frameworks (e.g., PCI, ISO).
+Description: Ensure the automated policy audits adhere to compliance standards like PCI and ISO by generating compliant reports.
+4. Automated Mandatory Software/OS Auditing
+Epic: Automate the auditing of mandatory software and OS configurations for compliance.
+Description: Set up an automation pipeline to verify the status of mandatory packages and OS validity for compliance audits like PCI and ISO.
 
-    Policy Extraction
-        Task: Develop Python script with Selenium to extract policies.
-        Description: Automate UI interactions to fetch policy details.
-
-    Policy Comparison
-        Task: Implement logic for comparing policies with benchmarks.
-        Description: Use Python to flag discrepancies in policies.
-
-    Audit Reporting
-        Task: Generate readable reports.
-        Description: Use Python libraries to create visual and tabular reports.
-
-Epic 4: Network Switch Backup Automation
-Description:
-
-Automate backups of network switch configurations to maintain operational resilience.
 Features:
+Software and OS Compliance Checks
+Task 1: Develop Python scripts for verifying mandatory software installation.
+Description: Create a Python-based script to check whether all mandatory software is installed on servers.
+Task 2: Automate OS validity checks.
+Description: Implement a process to verify the operating system version and patch level to ensure compliance.
+Task 3: Generate automated compliance reports.
+Description: Set up automated reporting to verify compliance status and generate audit-ready reports.
+5. Automated Storage UI Dashboard Report
+Epic: Automate the generation of a storage dashboard report.
+Description: Set up a Python-based automated report for monitoring storage infrastructure, improving proactive monitoring.
 
-    Backup Script Development
-        Task: Write Ansible playbooks for switch configurations.
-        Description: Use CLI commands to fetch configuration files.
-
-    Testing and Validation
-        Task: Test backups across various switch models.
-        Description: Validate functionality for different switch types.
-
-    Backup Monitoring
-        Task: Automate notifications for backup completion.
-        Description: Integrate email or Slack notifications for tracking.
-
-Epic 5: Cloud Centralized Cost Dashboard
-Description:
-
-Build a Grafana-based dashboard to monitor and visualize cloud costs across multiple services.
 Features:
+Automated Storage Reporting
+Task 1: Develop Selenium script to pull data from the storage UI.
+Description: Write a Selenium-based Python script to scrape and collect relevant data from the storage user interface.
+Task 2: Automate the generation of storage usage reports.
+Description: Implement a script that generates detailed storage usage reports on a regular schedule.
+Task 3: Integrate storage report with monitoring tools.
+Description: Set up integration with monitoring dashboards (e.g., Grafana) for real-time visibility into storage statistics.
+6. Network Switch Backup Automation
+Epic: Automate the backup process for network switch configurations.
+Description: Implement an automation pipeline for network switch configuration backup using Ansible, ensuring quick restoration in case of failure.
 
-    Cost Data Integration
-        Task: Connect to cloud billing APIs.
-        Description: Fetch billing data from AWS, Azure, or GCP.
-
-    Dashboard Design
-        Task: Create interactive cost breakdown visualizations.
-        Description: Use Grafana widgets for better insights.
-
-Epic 6: AI/ML-Based VM Capacity Forecasting
-Description:
-
-Develop an AI/ML-driven model to predict virtual machine capacity needs.
 Features:
+Switch Configuration Backup Automation
+Task 1: Write Ansible playbook for network switch backup.
+Description: Develop an Ansible playbook to back up network switch configurations to a centralized server.
+Task 2: Set up retention policies for backup files.
+Description: Implement retention policies that automatically delete old backup files to optimize storage.
+Task 3: Set up backup monitoring and alerts.
+Description: Monitor the backup process for success and failure, and configure alerts to notify teams of issues.
+7. Cloud Centralized Cost Dashboard (Beta)
+Epic: Automate cloud cost monitoring and visualization.
+Description: Develop a centralized Grafana dashboard for cloud cost tracking, helping optimize spending across resource groups.
 
-    Data Collection
-        Task: Fetch historical performance metrics using Python.
-        Description: Gather CPU, memory, and storage utilization data.
-
-    Forecasting Model
-        Task: Train an ML model for predictions.
-        Description: Use libraries like scikit-learn or TensorFlow for training.
-
-    Visualization
-        Task: Integrate predictions into a Kibana dashboard.
-        Description: Show forecasted capacity trends.
-
-Epic 7: FortiAnalyzer-Like In-House Centralized Log Dashboard
-Description:
-
-Develop an in-house centralized log management system using the ELK stack to collect, analyze, and visualize logs from firewalls.
 Features:
+Cloud Cost Visualization
+Task 1: Create Grafana dashboard for cloud cost tracking.
+Description: Set up a Grafana dashboard to visualize overall cloud costs and breakdowns by resource group.
+Task 2: Integrate Grafana with cloud billing APIs.
+Description: Integrate the dashboard with cloud provider APIs to automatically fetch and display cost data.
+Task 3: Set up notifications for cost anomalies.
+Description: Configure alerting in Grafana to notify stakeholders when cloud costs exceed thresholds.
+8. Cloud Centralized Event Box Dashboard (Beta)
+Epic: Automate cloud event monitoring and notification.
+Description: Develop a Grafana dashboard for live cloud event monitoring, helping track provisioning by service accounts.
 
-    Log Collection
-        Task: Configure the ELK stack for log ingestion.
-        Description: Set up Logstash to collect logs from firewalls and other devices.
-
-    Log Parsing and Indexing
-        Task: Write custom filters for Logstash.
-        Description: Parse and format logs for efficient storage in Elasticsearch.
-
-    Log Visualization
-        Task: Design Kibana dashboards for log analysis.
-        Description: Create visualizations to monitor log trends and detect anomalies.
-
-Epic 8: Automated Storage UI Dashboard Report
-Description:
-
-Automate the extraction of data from storage dashboards and generate reports for regular monitoring.
 Features:
+Live Event Monitoring
+Task 1: Set up Grafana for real-time cloud event tracking.
+Description: Configure Grafana dashboards to display live event data from cloud environments.
+Task 2: Implement event filtering by service account.
+Description: Enable filtering by service accounts or users to track resource provisioning and changes.
+Task 3: Create alerting rules for event anomalies.
+Description: Set up alerts for specific events or patterns, helping teams react quickly to cloud-related incidents.
+9. AI/ML-based VM Capacity Forecasting (Beta)
+Epic: Automate virtual machine capacity forecasting using AI/ML.
+Description: Implement an AI/ML-based capacity forecasting model for virtual machines, using LSTM models to predict capacity needs with high accuracy.
 
-    Data Extraction
-        Task: Use Selenium to navigate and extract data from storage dashboards.
-        Description: Automate the process of collecting relevant metrics.
-
-    Report Generation
-        Task: Format extracted data into structured reports.
-        Description: Use Python libraries like Pandas to organize and export data in CSV or Excel format.
-
-    Scheduling and Delivery
-        Task: Automate report generation and delivery.
-        Description: Use Python schedulers or cron jobs to ensure timely reporting.
-
-Epic 9: Syslog Centralized Dashboard
-Description:
-
-Implement a centralized dashboard using the ELK stack to collect and visualize syslogs from all virtual machines.
 Features:
+Capacity Forecasting Automation
+Task 1: Develop an AI model using LSTM for capacity forecasting.
+Description: Build and train a machine learning model based on LSTM (Long Short-Term Memory) for forecasting VM capacity requirements.
+Task 2: Validate model accuracy and retrain periodically.
+Description: Validate the model's performance using test data, ensuring the forecasts are accurate. Retrain as necessary.
+Task 3: Integrate forecasting with resource allocation tools.
+Description: Integrate capacity forecasts into resource management systems for proactive resource allocation.
+10. FortiAnalyzer-like In-house Centralized Log Dashboard
+Epic: Implement centralized logging for FortiGate firewalls.
+Description: Create an in-house ELK stack solution to collect and analyze FortiGate firewall logs, replicating FortiAnalyzer features.
 
-    Syslog Aggregation
-        Task: Configure Logstash for syslog collection.
-        Description: Set up Logstash pipelines to collect syslogs from VMs.
-
-    Data Indexing
-        Task: Store syslogs in Elasticsearch for analysis.
-        Description: Ensure efficient indexing and retrieval.
-
-    Dashboard Creation
-        Task: Design Kibana dashboards to visualize and filter syslog data.
-        Description: Create user-friendly interfaces for real-time monitoring.
-
-Epic 10: Power BI Refresh Data Dashboard
-Description:
-
-Automate the data refresh process in Power BI to ensure dashboards always display the latest data.
 Features:
+Centralized Logging Setup
+Task 1: Implement Filebeat for log collection from FortiGate firewalls.
+Description: Set up Filebeat to collect logs from FortiGate firewalls and forward them to Elasticsearch for analysis.
+Task 2: Develop Elasticsearch pipelines for log analysis.
+Description: Create Elasticsearch pipelines to process and analyze incoming firewall logs for relevant security events.
+Task 3: Create Kibana dashboards for log visualization.
+Description: Design and implement dashboards in Kibana to visualize and monitor FortiGate firewall logs in real-time.
+I've broken down the first ten epics, features, and tasks. Would you like me to continue with the rest of the projects, or do you want to make any adjustments first?
 
-    Data Refresh Automation
-        Task: Write Python and PowerShell scripts for refreshing data sources.
-        Description: Automate API calls or use cmdlets for refreshing datasets.
 
-    Error Handling
-        Task: Handle errors during data refresh.
-        Description: Implement retry mechanisms and notifications for failures.
 
-    Scheduling
-        Task: Schedule automated refreshes.
-        Description: Use task schedulers or Power BI services for periodic updates.
+11. Server Hygiene Check Automation
+Epic: Automate compliance checks for Windows and Linux servers.
+Description: Implement automated server hygiene checks to ensure compliance with organizational policies, improve efficiency, and reduce manual errors.
 
-Epic 11: Dell Unisphere Health Status Automation
-Description:
-
-Automate the monitoring of Dell Unisphere’s health metrics and generate reports for proactive maintenance.
 Features:
+Automated Server Compliance Checks
+Task 1: Develop PowerShell scripts for Windows server hygiene checks.
+Description: Create scripts to verify installed software, patch levels, and configuration compliance on Windows servers.
+Task 2: Develop bash/Python scripts for Linux server hygiene checks.
+Description: Automate similar compliance checks on Linux servers for software packages, configurations, and updates.
+Task 3: Automate reporting of server hygiene results.
+Description: Generate and distribute reports summarizing compliance status for auditing purposes.
+12. Dell Unisphere Health Status Automation
+Epic: Automate health status monitoring for Dell Unisphere.
+Description: Enable automated reporting of health status from Dell Unisphere systems to improve proactive monitoring and system reliability.
 
-    Health Metric Extraction
-        Task: Use Selenium to automate UI interactions and fetch health metrics.
-        Description: Collect data on system performance and hardware status.
-
-    Report Automation
-        Task: Format and save health status data in a structured format.
-        Description: Generate visual reports using Python libraries.
-
-    Alert Mechanism
-        Task: Implement email or Slack notifications for critical issues.
-        Description: Send alerts for anomalies detected in health metrics.
-
-Epic 12: Infra Auto-Healing
-Description:
-
-Develop scripts to detect and automatically resolve common infrastructure issues to improve system uptime.
 Features:
+Health Monitoring Automation
+Task 1: Develop Selenium-based Python scripts to fetch health metrics.
+Description: Create scripts to log in to Dell Unisphere and extract system health data programmatically.
+Task 2: Set up automated email notifications for health anomalies.
+Description: Configure alerts for critical issues detected in the health reports to enable timely action.
+Task 3: Integrate health status into monitoring dashboards.
+Description: Visualize extracted health data on a centralized dashboard for better visibility.
+13. Historical CPU and Memory Utilization Dashboard
+Epic: Develop a centralized dashboard for historical CPU and memory utilization data.
+Description: Optimize infrastructure planning by visualizing historical VM resource usage using Prometheus and Kibana.
 
-    Issue Detection
-        Task: Write scripts to monitor infrastructure health.
-        Description: Use Python and PowerShell to identify common problems.
-
-    Auto-Healing Scripts
-        Task: Automate issue resolution processes.
-        Description: Develop scripts to restart services, apply patches, or resolve configuration errors.
-
-    Validation
-        Task: Test auto-healing mechanisms in staging environments.
-        Description: Ensure reliability and minimize unintended consequences.
-
-Epic 13: Automated Switch Route Policy Adjustment
-Description:
-
-Automate the adjustment of route policies on network switches to maintain efficient traffic routing.
 Features:
+Resource Utilization Dashboard
+Task 1: Integrate Prometheus for VM metric collection.
+Description: Configure Prometheus to collect CPU and memory utilization data from virtual machines.
+Task 2: Create Kibana dashboards for historical metrics visualization.
+Description: Design dashboards to display long-term trends in VM resource usage.
+Task 3: Enable export and sharing of utilization reports.
+Description: Implement mechanisms to export data and share insights with stakeholders.
+14. Power BI Refresh Data Dashboard Automation
+Epic: Automate refresh tracking for Power BI dashboards.
+Description: Improve reporting accuracy and transparency by tracking and visualizing the refresh status of Power BI dashboards.
 
-    Policy Adjustment Automation
-        Task: Use Ansible and Python to modify route policies.
-        Description: Automate route updates based on dynamic network conditions.
-
-    Testing and Validation
-        Task: Validate policy changes on test environments.
-        Description: Ensure changes do not disrupt network operations.
-
-    Rollback Mechanism
-        Task: Implement rollback capabilities for failed changes.
-        Description: Allow easy reversion to previous configurations.
-
-Epic 14: Historical CPU and Memory Utilization Dashboard
-Description:
-
-Create a dashboard to analyze historical CPU and memory usage trends for capacity planning.
 Features:
+Dashboard Refresh Automation
+Task 1: Develop Python scripts to fetch Power BI refresh status.
+Description: Automate data retrieval from Power BI APIs to track dashboard refresh progress.
+Task 2: Create PowerShell scripts for automated status updates.
+Description: Use PowerShell to update refresh status in real time for better visibility.
+Task 3: Visualize refresh status on a monitoring dashboard.
+Description: Display refresh statistics on a unified monitoring dashboard.
+15. VPLEX Health Status Automation
+Epic: Automate monitoring of VPLEX system health.
+Description: Streamline VPLEX health checks to ensure quick detection of issues and improve storage reliability.
 
-    Data Collection
-        Task: Query historical performance metrics.
-        Description: Use tools like Prometheus to gather data.
+Features:
+VPLEX Health Automation
+Task 1: Develop Selenium-based Python scripts for VPLEX data collection.
+Description: Automate login and data retrieval from VPLEX dashboards.
+Task 2: Generate automated health status reports.
+Description: Compile and distribute reports summarizing VPLEX system health.
+Task 3: Set up alerts for critical issues detected in health checks.
+Description: Automate notifications for any detected anomalies or performance degradation.
+16. FortiGate Firewall Configuration Change Detection
+Epic: Automate detection of FortiGate firewall configuration changes.
+Description: Implement a pipeline to track and compare configuration changes, enhancing security and reducing manual audit efforts.
 
-    Dashboard Creation
-        Task: Design a Kibana dashboard for data visualization.
-        Description: Show trends and highlight anomalies.
+Features:
+Configuration Change Monitoring
+Task 1: Develop Ansible scripts to fetch and compare firewall configurations.
+Description: Automate configuration snapshots and compare them at scheduled intervals.
+Task 2: Implement reporting for detected configuration changes.
+Description: Generate reports highlighting configuration changes throughout the day.
+Task 3: Integrate anomaly detection with alerting systems.
+Description: Set up alerts for unauthorized or unexpected configuration changes.
+17. Infra Auto-Healing
+Epic: Automate packet loss monitoring and implement self-healing mechanisms.
+Description: Ensure infrastructure stability by automating the resolution of packet loss issues, reducing downtime.
 
-    Alert Setup
-        Task: Add alerts for unusual usage patterns.
-        Description: Notify administrators of potential issues.
+Features:
+Self-Healing Automation
+Task 1: Develop Python scripts for packet loss detection.
+Description: Monitor network and server performance for packet loss events.
+Task 2: Automate resolution of common packet loss issues.
+Description: Implement scripts to reboot or reconfigure affected systems automatically.
+Task 3: Integrate self-healing scripts with monitoring tools.
+Description: Ensure actions are triggered automatically by monitoring alerts.
+18. Automated Switch Route Policy Adjustment
+Epic: Automate dynamic adjustments of firewall route policies.
+Description: Optimize network traffic by dynamically modifying route policies based on packet loss alerts.
+
+Features:
+Route Policy Adjustment Automation
+Task 1: Create scripts to detect and analyze route performance.
+Description: Use Python and Ansible to identify suboptimal routes.
+Task 2: Automate updates to route policies.
+Description: Dynamically adjust route configurations based on performance metrics.
+Task 3: Validate changes in a test environment.
+Description: Test the automated route adjustments before deploying them to production.
+19. Hitachi Health Status Automation
+Epic: Automate health monitoring for Hitachi systems.
+Description: Automate data collection and reporting from Hitachi systems to enhance reliability and prevent failures.
+
+Features:
+Hitachi Monitoring Automation
+Task 1: Develop Python scripts for Hitachi health data extraction.
+Description: Automate the retrieval of health metrics from Hitachi management interfaces.
+Task 2: Generate and distribute automated health reports.
+Description: Compile health data into reports and share them with relevant teams.
+Task 3: Set up alerting for critical health anomalies.
+Description: Automate the detection and notification of critical health issues.
+20. Dell Unity CPU SPA & SPB Graph Automation
+Epic: Automate CPU utilization reporting for Dell Unity servers.
+Description: Automate the collection and visualization of CPU utilization data, improving capacity planning.
+
+Features:
+CPU Utilization Reporting
+Task 1: Develop Python scripts to extract CPU utilization data.
+Description: Automate the collection of CPU SPA and SPB metrics from Dell Unity servers.
+Task 2: Visualize utilization data in graphs.
+Description: Use Python libraries to generate and email CPU utilization graphs.
+Task 3: Automate report distribution to stakeholders.
+Description: Set up scripts to email graphs and reports to relevant teams.
+21. Syslog Centralized Dashboard
+Epic: Implement centralized Syslog management for improved log monitoring.
+Description: Use the ELK stack to centralize Syslog data, streamline troubleshooting, and enhance operational efficiency.
+
+Features:
+Syslog Dashboard Implementation
+Task 1: Configure Filebeat to collect Syslog data.
+Description: Set up Filebeat agents to forward Syslog messages to Elasticsearch.
+Task 2: Develop Kibana dashboards for log visualization.
+Description: Design dashboards to display and analyze Syslog data in real-time.
+Task 3: Set up log analysis pipelines in Elasticsearch.
+Description: Configure pipelines to process and analyze Syslog data for relevant insights.
