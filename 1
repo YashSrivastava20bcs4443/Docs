@@ -1,6 +1,1 @@
-topk(5, ((1 - (sum(windows_os_physical_memory_free_bytes{instance=~"ESS-UTILITY-1.FarePortalDMZ.local:9182"}) by (instance) 
-/ sum(windows_os_physical_memory_bytes{instance=~"ESS-UTILITY-1.FarePortalDMZ.local:9182"}))) * 100))
 
-
-topk(5, ((1 - (windows_memory_available_bytes{instance=~"ESS-UTILITY-1.FarePortalDMZ.local:9182"} 
-/ windows_memory_total_bytes{instance=~"ESS-UTILITY-1.FarePortalDMZ.local:9182"})) * 100))
