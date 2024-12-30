@@ -1,2 +1,6 @@
 topk(5, ((sum(node_process_resident_memory_bytes{instance=~"your-linux-instance"}) by (process)) / ignoring(process)
 group_left node_memory_MemTotal_bytes) * 100)
+
+
+
+topk(5, sum by (process) (rate(node_cpu_seconds_total{mode!="idle",mode!="iowait"}[1m])))
