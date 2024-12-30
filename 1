@@ -3,4 +3,4 @@ group_left node_memory_MemTotal_bytes) * 100)
 
 
 
-topk(5, sum by (process) (rate(node_cpu_seconds_total{mode!="idle",mode!="iowait"}[1m])))
+topk(5, sum by (process) (rate(node_cpu_seconds_total{instance="your-instance-name", mode!="idle", mode!="iowait"}[1m])))
