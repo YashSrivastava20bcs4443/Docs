@@ -1,1 +1,5 @@
 
+topk(5, ((sum(windows_process_working_set_bytes{instance=~"ESS-UTILITY-1.FarePortalDMZ.local:9182"}) by (process)) / ignoring(process)
+group_left sum(windows_cs_physical_memory_bytes)) * 100)
+
+
