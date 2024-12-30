@@ -7,3 +7,8 @@ topk(5, sum by (process) (rate(node_cpu_seconds_total{instance="your-instance-na
 
 
 topk(5, sum by (instance, process_name) (rate(node_cpu_seconds_total{mode="user", instance!=""}[5m])))
+
+
+topk(5, ((sum by (process_name) (rate(node_cpu_seconds_total{mode="user", instance="my-linux-instance:9100"}[$__rate_interval]))) / ignoring(process_name)
+group_left sum(node_cpu_seconds_total{mode="user", instance="my-linux-instance:9100"})) * 100)
+
