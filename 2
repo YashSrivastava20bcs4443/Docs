@@ -1,1 +1,44 @@
+def sign_in(driver, email, password):
+    # Open the GA URL
+    driver.get(GA_URL)
+    
+    # Google Account Sign-In Steps
+    EMAILFIELD = (By.ID, "identifierId")  # Email input field
+    NEXTBUTTON_EMAIL = (By.ID, "identifierNext")  # Next button after entering email
+    PASSWORDFIELD = (By.NAME, "password")  # Password input field
+    NEXTBUTTON_PASSWORD = (By.ID, "passwordNext")  # Next button after entering password
 
+    # Enter Email
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EMAILFIELD)).send_keys(email)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON_EMAIL)).click()
+
+    # Enter Password
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located(PASSWORDFIELD)).send_keys(password)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON_PASSWORD)).click()
+
+    # Handle Microsoft Login if Redirected
+    try:
+        MICROSOFT_EMAILFIELD = (By.ID, "i0116")
+        MICROSOFT_PASSWORDFIELD = (By.ID, "i0118")
+        MICROSOFT_NEXTBUTTON = (By.ID, "idSIButton9")
+
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(MICROSOFT_EMAILFIELD)).send_keys(email)
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(MICROSOFT_NEXTBUTTON)).click()
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(MICROSOFT_PASSWORDFIELD)).send_keys(password)
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(MICROSOFT_NEXTBUTTON)).click()
+
+        # Handle 'Stay signed in?' popup
+        try:
+            stay_signed_in_popup = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'Stay signed in?')]"))
+            )
+            if stay_signed_in_popup:
+                no_button = driver.find_element(By.XPATH, "//input[@value='No']")
+                no_button.click()
+        except:
+            pass
+    except:
+        pass
+
+    # Ensure the GA page fully loads
+    time.sleep(10)
