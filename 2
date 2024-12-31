@@ -1,1 +1,150 @@
+import os
+import shutil
+import tempfile
+import time
+import random
+import smtplib
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+
+# Constants
+GA_URL = "https://analytics.google.com/analytics/web/#/p269283869/reports/explorer?params=_u..nav%30maui&r=ecomm-shopping-funnel&ruid=ecomm-shopping-funnel,4890277386,drive-online-sales&collectionId=4890277386"
+EMAIL = "svc_ems@fareportal.com"
+PASSWORD = 'Uw60"112&UW'
+SMTP_SERVER = "smtp-internal.fareportal.com.local"
+SMTP_PORT = 25
+SENDER_EMAIL = "test@fareportal.com"
+TEAMS_EMAIL = "yash.srivastava@fareportal.com"
+
+# Initialize WebDriver
+def init_driver():
+    service = Service("C:\\Users\\y.s.va22\\Downloads\\syseng_automation\\chromedriver.exe")
+    options = webdriver.ChromeOptions()
+    options.add_argument("--start-maximized")
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+# Add random delay to simulate human behavior
+def random_delay(min_delay=1, max_delay=3):
+    time.sleep(random.uniform(min_delay, max_delay))
+
+# Emulate human-like scrolling
+def emulate_scrolling(driver):
+    scroll_height = driver.execute_script("return document.body.scrollHeight")
+    for i in range(0, scroll_height, 100):
+        driver.execute_script(f"window.scrollTo(0, {i});")
+        random_delay(0.5, 1.5)
+
+# Sign in to Google Analytics
+def sign_in(driver, email, password):
+    driver.get(GA_URL)
+    random_delay(2, 4)  # Random delay before interacting
+
+    # Enter email and navigate to the next step
+    EMAILFIELD = (By.ID, "identifierId")
+    NEXTBUTTON_EMAIL = (By.ID, "identifierNext")
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EMAILFIELD)).send_keys(email)
+    random_delay()  # Emulate human typing speed
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON_EMAIL)).click()
+    random_delay(2, 5)
+
+    # Emulate scrolling
+    emulate_scrolling(driver)
+
+    # Enter password if redirected to Microsoft login
+    try:
+        MICROSOFT_EMAILFIELD = (By.ID, "i0116")
+        MICROSOFT_PASSWORDFIELD = (By.ID, "i0118")
+        MICROSOFT_NEXTBUTTON = (By.ID, "idSIButton9")
+
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(MICROSOFT_EMAILFIELD)).send_keys(email)
+        random_delay()
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(MICROSOFT_NEXTBUTTON)).click()
+        random_delay(2, 5)
+
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(MICROSOFT_PASSWORDFIELD)).send_keys(password)
+        random_delay()
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable(MICROSOFT_NEXTBUTTON)).click()
+        random_delay(2, 5)
+
+        # Handle 'Stay signed in?' popup
+        try:
+            stay_signed_in_popup = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'Stay signed in?')]"))
+            )
+            if stay_signed_in_popup:
+                no_button = driver.find_element(By.XPATH, "//input[@value='No']")
+                no_button.click()
+                random_delay()
+        except:
+            pass
+    except:
+        pass
+
+    # Wait for the page to fully load
+    random_delay(5, 10)  # Ensure full page load with human-like delay
+
+# Set zoom level
+def set_zoom(driver, zoom_level):
+    driver.execute_cdp_cmd('Page.setDeviceMetricsOverride', {
+        'width': 1920,
+        'height': 1080,
+        'deviceScaleFactor': 1,
+        'mobile': False,
+        'scale': zoom_level
+    })
+    random_delay(2, 5)
+
+# Send email with an embedded screenshot
+def send_email(owner_email, screenshot_filename):
+    msg = MIMEMultipart()
+    msg['From'] = SENDER_EMAIL
+    msg['To'] = owner_email
+    msg['Subject'] = "Google Analytics Screenshot"
+
+    body = f"""
+    <html>
+    <body>
+    <p>Hi,</p>
+    <p>Here is the Google Analytics screenshot:</p>
+    <p><img src="cid:{os.path.basename(screenshot_filename)}"></p>
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(body, "html"))
+
+    with open(screenshot_filename, "rb") as f:
+        img = MIMEImage(f.read())
+        img.add_header("Content-ID", f"<{os.path.basename(screenshot_filename)}>")
+        msg.attach(img)
+
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.send_message(msg)
+
+# Main script
+if __name__ == "__main__":
+    # Create temporary directory for screenshot
+    temp_dir = tempfile.mkdtemp()
+    screenshot_path = os.path.join(temp_dir, "screenshot.png")
+
+    driver = init_driver()
+    try:
+        # Perform login and take a screenshot
+        sign_in(driver, EMAIL, PASSWORD)
+        set_zoom(driver, 0.4)
+        driver.save_screenshot(screenshot_path)
+
+        # Send the screenshot via email
+        send_email(TEAMS_EMAIL, screenshot_path)
+    finally:
+        driver.quit()
+        # Clean up temporary directory
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
 
