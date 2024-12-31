@@ -1,105 +1,70 @@
-Here’s an algorithm and flowchart for creating a Python script using Selenium to automate the described process.
+import time
+import smtplib
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from bs4 import BeautifulSoup
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
+# Configurations
+URL = "https://greekforgreek.com"  # Replace with the homepage URL
+SMTP_SERVER = "smtp.example.com"
+SMTP_PORT = 587
+EMAIL_SENDER = "your-email@example.com"
+EMAIL_PASSWORD = "your-email-password"
+EMAIL_RECEIVER = "teams-channel-email@example.com"
 
----
+def scrape_homepage(url):
+    """Scrape data from the homepage."""
+    driver = webdriver.Chrome()  # Ensure ChromeDriver is in PATH
+    driver.get(url)
+    time.sleep(5)  # Wait for the page to load completely
 
-Algorithm
+    # Get page source and parse with BeautifulSoup
+    soup = BeautifulSoup(driver.page_source, "html.parser")
+    driver.quit()
 
-1. Initialize Environment:
+    # Extract specific data from the homepage (e.g., headlines, links)
+    headlines = soup.find_all("h2")  # Replace 'h2' with the appropriate tag or class
+    links = soup.find_all("a", href=True)
 
-Install required libraries (Selenium, smtplib, etc.).
+    data = "Headlines:\n"
+    for headline in headlines:
+        data += f"- {headline.text.strip()}\n"
 
-Configure the service account and download credentials for Google Analytics.
+    data += "\nLinks:\n"
+    for link in links[:10]:  # Limit to the first 10 links
+        data += f"- {link['href']}\n"
 
+    return data
 
+def send_email(subject, body, receiver_email):
+    """Send the scraped data via email."""
+    msg = MIMEMultipart()
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = receiver_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
 
-2. Login to Google Analytics:
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_SENDER, receiver_email, msg.as_string())
+        print("Email sent successfully.")
 
-Launch a browser using Selenium.
+def main():
+    try:
+        # Scrape data
+        scraped_data = scrape_homepage(URL)
 
-Navigate to the Google Analytics login page.
+        # Send scraped data via email
+        send_email(
+            subject="Greek for Greek Homepage Data",
+            body=scraped_data,
+            receiver_email=EMAIL_RECEIVER
+        )
+    except Exception as e:
+        print("An error occurred:", e)
 
-Log in using the service account credentials.
-
-
-
-3. Navigate to Target Pages:
-
-Specify the URLs of the respective Google Analytics pages where screenshots are needed.
-
-Iterate over the list of URLs and navigate to each page.
-
-
-
-4. Take Screenshots:
-
-For each page, wait until the page loads completely.
-
-Capture the screenshot and save it locally.
-
-
-
-5. Send Email with Attachments:
-
-Compose an email with the stakeholders' Teams channel email address as the recipient.
-
-Attach the captured screenshots to the email.
-
-Use an SMTP library to send the email.
-
-
-
-6. Cleanup:
-
-Close the browser and delete temporary files.
-
-
-
-
-
----
-
-Flowchart
-
-Start
-  |
-  v
-Initialize Environment (Libraries, Credentials)
-  |
-  v
-Launch Browser with Selenium
-  |
-  v
-Navigate to GA Login Page
-  |
-  v
-Log in using Service Account Credentials
-  |
-  v
-Specify Target GA URLs
-  |
-  v
-For Each URL:
-  |
-  v
-Navigate to GA Page -> Wait for Page Load
-  |
-  v
-Take Screenshot -> Save Locally
-  |
-  v
-End Loop
-  |
-  v
-Compose Email with Screenshots Attached
-  |
-  v
-Send Email to Teams Channel
-  |
-  v
-Close Browser and Cleanup
-  |
-  v
-End
-
-Would you like me to provide the Python code for this process?
+if __name__ == "__main__":
+    main()
