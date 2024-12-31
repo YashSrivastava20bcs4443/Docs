@@ -1,1 +1,110 @@
+import os
+import shutil
+import tempfile
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+import smtplib
+import time
 
+# Constants
+GA_URL = "https://analytics.google.com/analytics/web/#/p269283869/reports/explorer?params=_u..nav%30maui&r=ecomm-shopping-funnel&ruid=ecomm-shopping-funnel,4890277386,drive-online-sales&collectionId=4890277386"
+EMAIL = "svc_ems@fareportal.com"
+PASSWORD = "zxcx@1234"
+SMTP_SERVER = "smtp-internal.fareportal.com.local"
+SMTP_PORT = 25
+SENDER_EMAIL = EMAIL
+TEAMS_EMAIL = "stakeholders_teams@domain.com"  # Replace with the Teams channel email
+
+# Initialize WebDriver
+def init_driver():
+    service = Service("chromedriver")  # Replace with your ChromeDriver path
+    options = webdriver.ChromeOptions()
+    options.add_argument("--start-maximized")
+    driver = webdriver.Chrome(service=service, options=options)
+    return driver
+
+# Function to sign in to Microsoft
+def sign_in(driver, email, password):
+    driver.get(GA_URL)
+    EMAILFIELD = (By.ID, "i0116")
+    PASSWORDFIELD = (By.ID, "i0118")
+    NEXTBUTTON = (By.ID, "idSIButton9")
+    
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(EMAILFIELD)).send_keys(email)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(PASSWORDFIELD)).send_keys(password)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable(NEXTBUTTON)).click()
+    
+    # Handle 'Stay signed in?' popup
+    try:
+        stay_signed_in_popup = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'Stay signed in?')]"))
+        )
+        if stay_signed_in_popup:
+            no_button = driver.find_element(By.XPATH, "//input[@value='No']")
+            no_button.click()
+    except:
+        pass
+
+# Function to set zoom level
+def set_zoom(driver, zoom_level):
+    driver.execute_cdp_cmd('Page.setDeviceMetricsOverride', {
+        'width': 1920,
+        'height': 1080,
+        'deviceScaleFactor': 1,
+        'mobile': False,
+        'scale': zoom_level
+    })
+    time.sleep(5)
+
+# Function to send email with an embedded screenshot
+def send_email(owner_email, screenshot_filename):
+    msg = MIMEMultipart()
+    msg['From'] = SENDER_EMAIL
+    msg['To'] = owner_email
+    msg['Subject'] = "Google Analytics Screenshot"
+    
+    body = f"""
+    <html>
+    <body>
+        <p>Hi,</p>
+        <p>Here is the Google Analytics screenshot:</p>
+        <p><img src="cid:{os.path.basename(screenshot_filename)}"></p>
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(body, "html"))
+    
+    with open(screenshot_filename, "rb") as f:
+        img = MIMEImage(f.read())
+        img.add_header("Content-ID", f"<{os.path.basename(screenshot_filename)}>")
+        msg.attach(img)
+    
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.starttls()
+        server.send_message(msg)
+
+# Main script
+if __name__ == "__main__":
+    temp_dir = tempfile.mkdtemp()  # Create a temporary directory
+    screenshot_path = os.path.join(temp_dir, "screenshot.png")
+    
+    driver = init_driver()
+    try:
+        sign_in(driver, EMAIL, PASSWORD)
+        time.sleep(10)  # Ensure the page loads completely
+        set_zoom(driver, 0.4)
+        driver.save_screenshot(screenshot_path)
+        send_email(TEAMS_EMAIL, screenshot_path)
+    finally:
+        driver.quit()
+        
+        # Cleanup: Delete the temporary directory and its contents
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
