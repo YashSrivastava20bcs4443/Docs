@@ -19,3 +19,9 @@ group_left sum(node_cpu_seconds_total{mode="user"})) * 100)
 topk(5, (sum by (process_name) (rate(node_cpu_seconds_total{mode="user", instance="my-linux-instance:9100"}[$__rate_interval])) * 100))
 
 label_values(topk(5, sum by (process_name) (rate(node_cpu_seconds_total{mode="user"}[$__rate_interval]))), process_name)
+
+
+./node_exporter --collector.process
+
+
+topk(5, sum by (process) (rate(process_cpu_seconds_total{job="node"}[1m])))
