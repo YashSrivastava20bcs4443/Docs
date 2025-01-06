@@ -1,2 +1,4 @@
-sum(windows_process_working_set_bytes{instance=~"$instance"})
-/ sum(windows_cs_physical_memory_bytes{instance=~"$instance"}) * 100
+sum(windows_process_working_set_bytes{instance=~"10.7.24.101:9182"}) 
+/ 
+sum(windows_cs_physical_memory_bytes{instance=~"10.7.24.101:9182"})
+* 100
