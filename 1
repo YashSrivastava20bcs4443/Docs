@@ -1,4 +1,4 @@
-topk(5, ((sum(node_process_resident_memory_bytes{instance=~"your-linux-instance"}) by (process)) / ignoring(process)
+kotopk(5, ((sum(node_process_resident_memory_bytes{instance=~"your-linux-instance"}) by (process)) / ignoring(process)
 group_left node_memory_MemTotal_bytes) * 100)
 
 
@@ -25,3 +25,18 @@ label_values(topk(5, sum by (process_name) (rate(node_cpu_seconds_total{mode="us
 
 
 topk(5, sum by (process) (rate(process_cpu_seconds_total{job="node"}[1m])))
+
+
+
+topk(5, (
+  (sum(irate(windows_process_cpu_time_total{job="windows", instance=~"10.7..101:9182", process!~"idle"}[$_rate_interval])) 
+   by (process) 
+   / ignoring (process) group_left 
+   sum(windows_cs_logical_processors)
+  ) * 100
+) 
+or 
+(
+  sum(irate(windows_process_cpu_time_total{job="windows", instance=~"10.7..101:9182"}[$_rate_interval])) 
+  / sum(windows_cs_logical_processors) * 100
+))
