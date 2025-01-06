@@ -1,1 +1,3 @@
 topk(5, sum by (process_name) (rate(namedprocess_namegroup_cpu_seconds_total[1m])))
+
+topk(5, rate(node_process_cpu_seconds_total[1m]))
