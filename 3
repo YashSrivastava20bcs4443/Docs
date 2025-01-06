@@ -4,3 +4,13 @@ topk(5, (
    sum(windows_cs_logical_processors)
   ) * 100
 ))
+
+
+topk(
+    5, 
+    sum(
+        irate(windows_process_cpu_time_total{job="window", instance="10.7.24.181:9182", process!~"(?1)idie"}[$__rate_interval])
+    ) by (process) 
+    * 100 
+    / sum(windows_cs_logical_processors)
+)
