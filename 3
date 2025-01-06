@@ -1,1 +1,6 @@
-
+topk(5, (
+  (sum by (process) (irate(windows_process_cpu_time_total{job="windows", instance=~"10.7..101:9182", process!~"(?i)idle"}[$_rate_interval])) 
+   / ignoring (process) group_left 
+   sum(windows_cs_logical_processors)
+  ) * 100
+))
