@@ -1,1 +1,3 @@
 sum(irate(windows_process_cpu_time_total{job="windows", instance=~"10.7.24.101:9182", process!~"(?i) idle"}[5m]))
+
+sum(windows_process_working_set_bytes{instance=~"10.7.24.101:9182"})
