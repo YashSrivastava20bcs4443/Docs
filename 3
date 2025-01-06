@@ -6,3 +6,6 @@ topk(5, sum by (process) (rate(process_cpu_seconds_total{job="node"}[1m])))
 topk(5, (sum by (process_name) (rate(node_cpu_seconds_total{mode="user"}[$__rate_interval])) * 100))
 
 sum(logged_in_agents) or sum(inbound_calls) or sum(outbound_calls)
+
+
+logged_in_agents{job="agent_metrics"} or inbound_calls{job="agent_metrics"} or outbound_calls{job="agent_metrics"}
