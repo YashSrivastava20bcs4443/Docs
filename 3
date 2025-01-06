@@ -1,4 +1,155 @@
-sum(windows_process_working_set_bytes{instance=~"10.7.24.101:9182"}) 
-/ 
-sum(windows_cs_physical_memory_bytes{instance=~"10.7.24.101:9182"})
-* 100
+ If you don't want to use a SIP trunk, here are some alternative methods for bulk calling using Asterisk:
+
+
+---
+
+✅ 1. PRI (Primary Rate Interface) Line (Traditional Method)
+
+Description: A physical telecommunication line (E1/T1) provided by telecom companies for bulk calling.
+
+How it Works: Connect a PRI card (like Digium, Sangoma) to your Asterisk server.
+
+Hardware Required: PRI card and physical connection from the telecom provider.
+
+Pros:
+
+No need for an internet connection.
+
+Stable and reliable for large volumes.
+
+
+Cons:
+
+Requires physical hardware and installation.
+
+Higher setup cost compared to SIP trunks.
+
+
+
+
+---
+
+✅ 2. GSM Gateway (SIM Card Based Calling)
+
+Description: A GSM Gateway allows you to use physical SIM cards for making calls directly from Asterisk.
+
+How it Works:
+
+Insert a SIM card into the GSM Gateway device.
+
+Connect the device to your Asterisk server using an IP network or USB.
+
+
+Pros:
+
+No dependency on the internet.
+
+Suitable for limited bulk calls.
+
+
+Cons:
+
+Limited to the number of SIM card slots in the gateway.
+
+May need multiple gateways for high-volume calling.
+
+
+
+
+---
+
+✅ 3. FXO Gateway (Landline Based Calling)
+
+Description: FXO (Foreign Exchange Office) gateways allow Asterisk to connect to traditional analog landlines.
+
+How it Works:
+
+Plug your landline into the FXO gateway.
+
+Connect the gateway to Asterisk via a network.
+
+
+Pros:
+
+No internet required.
+
+Direct use of analog lines for calling.
+
+
+Cons:
+
+Limited by the number of landlines connected.
+
+Slower for bulk testing compared to SIP and PRI.
+
+
+
+
+---
+
+✅ 4. WebRTC (Browser-Based Calling)
+
+Description: WebRTC allows making calls directly through web browsers using Asterisk.
+
+How it Works:
+
+Configure WebRTC on Asterisk (pjsip module).
+
+Use a web browser to initiate VoIP calls.
+
+
+Pros:
+
+No physical lines or cards required.
+
+Easy to use and integrate with web apps.
+
+
+Cons:
+
+Dependent on internet connectivity.
+
+Not ideal for large-scale bulk calling.
+
+
+
+
+---
+
+✅ 5. Softphones and VoIP Apps (No Hardware)
+
+Description: Use Asterisk with softphones like Zoiper or Linphone for bulk calling.
+
+How it Works:
+
+Configure Asterisk with a VoIP account.
+
+Use a softphone to dial numbers automatically.
+
+
+Pros:
+
+No hardware required.
+
+Easy for small-scale testing.
+
+
+Cons:
+
+Requires internet for VoIP.
+
+Limited for large-scale testing.
+
+
+
+
+---
+
+✅ Recommendation Based on Your Requirement (Open-Source + No SIP Trunk):
+
+Small-Scale Testing: GSM Gateway or FXO Gateway.
+
+Large-Scale Testing: PRI Line with a Digium card for bulk testing.
+
+
+Would you like me to provide GSM Gateway setup steps or help with PRI card configuration?
