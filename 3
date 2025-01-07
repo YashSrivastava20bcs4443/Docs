@@ -20,8 +20,8 @@ def get_access_token():
         response = requests.post(TOKEN_URL)
         response_data = response.json()
         
-        # FIXED: Correct key for access token extraction
-        auth_token = response_data.get("access token")
+        # Fix: Handling both possible keys for access token
+        auth_token = response_data.get("access_token") or response_data.get("access token")
         
         if not auth_token:
             raise Exception(f"Access token not found. Full response: {response_data}")
