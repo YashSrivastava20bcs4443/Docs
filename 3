@@ -1,26 +1,138 @@
-trigger:
-  none
+import requests
+import psycopg2
+from datetime import datetime
 
-schedules:
-  - cron: "0 * * * *"  # Har ghante ke zero minute par chalega
-    displayName: Run hourly from 5 PM IST onwards
-    branches:
-      include:
-        - master
-    always: true
-    startTime: "2025-01-07T11:30:00Z"  # 5 PM IST (11:30 AM UTC)
+# API Endpoint and Authorization (Replace with actual values)
+API_URL = "https://example.com/Reporting/contacts/completed"  # Replace with actual API URL
+HEADERS = {
+    "Authorization": "Bearer YOUR_API_KEY",  # Replace with your API key
+    "Content-Type": "application/json"
+}
 
-pool:
-  name: 'Ansible-Syseng'
+# Query Parameters
+params = {
+    "startDate": "2024-01-01T00:00:00Z",
+    "endDate": "2024-01-31T23:59:59Z",
+    "mediaType": 4
+}
 
-stages:
-  - stage: Stage1
-    displayName: "Run main.py"
-    jobs:
-      - job: Job9596
-        displayName: "Run main.py Script"
-        steps:
-          - script: |
-              python3 Unity_API_CPU/main95.py
-              python3 Unity_API_CPU/main96.py
-            displayName: "Execute Python Scripts"
+# PostgreSQL Database Configuration
+DB_CONFIG = {
+    "dbname": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234",
+    "host": "172.16.130.247",
+    "port": "5432"
+}
+
+# Create Table for Storing Data
+def create_table():
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS completed_contacts (
+        contact_id SERIAL PRIMARY KEY,
+        contact_start_date TIMESTAMP,
+        last_update_time TIMESTAMP,
+        from_addr VARCHAR(100),
+        to_addr VARCHAR(100),
+        media_type INTEGER,
+        is_outbound BOOLEAN,
+        abandoned BOOLEAN,
+        agent_seconds INTEGER,
+        in_queue INTEGER,
+        pre_queue_seconds INTEGER,
+        end_reason VARCHAR(100)
+    )
+    """
+    cursor.execute(create_table_query)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+# Fetch Data from API
+def fetch_data():
+    response = requests.get(API_URL, headers=HEADERS, params=params)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        raise Exception(f"API request failed with status code {response.status_code}")
+
+# Filter Data Based on Your Requirements
+def filter_data(data):
+    filtered_data = []
+    for record in data:
+        # Convert values if missing to avoid errors
+        agent_seconds = int(record.get("agentSeconds", 0))
+        in_queue = int(record.get("inQueue", 0))
+        pre_queue_seconds = int(record.get("preQueueSeconds", 0))
+        media_type = record.get("mediaType")
+        is_outbound = record.get("isOutbound")
+        abandoned = record.get("abandoned")
+        end_reason = record.get("endReason")
+
+        # TFN Dashboard, IVR Offered, IVR Abandoned, Polite Disconnect, Queue Abandon
+        if (
+            media_type == 4 and
+            not is_outbound and
+            record.get("MasterContactID") == record.get("ContactID")
+        ):
+            # IVR Abandoned and Polite Disconnect conditions
+            if abandoned is False and agent_seconds == 0 and in_queue == 0 and pre_queue_seconds > 1:
+                if end_reason in ["Contact Hung Up only", "Contact Hang Up via Script"]:
+                    filtered_data.append(record)
+
+            # Queue Abandon Condition
+            elif is_outbound and abandoned is False and agent_seconds == 0 and in_queue > 0 and pre_queue_seconds > 0:
+                filtered_data.append(record)
+
+    return filtered_data
+
+# Insert Filtered Data into PostgreSQL
+def insert_data(data):
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    insert_query = """
+    INSERT INTO completed_contacts (
+        contact_start_date, last_update_time, from_addr, to_addr, media_type,
+        is_outbound, abandoned, agent_seconds, in_queue, pre_queue_seconds, end_reason
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    for record in data:
+        cursor.execute(insert_query, (
+            record.get("contactStartDatst"),
+            record.get("lastUpdateTime"),
+            record.get("fromAddr"),
+            record.get("toAddr"),
+            record.get("mediaType"),
+            record.get("isOutbound"),
+            record.get("abandoned"),
+            record.get("agentSeconds"),
+            record.get("inQueue"),
+            record.get("preQueueSeconds"),
+            record.get("endReason")
+        ))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+# Main Execution Flow
+if __name__ == "__main__":
+    try:
+        print("Creating table if not exists...")
+        create_table()
+
+        print("Fetching data from API...")
+        data = fetch_data()
+
+        print("Filtering data based on conditions...")
+        filtered_data = filter_data(data)
+
+        if filtered_data:
+            print(f"Inserting {len(filtered_data)} records into the database...")
+            insert_data(filtered_data)
+            print("Data successfully inserted into PostgreSQL!")
+        else:
+            print("No data met the filtering criteria.")
+    except Exception as e:
+        print(f"Error: {e}")
