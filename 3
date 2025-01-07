@@ -1,11 +1,25 @@
-topk(5, sum by (process_name) (rate(namedprocess_namegroup_cpu_seconds_total[1m])))
+trigger:
+  none
 
+schedules:
+  - cron: "0 * * * *"  # Har ek ghante par chalega
+    displayName: Run every hour
+    branches:
+      include:
+        - master
+    always: true
 
-topk(5, sum by (process) (rate(process_cpu_seconds_total{job="node"}[1m])))
+pool:
+  name: 'Ansible-Syseng'
 
-topk(5, (sum by (process_name) (rate(node_cpu_seconds_total{mode="user"}[$__rate_interval])) * 100))
-
-sum(logged_in_agents) or sum(inbound_calls) or sum(outbound_calls)
-
-
-logged_in_agents{job="agent_metrics"} or inbound_calls{job="agent_metrics"} or outbound_calls{job="agent_metrics"}
+stages:
+  - stage: Stage1
+    displayName: "Run main.py"
+    jobs:
+      - job: Job9596
+        displayName: "Run main.py Script"
+        steps:
+          - script: |
+              python3 Unity_API_CPU/main95.py
+              python3 Unity_API_CPU/main96.py
+            displayName: "Execute Python Scripts"
