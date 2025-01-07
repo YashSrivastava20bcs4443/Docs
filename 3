@@ -1,1 +1,156 @@
 
+import requests
+import json
+import pandas as pd
+from datetime import datetime, timedelta
+import psycopg2
+
+# PostgreSQL Database Configuration
+DB_CONFIG = {
+    "dbname": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234",
+    "host": "172.16.130.247",
+    "port": "5432"
+}
+
+# Fetch Access Token (Same as Reference)
+def get_access_token():
+    try:
+        response = requests.post(
+            "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+        )
+        response_data = response.json()
+        
+        # ✅ Using exact key as per your reference
+        auth_token = response_data.get("accessToken")
+        
+        if not auth_token:
+            raise Exception(f"Access token not found. Full response: {response_data}")
+        print("Access Token generated successfully.")
+        return auth_token
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        return None
+
+# Fetch Data with Pagination (Same Logic as Reference)
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
+    url = "https://api-c48.nice-incontact.com/incontactapi/services/v31.8/contacts/completed"
+    all_data = []
+    skip = 0
+    top = 10000
+
+    while True:
+        params = {
+            "startDate": start_date,
+            "endDate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(url, params=params, headers=headers)
+        
+        if response.status_code != 200:
+            print(f"Error fetching data: {response.status_code} - {response.text}")
+            break
+
+        data = response.json()
+        
+        if "completedContacts" in data:
+            all_data.extend(data["completedContacts"])
+            if len(data["completedContacts"]) < top:
+                break
+            skip += top
+        else:
+            break
+    return all_data
+
+# PostgreSQL Table Creation
+def create_table():
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS completed_contacts (
+            contact_id SERIAL PRIMARY KEY,
+            contact_start_date TIMESTAMP,
+            last_update_time TIMESTAMP,
+            from_addr VARCHAR(100),
+            to_addr VARCHAR(100),
+            media_type INTEGER,
+            is_outbound BOOLEAN,
+            abandoned BOOLEAN,
+            agent_seconds INTEGER,
+            in_queue INTEGER,
+            pre_queue_seconds INTEGER,
+            end_reason VARCHAR(100)
+        )
+    """)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print("Table created successfully.")
+
+# Insert Data into PostgreSQL
+def insert_data(data):
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    insert_query = """
+    INSERT INTO completed_contacts (
+        contact_start_date, last_update_time, from_addr, to_addr, media_type,
+        is_outbound, abandoned, agent_seconds, in_queue, pre_queue_seconds, end_reason
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    for record in data:
+        try:
+            cursor.execute(insert_query, (
+                record.get("contactStartDatst"),
+                record.get("lastUpdateTime"),
+                record.get("fromAddr"),
+                record.get("toAddr"),
+                record.get("mediaType"),
+                record.get("isOutbound"),
+                record.get("abandoned"),
+                record.get("agentSeconds"),
+                record.get("inQueue"),
+                record.get("preQueueSeconds"),
+                record.get("endReason")
+            ))
+        except Exception as e:
+            print(f"Error inserting record: {e}")
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print(f"{len(data)} records inserted into the database.")
+
+# Main Function
+if __name__ == "__main__":
+    try:
+        # ✅ Step 1: Generate Access Token
+        auth_token = get_access_token()
+        if not auth_token:
+            raise Exception("Access Token not generated. Exiting...")
+
+        # ✅ Step 2: Generate Date Range for Last 24 Hours
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=1)
+        start_date_str = start_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_date_str = end_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # ✅ Step 3: Create Table if Not Exists
+        create_table()
+
+        # ✅ Step 4: Fetch Data from API
+        print("Fetching data from API...")
+        raw_data = fetch_data(start_date_str, end_date_str, auth_token)
+
+        # ✅ Step 5: Insert Raw Data into PostgreSQL
+        if raw_data:
+            insert_data(raw_data)
+        else:
+            print("No data fetched from the API.")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
