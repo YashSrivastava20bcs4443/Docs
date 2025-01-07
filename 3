@@ -1,1 +1,36 @@
+import requests
+import psycopg2
+from datetime import datetime
 
+# API Configuration
+API_URL = "https://example.com/Reporting/contacts/completed"  # Replace with your actual API URL
+ACCESS_KEY = "your_access_key_here"
+SECRET_KEY = "your_secret_key_here"
+
+HEADERS = {
+    "x-access-key": ACCESS_KEY,
+    "x-secret-key": SECRET_KEY,
+    "Content-Type": "application/json"
+}
+
+# PostgreSQL Configuration
+DB_CONFIG = {
+    "dbname": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234",
+    "host": "172.16.130.247",
+    "port": "5432"
+}
+
+# Fetch Data from API using Access Key and Secret Key
+def fetch_data():
+    response = requests.get(API_URL, headers=HEADERS)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        raise Exception(f"API request failed with status code {response.status_code}")
+
+# Main Flow
+if __name__ == "__main__":
+    data = fetch_data()
+    print("Data fetched successfully:", data)
