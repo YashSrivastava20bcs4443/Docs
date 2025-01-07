@@ -1,12 +1,8 @@
 import requests
-import psycopg2
+import json
+import pandas as pd
 from datetime import datetime, timedelta
-from requests.auth import HTTPBasicAuth
-
-# API Endpoint and Credentials
-API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
-ACCESS_KEY = "your_access_key"   # Replace with your actual Access Key
-SECRET_KEY = "your_secret_key"   # Replace with your actual Secret Key
+import psycopg2
 
 # PostgreSQL Database Configuration
 DB_CONFIG = {
@@ -17,75 +13,104 @@ DB_CONFIG = {
     "port": "5432"
 }
 
-# Create Table for Storing Data
+# Fetch Access Token
+def get_access_token():
+    try:
+        response = requests.post(
+            "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+        )
+        response_data = response.json()
+        auth_token = response_data.get("accessToken")
+        if auth_token:
+            print("Access Token generated successfully.")
+            return auth_token
+        else:
+            raise Exception("Failed to retrieve access token.")
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        return None
+
+# Fetch Data from API with Pagination
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
+    url = "https://api-c48.nice-incontact.com/incontactapi/services/v31.8/contacts/completed"
+    all_data = []
+    skip = 0
+    top = 10000  # Maximum number of records per request
+
+    while True:
+        params = {
+            "startDate": start_date,
+            "endDate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(url, params=params, headers=headers)
+        
+        if response.status_code != 200:
+            print(f"Error fetching data: {response.status_code}")
+            break
+
+        data = response.json()
+        if "completedContacts" in data:
+            all_data.extend(data["completedContacts"])
+            if len(data["completedContacts"]) < top:
+                break
+            skip += top
+        else:
+            break
+    return all_data
+
+# Create Table in PostgreSQL
 def create_table():
     conn = psycopg2.connect(**DB_CONFIG)
     cursor = conn.cursor()
-    create_table_query = """
-    CREATE TABLE IF NOT EXISTS completed_contacts (
-        contact_id SERIAL PRIMARY KEY,
-        contact_start_date TIMESTAMP,
-        last_update_time TIMESTAMP,
-        from_addr VARCHAR(100),
-        to_addr VARCHAR(100),
-        media_type INTEGER,
-        is_outbound BOOLEAN,
-        abandoned BOOLEAN,
-        agent_seconds INTEGER,
-        in_queue INTEGER,
-        pre_queue_seconds INTEGER,
-        end_reason VARCHAR(100)
-    )
-    """
-    cursor.execute(create_table_query)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS completed_contacts (
+            contact_id SERIAL PRIMARY KEY,
+            contact_start_date TIMESTAMP,
+            last_update_time TIMESTAMP,
+            from_addr VARCHAR(100),
+            to_addr VARCHAR(100),
+            media_type INTEGER,
+            is_outbound BOOLEAN,
+            abandoned BOOLEAN,
+            agent_seconds INTEGER,
+            in_queue INTEGER,
+            pre_queue_seconds INTEGER,
+            end_reason VARCHAR(100)
+        )
+    """)
     conn.commit()
     cursor.close()
     conn.close()
-
-# Fetch Data from API using Access Key and Secret Key
-def fetch_data():
-    # Calculate date range for the last 24 hours
-    end_date = datetime.utcnow()
-    start_date = end_date - timedelta(days=1)
-
-    # API request parameters
-    params = {
-        "startDate": start_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "endDate": end_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "mediaType": 4
-    }
-
-    # Basic Authentication using Access Key and Secret Key
-    response = requests.get(
-        API_URL, 
-        params=params, 
-        auth=HTTPBasicAuth(ACCESS_KEY, SECRET_KEY)
-    )
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        raise Exception(f"API request failed. Status Code: {response.status_code}")
+    print("Table created or already exists.")
 
 # Filter Data Based on Conditions
 def filter_data(data):
     filtered_data = []
     for record in data:
-        agent_seconds = int(record.get("agentSeconds", 0))
-        in_queue = int(record.get("inQueue", 0))
-        pre_queue_seconds = int(record.get("preQueueSeconds", 0))
-        media_type = record.get("mediaType")
-        is_outbound = record.get("isOutbound")
-        abandoned = record.get("abandoned")
-        end_reason = record.get("endReason")
+        try:
+            agent_seconds = int(record.get("agentSeconds", 0))
+            in_queue = int(record.get("inQueue", 0))
+            pre_queue_seconds = int(record.get("preQueueSeconds", 0))
+            media_type = record.get("mediaType")
+            is_outbound = record.get("isOutbound", False)
+            abandoned = record.get("abandoned", False)
+            end_reason = record.get("endReason")
 
-        # Filtering Logic
-        if media_type == 4 and not is_outbound and record.get("MasterContactID") == record.get("ContactID"):
-            if abandoned is False and agent_seconds == 0 and in_queue == 0 and pre_queue_seconds > 1:
-                if end_reason in ["Contact Hung Up only", "Contact Hang Up via Script"]:
+            # Filtering Logic for Multiple Conditions
+            if media_type == 4 and not is_outbound and record.get("MasterContactID") == record.get("ContactID"):
+                if abandoned is False and agent_seconds == 0 and in_queue == 0 and pre_queue_seconds > 1:
+                    if end_reason in ["Contact Hung Up only", "Contact Hang Up via Script"]:
+                        filtered_data.append(record)
+                elif is_outbound and abandoned is False and agent_seconds == 0 and in_queue > 0 and pre_queue_seconds > 0:
                     filtered_data.append(record)
-            elif is_outbound and abandoned is False and agent_seconds == 0 and in_queue > 0 and pre_queue_seconds > 0:
-                filtered_data.append(record)
+        except Exception as e:
+            print(f"Error filtering data: {e}")
     return filtered_data
 
 # Insert Filtered Data into PostgreSQL
@@ -99,40 +124,59 @@ def insert_data(data):
     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     for record in data:
-        cursor.execute(insert_query, (
-            record.get("contactStartDatst"),
-            record.get("lastUpdateTime"),
-            record.get("fromAddr"),
-            record.get("toAddr"),
-            record.get("mediaType"),
-            record.get("isOutbound"),
-            record.get("abandoned"),
-            record.get("agentSeconds"),
-            record.get("inQueue"),
-            record.get("preQueueSeconds"),
-            record.get("endReason")
-        ))
+        try:
+            cursor.execute(insert_query, (
+                record.get("contactStartDatst"),
+                record.get("lastUpdateTime"),
+                record.get("fromAddr"),
+                record.get("toAddr"),
+                record.get("mediaType"),
+                record.get("isOutbound"),
+                record.get("abandoned"),
+                record.get("agentSeconds"),
+                record.get("inQueue"),
+                record.get("preQueueSeconds"),
+                record.get("endReason")
+            ))
+        except Exception as e:
+            print(f"Error inserting record: {e}")
     conn.commit()
     cursor.close()
     conn.close()
+    print(f"{len(data)} records successfully inserted into the database.")
 
-# Main Execution Flow
+# Main Function
 if __name__ == "__main__":
     try:
-        print("Creating table if not exists...")
+        # Generate Access Token
+        auth_token = get_access_token()
+        if not auth_token:
+            raise Exception("Access Token not generated. Exiting...")
+
+        # Generate Date Range for the Last 24 Hours
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=1)
+
+        # Convert to ISO Format for API Call
+        start_date_str = start_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_date_str = end_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # Create Table (if not exists)
         create_table()
 
-        print("Fetching data from API using Access Key and Secret Key...")
-        data = fetch_data()
+        # Fetch Data from API
+        print("Fetching data from API...")
+        raw_data = fetch_data(start_date_str, end_date_str, auth_token)
 
-        print("Filtering data based on conditions...")
-        filtered_data = filter_data(data)
+        # Filter the Data
+        print("Filtering the data...")
+        filtered_data = filter_data(raw_data)
 
+        # Insert Filtered Data into PostgreSQL
         if filtered_data:
-            print(f"Inserting {len(filtered_data)} records into the database...")
+            print("Inserting data into PostgreSQL...")
             insert_data(filtered_data)
-            print("Data successfully inserted into PostgreSQL!")
         else:
-            print("No data met the filtering criteria.")
+            print("No records matched the filter criteria.")
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"An error occurred: {e}")
