@@ -2,12 +2,13 @@ trigger:
   none
 
 schedules:
-  - cron: "0 * * * *"  # Har ek ghante par chalega
-    displayName: Run every hour
+  - cron: "0 * * * *"  # Har ghante ke zero minute par chalega
+    displayName: Run hourly from 5 PM IST onwards
     branches:
       include:
         - master
     always: true
+    startTime: "2025-01-07T11:30:00Z"  # 5 PM IST (11:30 AM UTC)
 
 pool:
   name: 'Ansible-Syseng'
