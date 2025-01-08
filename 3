@@ -1,3 +1,9 @@
-ALTER TABLE completed_contacts
-    ALTER COLUMN start_date TYPE TIMESTAMP USING TO_TIMESTAMP(start_date::BIGINT),
-    ALTER COLUMN end_date TYPE TIMESTAMP USING TO_TIMESTAMP(end_date::BIGINT);
+if (record["mediaType"] == "4" and 
+    not record["isOutbound"] and 
+    not record["abandoned"] and 
+    record["masterContactId"] == record["contactId"] and 
+    record["agentSeconds"] == 0 and 
+    record["inQueue"] == 0 and 
+    record["preQueueSeconds"] > 1 and 
+    record["endReason"] == "Contact Hung Up"):
+    # Add to IVR Abandon count
