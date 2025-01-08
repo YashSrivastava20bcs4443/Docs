@@ -1,46 +1,150 @@
-kotopk(5, ((sum(node_process_resident_memory_bytes{instance=~"your-linux-instance"}) by (process)) / ignoring(process)
-group_left node_memory_MemTotal_bytes) * 100)
+import requests
+import psycopg2
+import json
+import pandas as pd
+from datetime import datetime, timedelta, timezone
 
+# PostgreSQL connection details
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
 
+# API and Access Token Details
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
 
-topk(5, sum by (process) (rate(node_cpu_seconds_total{instance="your-instance-name", mode!="idle", mode!="iowait"}[1m])))
+# Function to generate access token
+def get_access_token():
+    try:
+        response = requests.post(ACCESS_TOKEN_URL)
+        response_data = response.json()
+        if "access_token" in response_data:
+            print("Access Token generated successfully.")
+            return response_data['access_token']
+        else:
+            raise Exception("Failed to generate access token.")
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        exit()
 
+# Function to fetch data from the API
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
+    all_data = []
+    skip = 0
+    top = 10000
 
-topk(5, sum by (instance, process_name) (rate(node_cpu_seconds_total{mode="user", instance!=""}[5m])))
+    while True:
+        params = {
+            "startdate": start_date,
+            "enddate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
 
+        # Check if data exists
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
 
-topk(5, ((sum by (process_name) (rate(node_cpu_seconds_total{mode="user", instance="my-linux-instance:9100"}[$__rate_interval]))) / ignoring(process_name)
-group_left sum(node_cpu_seconds_total{mode="user", instance="my-linux-instance:9100"})) * 100)
+    print(f"Total records fetched: {len(all_data)}")
+    return all_data
 
-topk(5, ((sum by (process_name) (rate(node_cpu_seconds_total{mode="user"}[$__rate_interval]))) / ignoring(process_name)
-group_left sum(node_cpu_seconds_total{mode="user"})) * 100)
+# Function to check and add missing columns in PostgreSQL
+def ensure_columns_exist():
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
 
+    # Define required columns and data types
+    required_columns = {
+        "contact_id": "VARCHAR(50)",
+        "start_date": "TIMESTAMP",
+        "end_date": "TIMESTAMP",
+        "from_addr": "VARCHAR(100)",
+        "to_addr": "VARCHAR(100)",
+        "media_type": "VARCHAR(50)",
+        "is_outbound": "BOOLEAN",
+        "master_contact_id": "VARCHAR(50)"
+    }
 
-topk(5, (sum by (process_name) (rate(node_cpu_seconds_total{mode="user", instance="my-linux-instance:9100"}[$__rate_interval])) * 100))
+    # Fetch existing columns
+    cursor.execute("""
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'completed_contacts'
+    """)
+    existing_columns = [row[0] for row in cursor.fetchall()]
 
-label_values(topk(5, sum by (process_name) (rate(node_cpu_seconds_total{mode="user"}[$__rate_interval]))), process_name)
+    # Add missing columns
+    for column, data_type in required_columns.items():
+        if column not in existing_columns:
+            cursor.execute(f"ALTER TABLE completed_contacts ADD COLUMN {column} {data_type};")
+            print(f"Added missing column: {column}")
 
+    conn.commit()
+    cursor.close()
+    conn.close()
 
-./node_exporter --collector.process
+# Function to store data into PostgreSQL
+def store_data_to_postgresql(data):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
 
+        # Ensure the columns exist before inserting data
+        ensure_columns_exist()
 
-topk(5, sum by (process) (rate(process_cpu_seconds_total{job="node"}[1m])))
+        # Insert data into the database
+        for contact in data:
+            cursor.execute("""
+                INSERT INTO completed_contacts
+                (contact_id, start_date, end_date, from_addr, to_addr, media_type, is_outbound, master_contact_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                contact.get('contactId'),
+                contact.get('contactStartDate'),
+                contact.get('lastUpdateTime'),
+                contact.get('fromAddr'),
+                contact.get('toAddr'),
+                contact.get('mediaType'),
+                contact.get('isOutbound'),
+                contact.get('masterContactId')
+            ))
 
+        conn.commit()
+        print("Data successfully stored in PostgreSQL.")
 
+    except Exception as e:
+        print(f"Error storing data to PostgreSQL: {e}")
 
-topk(5, (
-  (sum(irate(windows_process_cpu_time_total{job="windows", instance=~"10.7..101:9182", process!~"idle"}[$_rate_interval])) 
-   by (process) 
-   / ignoring (process) group_left 
-   sum(windows_cs_logical_processors)
-  ) * 100
-) 
-or 
-(
-  sum(irate(windows_process_cpu_time_total{job="windows", instance=~"10.7..101:9182"}[$_rate_interval])) 
-  / sum(windows_cs_logical_processors) * 100
-))
+    finally:
+        cursor.close()
+        conn.close()
 
+# Main Execution Flow
+if __name__ == "__main__":
+    auth_token = get_access_token()
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
+    # Fetch data from the API
+    data = fetch_data(start_date, end_date, auth_token)
 
-
+    # Store data in PostgreSQL
+    if data:
+        store_data_to_postgresql(data)
+    else:
+        print("No data fetched for the given time range.")
