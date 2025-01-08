@@ -1,4 +1,9 @@
+
 def fetch_and_process_data(start_date, end_date, auth_token):
+    """
+    Fetches data from the API in chunks, filters records based on specified criteria,
+    and calculates the required metrics.
+    """
     headers = {"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
     metrics = {
         "ivr_abandon_count": 0,
@@ -12,14 +17,22 @@ def fetch_and_process_data(start_date, end_date, auth_token):
 
     while True:
         params = {"startdate": start_date, "enddate": end_date, "top": top, "skip": skip}
-        response = requests.get(API_URL, headers=headers, params=params)
-        data = response.json()
+        try:
+            response = requests.get(API_URL, headers=headers, params=params)
+            response.raise_for_status()  # Raise an HTTPError if the response status is 4xx/5xx
+            data = response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching data: {e}")
+            break
+        except ValueError as e:
+            print(f"Error parsing JSON response: {e}")
+            break
 
         if "completedContacts" in data and data["completedContacts"]:
             for record in data["completedContacts"]:
                 metrics["total_records"] += 1
 
-                # Safeguard filtering logic
+                # Safeguard filtering logic for IVR Abandon Count
                 if ("mediaType" in record and
                         record.get("mediaType") == "4" and
                         record.get("isOutbound") is False and
@@ -31,12 +44,34 @@ def fetch_and_process_data(start_date, end_date, auth_token):
                         record.get("endReason") == "Contact Hung Up"):
                     metrics["ivr_abandon_count"] += 1
 
-                # Repeat similar safeguards for other metrics...
-                
+                # Safeguard filtering logic for Polite Disconnect Count
+                if ("mediaType" in record and
+                        record.get("mediaType") == "4" and
+                        record.get("isOutbound") is False and
+                        record.get("abandoned") is False and
+                        record.get("masterContactId") == record.get("contactId") and
+                        record.get("agentSeconds", 0) == 0 and
+                        record.get("inQueue", 0) == 0 and
+                        record.get("preQueueSeconds", 0) > 1 and
+                        record.get("endReason") == "Contact Hang Up via Script"):
+                    metrics["polite_disconnect_count"] += 1
+
+                # Safeguard filtering logic for Queue Abandon Count
+                if ("mediaType" in record and
+                        record.get("mediaType") == "4" and
+                        record.get("isOutbound") is True and
+                        record.get("abandoned") is False and
+                        record.get("masterContactId") == record.get("contactId") and
+                        record.get("agentSeconds", 0) == 0 and
+                        record.get("inQueue", 0) > 0 and
+                        record.get("preQueueSeconds", 0) > 0):
+                    metrics["queue_abandon_count"] += 1
+
             skip += top
             if len(data["completedContacts"]) < top:
                 break
         else:
+            # No more data to process
             break
 
     print(f"Metrics calculated: {metrics}")
