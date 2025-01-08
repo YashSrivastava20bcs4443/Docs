@@ -1,97 +1,28 @@
-import requests
-import json
 import psycopg2
-import pandas as pd
-from datetime import datetime, timedelta
 
-# PostgreSQL Database Credentials
-DB_HOST = "172.16.130.247"
-DB_NAME = "your_database_name"   # Replace with your database name
-DB_USER = "postgres"
-DB_PASSWORD = "Zxcv@1234"
-
-# API URLs
-API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
-ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
-
-# Function to generate the access token
-def get_access_token():
-    try:
-        response = requests.post(ACCESS_TOKEN_URL)
-        response.raise_for_status()
-        token_data = response.json()
-        auth_token = token_data.get("access_token")
-        if not auth_token:
-            raise ValueError("Access token not found in response.")
-        print("Access Token generated successfully.")
-        return auth_token
-    except Exception as e:
-        print(f"Error generating access token: {e}")
-        exit()
-
-# Function to fetch data with pagination
-def fetch_data(start_date, end_date, auth_token):
-    headers = {
-        "Authorization": f"Bearer {auth_token}",
-        "Content-Type": "application/json"
-    }
-
-    all_data = []
-    top = 10000  # Maximum records per request
-    skip = 0
-
-    while True:
-        params = {
-            "startDate": start_date,
-            "endDate": end_date,
-            "top": top,
-            "skip": skip
-        }
-
-        response = requests.get(API_URL, headers=headers, params=params)
-        if response.status_code != 200:
-            print(f"Error fetching data: {response.status_code} - {response.text}")
-            break
-
-        data = response.json()
-        if "completedContacts" in data:
-            contacts = data["completedContacts"]
-            all_data.extend(contacts)
-            if len(contacts) < top:
-                break
-            skip += top
-        else:
-            print("No completed contacts found.")
-            break
-
-    print(f"Total records fetched: {len(all_data)}")
-    return all_data
-
-# Function to store data into PostgreSQL
 def store_data_to_postgresql(data):
     try:
-        # Connect to PostgreSQL
         conn = psycopg2.connect(
-            host=DB_HOST,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASSWORD
+            host="172.16.130.247",
+            database="your_database_name",
+            user="postgres",
+            password="Zxcv@1234"
         )
         cursor = conn.cursor()
 
-        # Create the table if not exists
+        # Check if the column exists
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS completed_contacts (
-            contact_id VARCHAR(255),
-            start_date TIMESTAMP,
-            end_date TIMESTAMP,
-            from_addr VARCHAR(255),
-            to_addr VARCHAR(255),
-            media_type INT,
-            is_outbound BOOLEAN,
-            master_contact_id VARCHAR(255)
-        )
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'completed_contacts'
         """)
+        existing_columns = [row[0] for row in cursor.fetchall()]
+
+        # Add column if missing
+        if "start_date" not in existing_columns:
+            cursor.execute("ALTER TABLE completed_contacts ADD COLUMN start_date TIMESTAMP;")
+            conn.commit()
+            print("Added missing column: start_date")
 
         # Insert data into the table
         for contact in data:
@@ -117,21 +48,3 @@ def store_data_to_postgresql(data):
 
     except Exception as e:
         print(f"Error storing data to PostgreSQL: {e}")
-
-# Main execution block
-if __name__ == "__main__":
-    # Generate the access token
-    auth_token = get_access_token()
-
-    # Fetch data for the last 2 hours
-    end_date_str = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-    start_date_str = (datetime.utcnow() - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
-
-    # Fetch data using the access token
-    contact_data = fetch_data(start_date_str, end_date_str, auth_token)
-
-    # Store the fetched data into PostgreSQL
-    if contact_data:
-        store_data_to_postgresql(contact_data)
-    else:
-        print("No data to store.")
