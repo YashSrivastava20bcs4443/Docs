@@ -1,1 +1,105 @@
+import requests
+import json
+import psycopg2
 
+# PostgreSQL connection details
+db_params = {
+    "dbname": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234",
+    "host": "172.16.130.247",
+    "port": "5432"
+}
+
+# Function to fetch data for a given time range with pagination
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
+    url = "https://api-c48-nice-incontact.com/incontactapi/services/v31.8/contacts/completed"
+    all_data = []
+    skip = 0
+    top = 10000
+
+    while True:
+        params = {
+            "startdate": start_date,
+            "enddate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(url, params=params, headers=headers)
+        
+        # Error handling for invalid responses
+        try:
+            data = response.json()
+        except json.JSONDecodeError:
+            print(f"Error decoding JSON response. Response text: {response.text}")
+            break
+
+        if "completedContacts" in data:
+            all_data.extend(data["completedContacts"])
+            if len(data["completedContacts"]) < top:
+                break
+            skip += top
+        else:
+            break
+
+    return all_data
+
+# Save data directly to PostgreSQL
+def save_to_postgres(data):
+    try:
+        conn = psycopg2.connect(**db_params)
+        cursor = conn.cursor()
+
+        # Create table if not exists
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS completed_contacts (
+            id SERIAL PRIMARY KEY,
+            contact_id VARCHAR(255),
+            contact_date TIMESTAMP,
+            contact_duration INT
+        );
+        """
+        cursor.execute(create_table_query)
+        conn.commit()
+
+        # Insert data into the table
+        for record in data:
+            cursor.execute(
+                "INSERT INTO completed_contacts (contact_id, contact_date, contact_duration) VALUES (%s, %s, %s)",
+                (record.get('contactId'), record.get('contactDate'), record.get('contactDuration'))
+            )
+
+        conn.commit()
+        print(f"{len(data)} records successfully saved to PostgreSQL.")
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+
+# Fetch the auth token with error handling
+try:
+    response = requests.post("http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken")
+    if response.status_code == 200:
+        auth_token = json.loads(response.text).get("accessToken")
+    else:
+        print(f"Failed to fetch auth token. Response: {response.text}")
+        exit()
+except json.JSONDecodeError:
+    print(f"Error decoding auth token response: {response.text}")
+    exit()
+
+# Define the time range
+start_date_str = "2024-12-15T17:00:00"
+end_date_str = "2024-12-16T17:00:00"
+
+# Fetch data and save to PostgreSQL
+data = fetch_data(start_date_str, end_date_str, auth_token)
+if data:
+    save_to_postgres(data)
+else:
+    print("No data retrieved from the API.")
