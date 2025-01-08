@@ -1,9 +1,137 @@
-if (record["mediaType"] == "4" and 
-    not record["isOutbound"] and 
-    not record["abandoned"] and 
-    record["masterContactId"] == record["contactId"] and 
-    record["agentSeconds"] == 0 and 
-    record["inQueue"] == 0 and 
-    record["preQueueSeconds"] > 1 and 
-    record["endReason"] == "Contact Hung Up"):
-    # Add to IVR Abandon count
+import requests
+import psycopg2
+from datetime import datetime, timedelta
+
+# PostgreSQL connection details
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "your_database_name",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# API and Access Token Details
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+
+# Function to generate access token
+def get_access_token():
+    response = requests.post(ACCESS_TOKEN_URL)
+    response_data = response.json()
+    if "access_token" in response_data:
+        print("Access Token generated successfully.")
+        return response_data['access_token']
+    else:
+        raise Exception("Failed to generate access token.")
+
+# Function to fetch, filter, and calculate metrics
+def fetch_and_process_data(start_date, end_date, auth_token):
+    headers = {"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
+    metrics = {
+        "ivr_abandon_count": 0,
+        "polite_disconnect_count": 0,
+        "queue_abandon_count": 0,
+        "total_records": 0
+    }
+    
+    skip = 0
+    top = 10000  # Fetching maximum 10,000 records per request
+
+    while True:
+        params = {"startdate": start_date, "enddate": end_date, "top": top, "skip": skip}
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+
+        if "completedContacts" in data and data["completedContacts"]:
+            for record in data["completedContacts"]:
+                metrics["total_records"] += 1
+
+                # IVR Abandon Count
+                if (record["mediaType"] == "4" and
+                        not record["isOutbound"] and
+                        not record["abandoned"] and
+                        record["masterContactId"] == record["contactId"] and
+                        record["agentSeconds"] == 0 and
+                        record["inQueue"] == 0 and
+                        record["preQueueSeconds"] > 1 and
+                        record["endReason"] == "Contact Hung Up"):
+                    metrics["ivr_abandon_count"] += 1
+
+                # Polite Disconnect Count
+                if (record["mediaType"] == "4" and
+                        not record["isOutbound"] and
+                        not record["abandoned"] and
+                        record["masterContactId"] == record["contactId"] and
+                        record["agentSeconds"] == 0 and
+                        record["inQueue"] == 0 and
+                        record["preQueueSeconds"] > 1 and
+                        record["endReason"] == "Contact Hang Up via Script"):
+                    metrics["polite_disconnect_count"] += 1
+
+                # Queue Abandon Count
+                if (record["mediaType"] == "4" and
+                        record["isOutbound"] and
+                        not record["abandoned"] and
+                        record["masterContactId"] == record["contactId"] and
+                        record["agentSeconds"] == 0 and
+                        record["inQueue"] > 0 and
+                        record["preQueueSeconds"] > 0):
+                    metrics["queue_abandon_count"] += 1
+
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+
+    print(f"Metrics calculated: {metrics}")
+    return metrics
+
+# Function to store metrics into PostgreSQL
+def store_metrics_to_db(metrics):
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    # Ensure table exists
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contact_metrics (
+            id SERIAL PRIMARY KEY,
+            ivr_abandon_count INTEGER,
+            polite_disconnect_count INTEGER,
+            queue_abandon_count INTEGER,
+            total_records INTEGER,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    conn.commit()
+
+    # Insert metrics into the database
+    cursor.execute("""
+        INSERT INTO contact_metrics (ivr_abandon_count, polite_disconnect_count, queue_abandon_count, total_records)
+        VALUES (%s, %s, %s, %s)
+    """, (
+        metrics["ivr_abandon_count"],
+        metrics["polite_disconnect_count"],
+        metrics["queue_abandon_count"],
+        metrics["total_records"]
+    ))
+
+    conn.commit()
+    print("Metrics successfully stored in PostgreSQL.")
+    cursor.close()
+    conn.close()
+
+# Main Execution
+if __name__ == "__main__":
+    # Get the access token
+    auth_token = get_access_token()
+
+    # Set the time range for the last 2 hours
+    end_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    start_date = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Fetch, filter, and process data
+    metrics = fetch_and_process_data(start_date, end_date, auth_token)
+
+    # Store metrics in PostgreSQL
+    store_metrics_to_db(metrics)
