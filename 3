@@ -1,3 +1,27 @@
+SELECT column_name, data_type 
+FROM information_schema.columns 
+WHERE table_name = 'completed_contacts';
+
+
+ALTER TABLE completed_contacts
+ADD COLUMN start_date TIMESTAMP;
+
+cursor.execute("""
+    INSERT INTO completed_contacts 
+    (contact_id, contact_start_date, end_date, from_addr, to_addr, media_type, is_outbound, master_contact_id)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+""", (
+    contact.get('contactId'),
+    contact.get('contactStartDate'),
+    contact.get('lastUpdateTime'),
+    contact.get('fromAddr'),
+    contact.get('toAddr'),
+    contact.get('mediaType'),
+    contact.get('isOutbound'),
+    contact.get('masterContactId')
+))
+
+
 import psycopg2
 
 def store_data_to_postgresql(data):
@@ -18,7 +42,7 @@ def store_data_to_postgresql(data):
         """)
         existing_columns = [row[0] for row in cursor.fetchall()]
 
-        # Add column if missing
+        # Automatically add the column if missing
         if "start_date" not in existing_columns:
             cursor.execute("ALTER TABLE completed_contacts ADD COLUMN start_date TIMESTAMP;")
             conn.commit()
