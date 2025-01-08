@@ -1,7 +1,6 @@
 import requests
 import psycopg2
 import json
-import pandas as pd
 from datetime import datetime, timedelta, timezone
 
 # PostgreSQL connection details
@@ -77,6 +76,7 @@ def ensure_columns_exist():
         "media_type": "VARCHAR(50)",
         "is_outbound": "BOOLEAN",
         "master_contact_id": "VARCHAR(50)"
+        # Add any additional fields here
     }
 
     # Fetch existing columns
@@ -112,8 +112,7 @@ def store_data_to_postgresql(data):
                 INSERT INTO completed_contacts
                 (contact_id, start_date, end_date, from_addr, to_addr, media_type, is_outbound, master_contact_id)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-            (
+            """, (
                 contact.get('contactId'),
                 contact.get('contactStartDate'),
                 contact.get('lastUpdateTime'),
@@ -126,13 +125,10 @@ def store_data_to_postgresql(data):
 
         conn.commit()
         print("Data successfully stored in PostgreSQL.")
-
-    except Exception as e:
-        print(f"Error storing data to PostgreSQL: {e}")
-
-    finally:
         cursor.close()
         conn.close()
+    except Exception as e:
+        print(f"Error storing data to PostgreSQL: {e}")
 
 # Main Execution Flow
 if __name__ == "__main__":
