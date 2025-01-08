@@ -1,78 +1,185 @@
+import requests
+import psycopg2
+from psycopg2 import sql
+from psycopg2.extras import execute_values
+from datetime import datetime, timedelta
 
-def fetch_and_process_data(start_date, end_date, auth_token):
-    """
-    Fetches data from the API in chunks, filters records based on specified criteria,
-    and calculates the required metrics.
-    """
-    headers = {"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
-    metrics = {
-        "ivr_abandon_count": 0,
-        "polite_disconnect_count": 0,
-        "queue_abandon_count": 0,
-        "total_records": 0
-    }
-    
-    skip = 0
-    top = 10000  # Fetching maximum 10,000 records per request
+# PostgreSQL connection details
+DB_CONFIG = {
+    'dbname': 'your_database_name',
+    'user': 'postgres',
+    'password': 'Zxcv@1234',
+    'host': '172.16.130.247',
+    'port': '5432'
+}
 
-    while True:
-        params = {"startdate": start_date, "enddate": end_date, "top": top, "skip": skip}
+# API details
+API_URL = "https://api.example.com/contacts/completed"
+HEADERS = {"Authorization": "Bearer YOUR_ACCESS_TOKEN"}
+
+# Fetch last 2 hours of data
+end_date = datetime.utcnow()
+start_date = end_date - timedelta(hours=2)
+
+# API Request payload
+params = {
+    "startDate": start_date.strftime('%Y-%m-%dT%H:%M:%SZ'),
+    "endDate": end_date.strftime('%Y-%m-%dT%H:%M:%SZ'),
+    "mediaType": 4
+}
+
+# Ensure tables exist and add missing columns
+def setup_database():
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    # Create tables if not exist
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS raw_completed_contacts (
+            id SERIAL PRIMARY KEY,
+            raw_data JSONB,
+            inserted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS completed_contacts (
+            contact_id BIGINT,
+            master_contact_id BIGINT,
+            contact_start_date TIMESTAMP,
+            last_update_time TIMESTAMP,
+            from_addr VARCHAR(50),
+            to_addr VARCHAR(50),
+            media_type INT,
+            is_outbound BOOLEAN,
+            abandoned BOOLEAN,
+            agent_seconds INT,
+            in_queue INT,
+            pre_queue_seconds INT,
+            end_reason VARCHAR(50)
+        );
+    """)
+
+    # Commit the changes
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def fetch_data():
+    """Fetch data from the API."""
+    response = requests.get(API_URL, headers=HEADERS, params=params)
+    response.raise_for_status()
+    return response.json()
+
+
+def save_raw_data(raw_data):
+    """Save raw API data in the PostgreSQL table."""
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO raw_completed_contacts (raw_data) VALUES (%s)",
+            [psycopg2.extras.Json(raw_data)]
+        )
+        conn.commit()
+        print("Raw data saved successfully.")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def process_and_store_data(data):
+    """Filter and insert processed data into the database."""
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    processed_data = []
+
+    for record in data:
         try:
-            response = requests.get(API_URL, headers=headers, params=params)
-            response.raise_for_status()  # Raise an HTTPError if the response status is 4xx/5xx
-            data = response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching data: {e}")
-            break
-        except ValueError as e:
-            print(f"Error parsing JSON response: {e}")
-            break
+            # Applying conditions as per your requirement
+            media_type = record.get('mediaType')
+            is_outbound = record.get('isOutbound')
+            abandoned = record.get('abandoned')
+            master_contact_id = record.get('masterContactID')
+            contact_id = record.get('contactID')
+            agent_seconds = int(record.get('agentSeconds', 0))
+            in_queue = int(record.get('inQueue', 0))
+            pre_queue_seconds = int(record.get('preQueueSeconds', 0))
+            end_reason = record.get('endReason', '')
 
-        if "completedContacts" in data and data["completedContacts"]:
-            for record in data["completedContacts"]:
-                metrics["total_records"] += 1
+            # Conditions for IVR Abandon Count
+            if media_type == 4 and not is_outbound and not abandoned and master_contact_id == contact_id \
+                    and agent_seconds == 0 and in_queue == 0 and pre_queue_seconds > 1:
+                end_reason = "Contact Hung Up"
 
-                # Safeguard filtering logic for IVR Abandon Count
-                if ("mediaType" in record and
-                        record.get("mediaType") == "4" and
-                        record.get("isOutbound") is False and
-                        record.get("abandoned") is False and
-                        record.get("masterContactId") == record.get("contactId") and
-                        record.get("agentSeconds", 0) == 0 and
-                        record.get("inQueue", 0) == 0 and
-                        record.get("preQueueSeconds", 0) > 1 and
-                        record.get("endReason") == "Contact Hung Up"):
-                    metrics["ivr_abandon_count"] += 1
+            # Conditions for Polite Disconnect Count
+            elif media_type == 4 and not is_outbound and not abandoned and master_contact_id == contact_id \
+                    and agent_seconds == 0 and in_queue == 0 and pre_queue_seconds > 1:
+                end_reason = "Contact Hang Up via Script"
 
-                # Safeguard filtering logic for Polite Disconnect Count
-                if ("mediaType" in record and
-                        record.get("mediaType") == "4" and
-                        record.get("isOutbound") is False and
-                        record.get("abandoned") is False and
-                        record.get("masterContactId") == record.get("contactId") and
-                        record.get("agentSeconds", 0) == 0 and
-                        record.get("inQueue", 0) == 0 and
-                        record.get("preQueueSeconds", 0) > 1 and
-                        record.get("endReason") == "Contact Hang Up via Script"):
-                    metrics["polite_disconnect_count"] += 1
+            # Conditions for Queue Abandon Count
+            elif media_type == 4 and is_outbound and not abandoned and master_contact_id == contact_id \
+                    and agent_seconds == 0 and in_queue > 0 and pre_queue_seconds > 0:
+                end_reason = "Queue Abandon"
 
-                # Safeguard filtering logic for Queue Abandon Count
-                if ("mediaType" in record and
-                        record.get("mediaType") == "4" and
-                        record.get("isOutbound") is True and
-                        record.get("abandoned") is False and
-                        record.get("masterContactId") == record.get("contactId") and
-                        record.get("agentSeconds", 0) == 0 and
-                        record.get("inQueue", 0) > 0 and
-                        record.get("preQueueSeconds", 0) > 0):
-                    metrics["queue_abandon_count"] += 1
+            # Prepare data for insertion
+            processed_data.append((
+                int(contact_id),
+                int(master_contact_id),
+                datetime.fromisoformat(record['contactStartDate'].replace('Z', '+00:00')),
+                datetime.fromisoformat(record['lastUpdateTime'].replace('Z', '+00:00')),
+                record['fromAddr'],
+                record['toAddr'],
+                media_type,
+                is_outbound,
+                abandoned,
+                agent_seconds,
+                in_queue,
+                pre_queue_seconds,
+                end_reason
+            ))
 
-            skip += top
-            if len(data["completedContacts"]) < top:
-                break
-        else:
-            # No more data to process
-            break
+        except Exception as e:
+            print(f"Error processing record: {e}")
 
-    print(f"Metrics calculated: {metrics}")
-    return metrics
+    # Insert processed data into the database
+    try:
+        insert_query = """
+        INSERT INTO completed_contacts (
+            contact_id, master_contact_id, contact_start_date, last_update_time,
+            from_addr, to_addr, media_type, is_outbound, abandoned,
+            agent_seconds, in_queue, pre_queue_seconds, end_reason
+        ) VALUES %s
+        """
+        execute_values(cursor, insert_query, processed_data)
+        conn.commit()
+        print(f"Inserted {len(processed_data)} records successfully.")
+    except Exception as e:
+        print(f"Error storing data: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# Main execution
+def main():
+    try:
+        print("Setting up database...")
+        setup_database()
+
+        print("Fetching data from API...")
+        data = fetch_data()
+
+        print("Saving raw data...")
+        save_raw_data(data)
+
+        print("Processing and inserting data...")
+        process_and_store_data(data)
+
+        print("Process completed successfully!")
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+
+
+if __name__ == "__main__":
+    main()
