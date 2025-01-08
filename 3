@@ -1,59 +1,116 @@
-SELECT column_name, data_type 
-FROM information_schema.columns 
-WHERE table_name = 'completed_contacts';
-
-
-ALTER TABLE completed_contacts
-ADD COLUMN start_date TIMESTAMP;
-
-cursor.execute("""
-    INSERT INTO completed_contacts 
-    (contact_id, contact_start_date, end_date, from_addr, to_addr, media_type, is_outbound, master_contact_id)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-""", (
-    contact.get('contactId'),
-    contact.get('contactStartDate'),
-    contact.get('lastUpdateTime'),
-    contact.get('fromAddr'),
-    contact.get('toAddr'),
-    contact.get('mediaType'),
-    contact.get('isOutbound'),
-    contact.get('masterContactId')
-))
-
-
+import requests
 import psycopg2
+import json
+import pandas as pd
+from datetime import datetime, timedelta
 
+# PostgreSQL connection details
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "your_database_name",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# API and Access Token Details
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+
+# Function to generate access token
+def get_access_token():
+    try:
+        response = requests.post(ACCESS_TOKEN_URL)
+        response_data = response.json()
+        if "access_token" in response_data:
+            print("Access Token generated successfully.")
+            return response_data['access_token']
+        else:
+            raise Exception("Failed to generate access token.")
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        exit()
+
+# Function to fetch data from the API
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
+    all_data = []
+    skip = 0
+    top = 10000  # Fetching maximum 10,000 records per request
+
+    while True:
+        params = {
+            "startdate": start_date,
+            "enddate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+        
+        # Check if data exists
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+    print(f"Total records fetched: {len(all_data)}")
+    return all_data
+
+# Function to check and add missing columns in PostgreSQL
+def ensure_columns_exist():
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    # Define required columns and data types
+    required_columns = {
+        "contact_id": "VARCHAR(50)",
+        "start_date": "TIMESTAMP",
+        "end_date": "TIMESTAMP",
+        "from_addr": "VARCHAR(100)",
+        "to_addr": "VARCHAR(100)",
+        "media_type": "VARCHAR(50)",
+        "is_outbound": "BOOLEAN",
+        "master_contact_id": "VARCHAR(50)"
+    }
+
+    # Fetch existing columns
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'completed_contacts'
+    """)
+    existing_columns = {row[0] for row in cursor.fetchall()}
+
+    # Add missing columns
+    for column, data_type in required_columns.items():
+        if column not in existing_columns:
+            cursor.execute(f"ALTER TABLE completed_contacts ADD COLUMN {column} {data_type};")
+            print(f"Added missing column: {column}")
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+# Function to store data into PostgreSQL
 def store_data_to_postgresql(data):
     try:
-        conn = psycopg2.connect(
-            host="172.16.130.247",
-            database="your_database_name",
-            user="postgres",
-            password="Zxcv@1234"
-        )
+        conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
 
-        # Check if the column exists
-        cursor.execute("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = 'completed_contacts'
-        """)
-        existing_columns = [row[0] for row in cursor.fetchall()]
+        # Ensure the columns exist before inserting data
+        ensure_columns_exist()
 
-        # Automatically add the column if missing
-        if "start_date" not in existing_columns:
-            cursor.execute("ALTER TABLE completed_contacts ADD COLUMN start_date TIMESTAMP;")
-            conn.commit()
-            print("Added missing column: start_date")
-
-        # Insert data into the table
+        # Insert data into the database
         for contact in data:
             cursor.execute("""
-            INSERT INTO completed_contacts 
-            (contact_id, start_date, end_date, from_addr, to_addr, media_type, is_outbound, master_contact_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO completed_contacts 
+                (contact_id, start_date, end_date, from_addr, to_addr, media_type, is_outbound, master_contact_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 contact.get('contactId'),
                 contact.get('contactStartDate'),
@@ -69,6 +126,23 @@ def store_data_to_postgresql(data):
         print("Data successfully stored in PostgreSQL.")
         cursor.close()
         conn.close()
-
     except Exception as e:
         print(f"Error storing data to PostgreSQL: {e}")
+
+# Main Execution Flow
+if __name__ == "__main__":
+    # Get the access token
+    auth_token = get_access_token()
+
+    # Set the time range for the last 2 hours
+    end_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    start_date = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Fetch data from the API
+    data = fetch_data(start_date, end_date, auth_token)
+
+    # Store data in PostgreSQL
+    if data:
+        store_data_to_postgresql(data)
+    else:
+        print("No data fetched for the given time range.")
