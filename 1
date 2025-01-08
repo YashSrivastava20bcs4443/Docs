@@ -110,69 +110,55 @@ def filter_data(data):
     print(f"Filtered records: {len(filtered_df)}")
     return filtered_df
 
-# Ensure the required table exists
-def create_table_if_not_exists():
+# Ensure the new table exists for storing metrics
+def create_metrics_table_if_not_exists():
     conn = psycopg2.connect(**DB_CONFIG)
     cursor = conn.cursor()
 
     create_table_query = """
-        CREATE TABLE IF NOT EXISTS new_completed_contacts (
-            contact_id VARCHAR(50),
-            start_date TIMESTAMP,
-            end_date TIMESTAMP,
-            from_addr VARCHAR(100),
-            to_addr VARCHAR(100),
-            media_type VARCHAR(50),
-            is_outbound BOOLEAN,
-            master_contact_id VARCHAR(50),
-            abandoned BOOLEAN,
-            preQueueSeconds INT,
-            inQueueSeconds INT,
-            agentSeconds INT,
-            endReason VARCHAR(100)
+        CREATE TABLE IF NOT EXISTS call_metrics (
+            telecom_number VARCHAR(50),
+            offered_calls INT,
+            answered INT,
+            ivr_abandon INT,
+            queue_abandon INT,
+            polite_disconnect INT
         );
     """
     cursor.execute(create_table_query)
     conn.commit()
-    print("Table 'new_completed_contacts' is ready.")
+    print("Table 'call_metrics' is ready.")
     cursor.close()
     conn.close()
 
-# Store filtered data into PostgreSQL
-def store_data_to_postgresql(data):
+# Store metrics in PostgreSQL
+def store_metrics_to_postgresql(metrics_df):
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
 
         # Ensure the table exists before inserting
-        create_table_if_not_exists()
+        create_metrics_table_if_not_exists()
 
-        for _, contact in data.iterrows():
+        for _, row in metrics_df.iterrows():
             cursor.execute("""
-                INSERT INTO new_completed_contacts (contact_id, start_date, end_date, from_addr, to_addr, media_type, is_outbound, master_contact_id, abandoned, preQueueSeconds, inQueueSeconds, agentSeconds, endReason) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO call_metrics (telecom_number, offered_calls, answered, ivr_abandon, queue_abandon, polite_disconnect) 
+                VALUES (%s, %s, %s, %s, %s, %s)
             """, (
-                contact.get('contactId'),
-                contact.get('contactStartDate'),
-                contact.get('lastUpdateTime'),
-                contact.get('fromAddress'),
-                contact.get('toAddress'),
-                contact.get('mediaType'),
-                contact.get('isOutbound'),
-                contact.get('masterContactId'),
-                contact.get('abandoned'),
-                contact.get('preQueueSeconds'),
-                contact.get('inQueueSeconds'),
-                contact.get('agentSeconds'),
-                contact.get('endReason')
+                row['toAddress'],
+                row['Offered Calls'],
+                row['Answered'],
+                row['IVR Abandon'],
+                row['Queue Abandon'],
+                row['Polite Disconnect']
             ))
 
         conn.commit()
-        print("Data successfully stored in PostgreSQL.")
+        print("Metrics successfully stored in PostgreSQL.")
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"Error storing data to PostgreSQL: {e}")
+        print(f"Error storing metrics to PostgreSQL: {e}")
 
 # Delete the CSV file after data insertion
 def delete_csv_file(csv_file):
@@ -226,6 +212,8 @@ if __name__ == "__main__":
             store_data_to_postgresql(filtered_data)
             # Calculate metrics
             metrics = calculate_metrics(filtered_data)
+            # Store metrics in PostgreSQL
+            store_metrics_to_postgresql(metrics)
             # Create the dashboard
             create_dashboard(metrics)
             # Delete the CSV file after successful insertion
