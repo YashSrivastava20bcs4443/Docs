@@ -1,1 +1,207 @@
+import requests
+import psycopg2
+import json
+import pandas as pd
+from datetime import datetime, timedelta, timezone
+import os
 
+# PostgreSQL connection details
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# API and Access Token Details
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+
+# Function to generate access token
+def get_access_token():
+    try:
+        response = requests.post(ACCESS_TOKEN_URL)
+        response_data = response.json()
+        if "access_token" in response_data:
+            print("Access Token generated successfully.")
+            return response_data['access_token']
+        else:
+            raise Exception("Failed to generate access token.")
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        exit()
+
+# Function to fetch data from the API
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
+    all_data = []
+    skip = 0
+    top = 10000  # Fetching maximum 10,000 records per request
+
+    while True:
+        params = {
+            "startdate": start_date,
+            "enddate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+
+    print(f"Total records fetched: {len(all_data)}")
+    return all_data
+
+# Save data to CSV
+def save_data_to_csv(data):
+    try:
+        df = pd.DataFrame(data)
+        csv_file = "completed_contacts.csv"
+        df.to_csv(csv_file, index=False)
+        print(f"Data saved to {csv_file}")
+        return csv_file
+    except Exception as e:
+        print(f"Error saving data to CSV: {e}")
+
+# Function to filter data
+def filter_data(data):
+    df = pd.DataFrame(data)
+
+    # Check for column and rename if necessary
+    if 'mediaTypeId' in df.columns:
+        df.rename(columns={'mediaTypeId': 'mediaType'}, inplace=True)
+    elif 'mediaTypeld' in df.columns:
+        df.rename(columns={'mediaTypeld': 'mediaType'}, inplace=True)
+
+    if 'mediaType' not in df.columns:
+        print("Column 'mediaType' is missing even after renaming. Please check your data.")
+        return pd.DataFrame()
+
+    # Convert columns for proper filtering
+    df['mediaType'] = df['mediaType'].astype(str)
+    df['isOutbound'] = df['isOutbound'].astype(bool)
+    df['preQueueSeconds'] = pd.to_numeric(df['preQueueSeconds'], errors='coerce').fillna(0)
+    df['inQueueSeconds'] = pd.to_numeric(df['inQueueSeconds'], errors='coerce').fillna(0)
+    df['agentSeconds'] = pd.to_numeric(df['agentSeconds'], errors='coerce').fillna(0)
+
+    # Filtering logic based on your requirements
+    filtered_df = df[
+        (df['mediaType'] == '4') &
+        (df['isOutbound'] == False) &
+        (df['masterContactId'] == df['contactId']) &
+        (df['abandoned'] == False) &
+        (df['agentSeconds'] == 0) &
+        (df['inQueueSeconds'] == 0) &
+        (df['preQueueSeconds'] > 1) &
+        (df['endReason'].isin(["Contact Hung Up", "Contact Hang Up via Script"]))
+    ]
+
+    print(f"Filtered records: {len(filtered_df)}")
+    return filtered_df
+
+# Ensure the required columns exist
+def ensure_columns_exist():
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    required_columns = {
+        "contact_id": "VARCHAR(50)",
+        "start_date": "TIMESTAMP",
+        "end_date": "TIMESTAMP",
+        "from_addr": "VARCHAR(100)",
+        "to_addr": "VARCHAR(100)",
+        "media_type": "VARCHAR(50)",
+        "is_outbound": "BOOLEAN",
+        "master_contact_id": "VARCHAR(50)"
+    }
+
+    cursor.execute("""
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'completed_contacts'
+    """)
+    existing_columns = {row[0] for row in cursor.fetchall()}
+
+    for column, data_type in required_columns.items():
+        if column not in existing_columns:
+            cursor.execute(f"ALTER TABLE completed_contacts ADD COLUMN {column} {data_type};")
+            print(f"Added missing column: {column}")
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+# Store filtered data into PostgreSQL
+def store_data_to_postgresql(data):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # Ensure columns exist before insertion
+        ensure_columns_exist()
+
+        for _, contact in data.iterrows():
+            cursor.execute("""
+                INSERT INTO completed_contacts (contact_id, start_date, end_date, from_addr, to_addr, media_type, is_outbound, master_contact_id) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                contact.get('contactId'),
+                contact.get('contactStartDate'),
+                contact.get('lastUpdateTime'),
+                contact.get('fromAddress'),
+                contact.get('toAddress'),
+                contact.get('mediaType'),
+                contact.get('isOutbound'),
+                contact.get('masterContactId')
+            ))
+
+        conn.commit()
+        print("Data successfully stored in PostgreSQL.")
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error storing data to PostgreSQL: {e}")
+
+# Delete the CSV file after data insertion
+def delete_csv_file(csv_file):
+    try:
+        os.remove(csv_file)
+        print(f"{csv_file} deleted successfully.")
+    except Exception as e:
+        print(f"Error deleting CSV file: {e}")
+
+# Main Execution Flow
+if __name__ == "__main__":
+    # Get the access token
+    auth_token = get_access_token()
+
+    # Set the time range for the last 2 hours
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    # Fetch data from the API
+    data = fetch_data(start_date, end_date, auth_token)
+
+    if data:
+        # Save data to CSV and filter it
+        csv_file = save_data_to_csv(data)
+        filtered_data = filter_data(data)
+
+        # Store data in PostgreSQL if filtered data is available
+        if not filtered_data.empty:
+            store_data_to_postgresql(filtered_data)
+            # Delete the CSV file after successful insertion
+            delete_csv_file(csv_file)
+        else:
+            print("No matching records found.")
+    else:
+        print("No data fetched for the given time range.")
