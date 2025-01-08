@@ -4,7 +4,6 @@ import json
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 import os
-import plotly.express as px
 
 # PostgreSQL connection details
 DB_CONFIG = {
@@ -110,14 +109,14 @@ def filter_data(data):
     print(f"Filtered records: {len(filtered_df)}")
     return filtered_df
 
-# Ensure the new table exists for storing metrics
+# Create table to store metrics
 def create_metrics_table_if_not_exists():
     conn = psycopg2.connect(**DB_CONFIG)
     cursor = conn.cursor()
 
     create_table_query = """
         CREATE TABLE IF NOT EXISTS call_metrics (
-            telecom_number VARCHAR(50),
+            toll_number VARCHAR(50),
             offered_calls INT,
             answered INT,
             ivr_abandon INT,
@@ -131,8 +130,8 @@ def create_metrics_table_if_not_exists():
     cursor.close()
     conn.close()
 
-# Store metrics in PostgreSQL
-def store_metrics_to_postgresql(metrics_df):
+# Store metrics data into PostgreSQL
+def store_metrics_to_postgresql(metrics_data):
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
@@ -140,17 +139,17 @@ def store_metrics_to_postgresql(metrics_df):
         # Ensure the table exists before inserting
         create_metrics_table_if_not_exists()
 
-        for _, row in metrics_df.iterrows():
+        for toll_number, metrics in metrics_data.items():
             cursor.execute("""
-                INSERT INTO call_metrics (telecom_number, offered_calls, answered, ivr_abandon, queue_abandon, polite_disconnect) 
+                INSERT INTO call_metrics (toll_number, offered_calls, answered, ivr_abandon, queue_abandon, polite_disconnect) 
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, (
-                row['toAddress'],
-                row['Offered Calls'],
-                row['Answered'],
-                row['IVR Abandon'],
-                row['Queue Abandon'],
-                row['Polite Disconnect']
+                toll_number,
+                metrics['offered_calls'],
+                metrics['answered'],
+                metrics['ivr_abandon'],
+                metrics['queue_abandon'],
+                metrics['polite_disconnect']
             ))
 
         conn.commit()
@@ -168,27 +167,26 @@ def delete_csv_file(csv_file):
     except Exception as e:
         print(f"Error deleting CSV file: {e}")
 
-# Function to calculate metrics based on conditions
+# Function to calculate metrics
 def calculate_metrics(df):
-    # Add conditions to classify records into categories
-    df['Offered Calls'] = df.groupby('toAddress')['toAddress'].transform('count')
-    df['Answered'] = df[df['endReason'] == 'Answered'].groupby('toAddress')['toAddress'].transform('count')
-    df['IVR Abandon'] = df[df['endReason'] == 'IVR Abandon'].groupby('toAddress')['toAddress'].transform('count')
-    df['Queue Abandon'] = df[df['endReason'] == 'Queue Abandon'].groupby('toAddress')['toAddress'].transform('count')
-    df['Polite Disconnect'] = df[df['endReason'] == 'Polite Disconnect'].groupby('toAddress')['toAddress'].transform('count')
+    metrics_data = {}
 
-    # Drop duplicates since we don't need multiple rows per telecom number
-    df = df.drop_duplicates(subset=['toAddress'])
+    for toll_number, group in df.groupby('toAddress'):
+        offered_calls = group.shape[0]
+        answered = group[group['abandoned'] == False].shape[0]
+        ivr_abandon = group[(group['abandoned'] == True) & (group['mediaType'] == '4')].shape[0]
+        queue_abandon = group[(group['abandoned'] == False) & (group['isOutbound'] == False)].shape[0]
+        polite_disconnect = group[(group['endReason'] == 'Contact Hung Up')].shape[0]
 
-    return df[['toAddress', 'Offered Calls', 'Answered', 'IVR Abandon', 'Queue Abandon', 'Polite Disconnect']]
+        metrics_data[toll_number] = {
+            'offered_calls': offered_calls,
+            'answered': answered,
+            'ivr_abandon': ivr_abandon,
+            'queue_abandon': queue_abandon,
+            'polite_disconnect': polite_disconnect
+        }
 
-# Create Dashboard using Plotly Dash
-def create_dashboard(df):
-    # Create a simple table dashboard with Plotly
-    fig = px.bar(df, x='toAddress', y=['Offered Calls', 'Answered', 'IVR Abandon', 'Queue Abandon', 'Polite Disconnect'],
-                 title="Call Metrics Dashboard", labels={'toAddress': 'Telecom Number'})
-    
-    fig.show()
+    return metrics_data
 
 # Main Execution Flow
 if __name__ == "__main__":
@@ -207,15 +205,12 @@ if __name__ == "__main__":
         csv_file = save_data_to_csv(data)
         filtered_data = filter_data(data)
 
-        # Store data in PostgreSQL if filtered data is available
-        if not filtered_data.empty:
-            store_data_to_postgresql(filtered_data)
-            # Calculate metrics
-            metrics = calculate_metrics(filtered_data)
-            # Store metrics in PostgreSQL
-            store_metrics_to_postgresql(metrics)
-            # Create the dashboard
-            create_dashboard(metrics)
+        # Calculate metrics
+        metrics_data = calculate_metrics(filtered_data)
+
+        # Store metrics in PostgreSQL if calculated metrics are available
+        if metrics_data:
+            store_metrics_to_postgresql(metrics_data)
             # Delete the CSV file after successful insertion
             delete_csv_file(csv_file)
         else:
