@@ -1,1 +1,43 @@
+def fetch_and_process_data(start_date, end_date, auth_token):
+    headers = {"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
+    metrics = {
+        "ivr_abandon_count": 0,
+        "polite_disconnect_count": 0,
+        "queue_abandon_count": 0,
+        "total_records": 0
+    }
+    
+    skip = 0
+    top = 10000  # Fetching maximum 10,000 records per request
 
+    while True:
+        params = {"startdate": start_date, "enddate": end_date, "top": top, "skip": skip}
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+
+        if "completedContacts" in data and data["completedContacts"]:
+            for record in data["completedContacts"]:
+                metrics["total_records"] += 1
+
+                # Safeguard filtering logic
+                if ("mediaType" in record and
+                        record.get("mediaType") == "4" and
+                        record.get("isOutbound") is False and
+                        record.get("abandoned") is False and
+                        record.get("masterContactId") == record.get("contactId") and
+                        record.get("agentSeconds", 0) == 0 and
+                        record.get("inQueue", 0) == 0 and
+                        record.get("preQueueSeconds", 0) > 1 and
+                        record.get("endReason") == "Contact Hung Up"):
+                    metrics["ivr_abandon_count"] += 1
+
+                # Repeat similar safeguards for other metrics...
+                
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+
+    print(f"Metrics calculated: {metrics}")
+    return metrics
