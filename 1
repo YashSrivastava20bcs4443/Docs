@@ -1,1 +1,207 @@
+import requests
+import psycopg2
+import pandas as pd
+from datetime import datetime, timedelta, timezone
+import os
 
+# PostgreSQL connection details
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# API and Access Token Details
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+
+# Function to generate access token
+def get_access_token():
+    response = requests.post(ACCESS_TOKEN_URL)
+    response_data = response.json()
+    if "access_token" in response_data:
+        return response_data['access_token']
+    else:
+        raise Exception("Failed to generate access token.")
+
+# Fetch data from API
+def fetch_data(start_date, end_date, auth_token):
+    headers = {"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
+    all_data = []
+    skip = 0
+    top = 10000  
+
+    while True:
+        params = {"startdate": start_date, "enddate": end_date, "top": top, "skip": skip}
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+        
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+
+    return all_data
+
+# Save data to CSV
+def save_data_to_csv(data):
+    df = pd.DataFrame(data)
+    csv_file = "completed_contacts.csv"
+    df.to_csv(csv_file, index=False)
+    return csv_file
+
+# Ensure tables exist
+def create_tables():
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    # Table for raw data
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS completed_contacts (
+            contact_id VARCHAR(50),
+            contact_start_date TIMESTAMP,
+            last_update_time TIMESTAMP,
+            from_address VARCHAR(100),
+            to_address VARCHAR(100),
+            media_type_id VARCHAR(50),
+            is_outbound BOOLEAN,
+            master_contact_id VARCHAR(50),
+            abandoned BOOLEAN,
+            agent_seconds INT,
+            in_queue_seconds INT,
+            pre_queue_seconds INT,
+            end_reason VARCHAR(100)
+        )
+    """)
+    # Table for summary data
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dashboard_summary (
+            to_address VARCHAR(100),
+            ivr_offered_count INT,
+            ivr_abandoned_count INT,
+            polite_disconnect_count INT,
+            queue_abandon_count INT
+        )
+    """)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+# Insert raw data into PostgreSQL
+def insert_raw_data_to_db(csv_file):
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    df = pd.read_csv(csv_file)
+    
+    # Insert into completed_contacts table
+    for _, row in df.iterrows():
+        cursor.execute("""
+            INSERT INTO completed_contacts (contact_id, contact_start_date, last_update_time, from_address, to_address,
+            media_type_id, is_outbound, master_contact_id, abandoned, agent_seconds, in_queue_seconds, pre_queue_seconds, end_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            row.get('contactId'), 
+            row.get('contactStartDate'), 
+            row.get('lastUpdateTime'),
+            row.get('fromAddress'), 
+            row.get('toAddress'), 
+            row.get('mediaTypeId'), 
+            row.get('isOutbound'), 
+            row.get('masterContactId'),
+            row.get('abandoned'), 
+            row.get('agentSeconds'), 
+            row.get('inQueueSeconds'), 
+            row.get('preQueueSeconds'), 
+            row.get('endReason')
+        ))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+# Filter and summarize data
+def generate_summary():
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    
+    # Read data for summary calculations
+    query = "SELECT * FROM completed_contacts"
+    df = pd.read_sql(query, conn)
+    
+    # Convert columns to proper types
+    df['isOutbound'] = df['isOutbound'].astype(bool)
+    df['abandoned'] = df['abandoned'].astype(bool)
+    df['preQueueSeconds'] = pd.to_numeric(df['preQueueSeconds'], errors='coerce').fillna(0)
+    df['inQueueSeconds'] = pd.to_numeric(df['inQueueSeconds'], errors='coerce').fillna(0)
+    df['agentSeconds'] = pd.to_numeric(df['agentSeconds'], errors='coerce').fillna(0)
+    
+    # IVR Offered Count
+    ivr_offered = df[(df['mediaTypeId'] == 4) & (df['isOutbound'] == False) & 
+                     (df['masterContactId'] == df['contactId'])]
+
+    # IVR Abandoned Count
+    ivr_abandoned = ivr_offered[(ivr_offered['abandoned'] == False) &
+                                (ivr_offered['agentSeconds'] == 0) &
+                                (ivr_offered['inQueueSeconds'] == 0) &
+                                (ivr_offered['preQueueSeconds'] > 1) &
+                                (ivr_offered['endReason'] == "Contact Hung Up")]
+
+    # Polite Disconnect Count
+    polite_disconnect = ivr_offered[(ivr_offered['endReason'] == "Contact Hang Up via Script")]
+
+    # Queue Abandon Count
+    queue_abandon = df[(df['mediaTypeId'] == 4) & (df['isOutbound'] == True) &
+                       (df['abandoned'] == False) &
+                       (df['agentSeconds'] == 0) &
+                       (df['inQueueSeconds'] > 0) &
+                       (df['preQueueSeconds'] > 0)]
+
+    # Summary data to be inserted
+    summary_data = {
+        "to_address": ivr_offered['toAddress'].unique()[0] if not ivr_offered.empty else None,
+        "ivr_offered_count": len(ivr_offered),
+        "ivr_abandoned_count": len(ivr_abandoned),
+        "polite_disconnect_count": len(polite_disconnect),
+        "queue_abandon_count": len(queue_abandon)
+    }
+
+    # Insert summary into dashboard_summary table
+    cursor.execute("""
+        INSERT INTO dashboard_summary (to_address, ivr_offered_count, ivr_abandoned_count, polite_disconnect_count, queue_abandon_count)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (
+        summary_data['to_address'],
+        summary_data['ivr_offered_count'],
+        summary_data['ivr_abandoned_count'],
+        summary_data['polite_disconnect_count'],
+        summary_data['queue_abandon_count']
+    ))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+# Delete CSV file after processing
+def delete_csv_file(csv_file):
+    os.remove(csv_file)
+
+# Main execution flow
+if __name__ == "__main__":
+    auth_token = get_access_token()
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    # Create required tables if not exist
+    create_tables()
+    
+    # Fetch and process data
+    data = fetch_data(start_date, end_date, auth_token)
+    if data:
+        csv_file = save_data_to_csv(data)
+        insert_raw_data_to_db(csv_file)
+        generate_summary()
+        delete_csv_file(csv_file)
+        print("Data successfully processed and summarized!")
+    else:
+        print("No data fetched for the given time range.")
