@@ -1,1 +1,107 @@
+import requests
+import psycopg2
+from psycopg2 import sql
+from datetime import datetime, timedelta, timezone
 
+# API and database configuration
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# Fetch Access Token
+def get_access_token():
+    response = requests.get(ACCESS_TOKEN_URL)
+    response.raise_for_status()
+    return response.json().get('access_token')
+
+# Fetch data from the API
+def fetch_data(access_token):
+    headers = {"Authorization": f"Bearer {access_token}"}
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    params = {
+        "startDate": start_date,
+        "endDate": end_date,
+        "mediaType": 4  # Phone Call
+    }
+    response = requests.get(API_URL, headers=headers, params=params)
+    response.raise_for_status()
+    return response.json()
+
+# Save raw data to PostgreSQL
+def save_raw_data(connection, raw_data):
+    with connection.cursor() as cursor:
+        # Create the raw table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS raw_data (
+                contact_id SERIAL PRIMARY KEY,
+                data JSONB
+            )
+        """)
+        # Insert raw data
+        for record in raw_data:
+            cursor.execute("INSERT INTO raw_data (data) VALUES (%s)", (record,))
+        connection.commit()
+
+# Filter data and save to processed table
+def filter_and_save_data(connection):
+    with connection.cursor() as cursor:
+        # Create the processed table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS processed_data (
+                to_address TEXT,
+                offered_calls INT,
+                answered_calls INT,
+                ivr_abandon INT,
+                queue_abandon INT,
+                polite_disconnect INT
+            )
+        """)
+        # Query and process raw data
+        cursor.execute("""
+            SELECT
+                data->>'toAddr' AS to_address,
+                COUNT(*) FILTER (WHERE (data->>'isOutbound')::BOOLEAN = FALSE AND data->>'mediaType' = '4') AS offered_calls,
+                COUNT(*) FILTER (WHERE (data->>'abandoned')::BOOLEAN = FALSE AND data->>'mediaType' = '4') AS answered_calls,
+                COUNT(*) FILTER (WHERE (data->>'abandoned')::BOOLEAN = TRUE AND (data->>'endReason') = 'Contact Hung Up') AS ivr_abandon,
+                COUNT(*) FILTER (WHERE (data->>'abandoned')::BOOLEAN = TRUE AND (data->>'inQueueSeconds')::INT > 0) AS queue_abandon,
+                COUNT(*) FILTER (WHERE (data->>'abandoned')::BOOLEAN = TRUE AND (data->>'endReason') = 'Contact Hang Up via Script') AS polite_disconnect
+            FROM raw_data
+            GROUP BY data->>'toAddr'
+        """)
+        processed_data = cursor.fetchall()
+        
+        # Insert processed data into processed_data table
+        for row in processed_data:
+            cursor.execute("""
+                INSERT INTO processed_data (to_address, offered_calls, answered_calls, ivr_abandon, queue_abandon, polite_disconnect)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, row)
+        connection.commit()
+
+# Main function
+def main():
+    # Fetch access token
+    access_token = get_access_token()
+
+    # Fetch data from API
+    raw_data = fetch_data(access_token)
+
+    # Connect to the database
+    connection = psycopg2.connect(**DB_CONFIG)
+    try:
+        # Save raw data
+        save_raw_data(connection, raw_data)
+
+        # Filter and save processed data
+        filter_and_save_data(connection)
+    finally:
+        connection.close()
+
+if __name__ == "__main__":
+    main()
