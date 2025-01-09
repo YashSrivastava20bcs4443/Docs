@@ -1,1 +1,77 @@
+# Insert Raw Data into Database with Error Handling
+def insert_raw_data(cursor, data):
+    try:
+        insert_query = """
+        INSERT INTO raw (
+            contact_id, master_contact_id, media_type_id, to_addr, from_addr, 
+            abandoned, abandon_seconds, agent_seconds, pre_queue_seconds, 
+            in_queue_seconds, end_reason, contact_start, last_update_time
+        )
+        VALUES (
+            %(contactId)s, %(masterContactId)s, %(mediaTypeId)s, %(toAddr)s, %(fromAddr)s, 
+            %(abandoned)s, %(abandonSeconds)s, %(agentSeconds)s, %(preQueueSeconds)s, 
+            %(inQueueSeconds)s, %(endReason)s, %(contactStart)s, %(lastUpdateTime)s
+        )
+        """
+        for record in data:
+            sanitized_record = {
+                'contactId': record.get('contactId', None),
+                'masterContactId': record.get('masterContactId', None),
+                'mediaTypeId': record.get('mediaTypeId', None),
+                'toAddr': record.get('toAddr', None),
+                'fromAddr': record.get('fromAddr', None),
+                'abandoned': record.get('abandoned', False),
+                'abandonSeconds': record.get('abandonSeconds', 0),
+                'agentSeconds': min(record.get('agentSeconds', 0), 9223372036854775807),
+                'preQueueSeconds': min(record.get('preQueueSeconds', 0), 9223372036854775807),
+                'inQueueSeconds': min(record.get('inQueueSeconds', 0), 9223372036854775807),
+                'endReason': record.get('endReason', None),
+                'contactStart': record.get('contactStart', None),
+                'lastUpdateTime': record.get('lastUpdateTime', None)
+            }
+            cursor.execute(insert_query, sanitized_record)
+    except Exception as e:
+        print(f"Error storing raw data: {e}")
+        cursor.connection.rollback()
+
+# Filter Data and Store Processed Data with Error Handling
+def filter_and_store_data(cursor, data):
+    filtered_data = []
+    for record in data:
+        if record.get('mediaTypeId') == 4 and record.get('isOutbound') is False:
+            filtered_data.append(record)
+
+    insert_filtered_query = """
+    INSERT INTO filtered_data (
+        contact_id, master_contact_id, media_type_id, to_addr, from_addr, 
+        abandoned, abandon_seconds, agent_seconds, pre_queue_seconds, 
+        in_queue_seconds, end_reason, contact_start, last_update_time
+    )
+    VALUES (
+        %(contactId)s, %(masterContactId)s, %(mediaTypeId)s, %(toAddr)s, %(fromAddr)s, 
+        %(abandoned)s, %(abandonSeconds)s, %(agentSeconds)s, %(preQueueSeconds)s, 
+        %(inQueueSeconds)s, %(endReason)s, %(contactStart)s, %(lastUpdateTime)s
+    )
+    """
+    try:
+        for record in filtered_data:
+            sanitized_filtered_record = {
+                'contactId': record.get('contactId', None),
+                'masterContactId': record.get('masterContactId', None),
+                'mediaTypeId': record.get('mediaTypeId', None),
+                'toAddr': record.get('toAddr', None),
+                'fromAddr': record.get('fromAddr', None),
+                'abandoned': record.get('abandoned', False),
+                'abandonSeconds': record.get('abandonSeconds', 0),
+                'agentSeconds': min(record.get('agentSeconds', 0), 9223372036854775807),
+                'preQueueSeconds': min(record.get('preQueueSeconds', 0), 9223372036854775807),
+                'inQueueSeconds': min(record.get('inQueueSeconds', 0), 9223372036854775807),
+                'endReason': record.get('endReason', None),
+                'contactStart': record.get('contactStart', None),
+                'lastUpdateTime': record.get('lastUpdateTime', None)
+            }
+            cursor.execute(insert_filtered_query, sanitized_filtered_record)
+    except Exception as e:
+        print(f"Error storing filtered data: {e}")
+        cursor.connection.rollback()
 
