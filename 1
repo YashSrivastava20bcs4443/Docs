@@ -1,6 +1,6 @@
-
 import requests
 import psycopg2
+import json
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 import os
@@ -17,7 +17,7 @@ DB_CONFIG = {
 API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
 ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
 
-# Function to generate access token
+# Generate Access Token
 def get_access_token():
     try:
         response = requests.post(ACCESS_TOKEN_URL)
@@ -31,7 +31,7 @@ def get_access_token():
         print(f"Error generating access token: {e}")
         exit()
 
-# Function to fetch data from the API
+# Fetch data from API
 def fetch_data(start_date, end_date, auth_token):
     headers = {
         "Authorization": f"Bearer {auth_token}",
@@ -39,7 +39,7 @@ def fetch_data(start_date, end_date, auth_token):
     }
     all_data = []
     skip = 0
-    top = 10000
+    top = 10000  
 
     while True:
         params = {
@@ -64,119 +64,168 @@ def fetch_data(start_date, end_date, auth_token):
 
 # Save data to CSV
 def save_data_to_csv(data):
-    df = pd.DataFrame(data)
-    csv_file = "completed_contacts.csv"
-    df.to_csv(csv_file, index=False)
-    print(f"Data saved to {csv_file}")
-    return csv_file
+    try:
+        df = pd.DataFrame(data)
+        csv_file = "completed_contacts.csv"
+        df.to_csv(csv_file, index=False)
+        print(f"Data saved to {csv_file}")
+        return csv_file
+    except Exception as e:
+        print(f"Error saving data to CSV: {e}")
 
-# Create raw data table
-def create_raw_table():
-    conn = psycopg2.connect(**DB_CONFIG)
-    cursor = conn.cursor()
-    create_table_query = """
-    CREATE TABLE IF NOT EXISTS completed_contacts (
-        contact_id VARCHAR(50),
-        contact_start_date TIMESTAMP,
-        last_update_time TIMESTAMP,
-        from_address VARCHAR(100),
-        to_address VARCHAR(100),
-        media_type VARCHAR(50),
-        is_outbound BOOLEAN,
-        master_contact_id VARCHAR(50)
-    );
-    """
-    cursor.execute(create_table_query)
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-# Insert raw data into PostgreSQL
+# Insert raw CSV data into PostgreSQL
 def insert_raw_data_to_db(csv_file):
-    conn = psycopg2.connect(**DB_CONFIG)
-    cursor = conn.cursor()
-    df = pd.read_csv(csv_file)
-    for _, row in df.iterrows():
-        cursor.execute(
-            """
-            INSERT INTO completed_contacts (contact_id, contact_start_date, last_update_time, from_address, to_address, media_type, is_outbound, master_contact_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-            (row['contactId'], row['contactStartDate'], row['lastUpdateTime'], row['fromAddress'],
-             row['toAddress'], row['mediaType'], row['isOutbound'], row['masterContactId'])
-        )
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
 
-# Function to filter and summarize data
-def filter_and_summarize_data():
-    conn = psycopg2.connect(**DB_CONFIG)
-    df = pd.read_sql("SELECT * FROM completed_contacts", conn)
-    conn.close()
+        # Ensure table exists
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS completed_contacts (
+            contact_id VARCHAR(50),
+            contact_start_date TIMESTAMP,
+            last_update_time TIMESTAMP,
+            from_address VARCHAR(100),
+            to_address VARCHAR(100),
+            media_type VARCHAR(50),
+            is_outbound BOOLEAN,
+            master_contact_id VARCHAR(50)
+        );
+        """
+        cursor.execute(create_table_query)
 
-    # Filtering conditions
+        # Read CSV and insert data
+        df = pd.read_csv(csv_file)
+        for _, row in df.iterrows():
+            cursor.execute("""
+                INSERT INTO completed_contacts 
+                (contact_id, contact_start_date, last_update_time, from_address, to_address, media_type, is_outbound, master_contact_id) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                row.get('contactId'),
+                row.get('contactStartDate'),
+                row.get('lastUpdateTime'),
+                row.get('fromAddress'),
+                row.get('toAddress'),
+                row.get('mediaType'),
+                row.get('isOutbound'),
+                row.get('masterContactId')
+            ))
+
+        conn.commit()
+        print("Raw data successfully stored in PostgreSQL.")
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error inserting data into PostgreSQL: {e}")
+
+# Filter and summarize data
+def filter_data(data):
+    df = pd.DataFrame(data)
+
+    # Print column names to identify the issue
+    print("Column Names in DataFrame:", df.columns)
+
+    # Column renaming and validation
+    if 'mediaTypeId' in df.columns:
+        df.rename(columns={'mediaTypeId': 'mediaType'}, inplace=True)
+    elif 'mediaTypeld' in df.columns:
+        df.rename(columns={'mediaTypeld': 'mediaType'}, inplace=True)
+    elif 'mediaType' not in df.columns:
+        raise KeyError("The required column 'mediaType' is missing from the dataset.")
+
+    # Convert columns for filtering
+    df['mediaType'] = df['mediaType'].astype(str)
+    df['isOutbound'] = df['isOutbound'].astype(bool)
+    df['preQueueSeconds'] = pd.to_numeric(df['preQueueSeconds'], errors='coerce').fillna(0)
+    df['inQueueSeconds'] = pd.to_numeric(df['inQueueSeconds'], errors='coerce').fillna(0)
+    df['agentSeconds'] = pd.to_numeric(df['agentSeconds'], errors='coerce').fillna(0)
+
+    # Filtering data as per conditions
     filtered_df = df[
-        (df['media_type'] == '4') &
-        (df['is_outbound'] == False) &
-        (df['master_contact_id'] == df['contact_id']) &
+        (df['mediaType'] == '4') &
+        (df['isOutbound'] == False) &
+        (df['masterContactId'] == df['contactId']) &
         (df['abandoned'] == False) &
         (df['agentSeconds'] == 0) &
         (df['inQueueSeconds'] == 0) &
-        (df['preQueueSeconds'] > 1)
+        (df['preQueueSeconds'] > 1) &
+        (df['endReason'].isin(["Contact Hung Up", "Contact Hang Up via Script"]))
     ]
 
-    # Summarize the data
-    summary = filtered_df.groupby('to_address').agg(
-        offered_calls=('contact_id', 'count'),
-        answered_calls=('contact_id', 'count'),
-        ivr_abandon=('abandoned', 'sum')
-    ).reset_index()
+    print(f"Filtered records: {len(filtered_df)}")
+    return filtered_df
 
-    print("Filtered and summarized data")
-    return summary
+# Store summarized data into a separate PostgreSQL table
+def store_summary_to_postgresql(filtered_data):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
 
-# Save summary data to PostgreSQL
-def save_summary_to_db(summary_data):
-    conn = psycopg2.connect(**DB_CONFIG)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS dashboard_summary (
-            to_address VARCHAR(100),
-            offered_calls INT,
-            answered_calls INT,
-            ivr_abandon INT
-        );
-    """)
+        # Create summary table if not exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS dashboard_summary (
+                media_type VARCHAR(50),
+                offered_calls INT,
+                ivr_abandon INT,
+                total_calls INT
+            );
+        """)
 
-    for _, row in summary_data.iterrows():
-        cursor.execute(
-            """
-            INSERT INTO dashboard_summary (to_address, offered_calls, answered_calls, ivr_abandon)
+        # Calculating summary
+        offered_calls = len(filtered_data)
+        ivr_abandon = len(filtered_data[filtered_data['preQueueSeconds'] > 1])
+        total_calls = offered_calls + ivr_abandon
+
+        # Insert summary data
+        cursor.execute("""
+            INSERT INTO dashboard_summary (media_type, offered_calls, ivr_abandon, total_calls) 
             VALUES (%s, %s, %s, %s)
-            """,
-            (row['to_address'], row['offered_calls'], row['answered_calls'], row['ivr_abandon'])
-        )
-    conn.commit()
-    cursor.close()
-    conn.close()
+        """, (
+            '4',
+            offered_calls,
+            ivr_abandon,
+            total_calls
+        ))
+
+        conn.commit()
+        print("Summary data successfully stored in PostgreSQL.")
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error storing summary data: {e}")
+
+# Delete the CSV file after data insertion
+def delete_csv_file(csv_file):
+    try:
+        os.remove(csv_file)
+        print(f"{csv_file} deleted successfully.")
+    except Exception as e:
+        print(f"Error deleting CSV file: {e}")
 
 # Main Execution Flow
 if __name__ == "__main__":
+    # Generate Access Token
     auth_token = get_access_token()
+
+    # Set the time range for the last 2 hours
     end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    # Fetch and save raw data
-    create_raw_table()
+    # Fetch data from the API
     data = fetch_data(start_date, end_date, auth_token)
-    csv_file = save_data_to_csv(data)
-    insert_raw_data_to_db(csv_file)
 
-    # Filter and summarize data
-    summary_data = filter_and_summarize_data()
-    save_summary_to_db(summary_data)
+    if data:
+        # Save data to CSV and insert into database
+        csv_file = save_data_to_csv(data)
+        insert_raw_data_to_db(csv_file)
 
-    # Delete CSV
-    os.remove(csv_file)
-    print("Data processing complete.")
+        # Filter data and store summarized results
+        filtered_data = filter_data(data)
+        if not filtered_data.empty:
+            store_summary_to_postgresql(filtered_data)
+
+        # Delete the CSV file after successful data insertion
+        delete_csv_file(csv_file)
+    else:
+        print("No data fetched for the given time range.")
