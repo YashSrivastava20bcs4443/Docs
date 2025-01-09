@@ -1,139 +1,126 @@
-To automate the setup and configuration of Asterisk for bulk telecom number testing, you can create scripts that handle both the installation and configuration of necessary components. Below is a more streamlined, automated method to install and configure Asterisk with Python or Bash scripts for bulk calling.
+import requests
+import pandas as pd
+import psycopg2
+from psycopg2 import sql
 
-1. Automating Asterisk Installation:
+# Database connection details
+DB_CONFIG = {
+    'dbname': 'your_dbname',
+    'user': 'postgres',
+    'password': 'Zxcv@1234',
+    'host': '172.16.130.247',
+    'port': '5432'
+}
 
-Use a shell script to install Asterisk on your Linux server:
+# Step 1: Fetch Data from API and Save to CSV
+def fetch_data_and_save_to_csv():
+    url = "https://api.example.com/data"
+    headers = {"Authorization": "Bearer YOUR_ACCESS_TOKEN"}
+    response = requests.get(url, headers=headers)
+    data = response.json()
 
-install_asterisk.sh (Script to automate installation)
+    df = pd.DataFrame(data)
+    df.to_csv('completed_contacts.csv', index=False)
+    print("Data saved to completed_contacts.csv")
+    return df
 
-#!/bin/bash
+# Step 2: Insert Raw CSV Data into Database Table
+def insert_raw_data_to_db():
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
 
-# Update and install dependencies
-sudo apt update
-sudo apt upgrade -y
-sudo apt install -y build-essential wget subversion libjansson-dev libxml2-dev libssl-dev \
-                   libncurses5-dev libnewt-dev libcurl4-openssl-dev libtool bison \
-                   flex python3-dev git
+    # Ensure table exists
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS completed_contacts (
+        contact_id VARCHAR,
+        contact_start_date TIMESTAMP,
+        last_update_time TIMESTAMP,
+        from_address VARCHAR,
+        to_address VARCHAR,
+        mediaType VARCHAR,
+        isOutbound BOOLEAN,
+        masterContactId VARCHAR
+    );
+    ''')
+    conn.commit()
 
-# Download and install Asterisk
-cd /usr/src
-sudo wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-20-current.tar.gz
-sudo tar -xzvf asterisk-20-current.tar.gz
-cd asterisk-20*/
+    df = pd.read_csv('completed_contacts.csv')
 
-# Install required packages for Asterisk build
-sudo contrib/scripts/install_prereq install
+    # Column name correction
+    df.columns = df.columns.str.strip()
 
-# Compile and Install Asterisk
-sudo ./configure
-sudo make
-sudo make install
-sudo make samples
-sudo make config
+    for _, row in df.iterrows():
+        try:
+            cursor.execute(
+                """
+                INSERT INTO completed_contacts (contact_id, contact_start_date, last_update_time, from_address, to_address, mediaType, isOutbound, masterContactId)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (row['contactId'], row['contactStartDate'], row['lastupdateTime'], row['FromAddress'], row['toAddress'], row['mediaType'], row['isOutbound'], row['masterContactId'])
+            )
+        except Exception as e:
+            print(f"Error inserting row: {e}")
 
-# Enable Asterisk service
-sudo systemctl enable asterisk
-sudo systemctl start asterisk
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print("Raw data inserted into completed_contacts table")
 
-echo "Asterisk installation completed successfully!"
+# Step 3: Filter and Summarize the Data
+def filter_and_summarize_data():
+    df = pd.read_csv('completed_contacts.csv')
 
-2. Automating Asterisk Configuration for Bulk Testing
+    # Column correction for consistent naming
+    df.columns = df.columns.str.strip()
 
-Once Asterisk is installed, you can automate the configuration of SIP trunks and dial plans using a script.
+    summary = {
+        'unique_toll_numbers': df['toAddress'].nunique(),
+        'ivr_offered_count': df[df['mediaType'] == 'IVR'].shape[0],
+        'ivr_abandon_count': df[df['abandoned'] == True].shape[0],
+        'polite_disconnect_count': df[df['endReason'] == 'PoliteDisconnect'].shape[0],
+        'queue_abandon_count': df[df['endReason'] == 'QueueAbandon'].shape[0]
+    }
+    print("Summary Data:", summary)
+    return summary
 
-configure_asterisk.sh (Configure SIP trunk and dial plan)
+# Step 4: Save Filtered Summary Data in Another Database Table
+def save_summary_to_db(summary):
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
 
-#!/bin/bash
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS dashboard_summary (
+        media_type VARCHAR,
+        unique_toll_numbers INT,
+        ivr_offered_count INT,
+        ivr_abandon_count INT,
+        polite_disconnect_count INT,
+        queue_abandon_count INT
+    );
+    ''')
 
-# Define variables
-SIP_TRUNK_NAME="mysiptrunk"
-ISP_SERVER_IP="your.isp.server.ip"
-ISP_USERNAME="your_isp_username"
-ISP_PASSWORD="your_isp_password"
+    try:
+        cursor.execute(
+            """
+            INSERT INTO dashboard_summary (media_type, unique_toll_numbers, ivr_offered_count, ivr_abandon_count, polite_disconnect_count, queue_abandon_count)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            ('IVR', summary['unique_toll_numbers'], summary['ivr_offered_count'], summary['ivr_abandon_count'], summary['polite_disconnect_count'], summary['queue_abandon_count'])
+        )
+    except Exception as e:
+        print(f"Error storing summary data: {e}")
 
-# Backup the original configuration files
-sudo cp /etc/asterisk/sip.conf /etc/asterisk/sip.conf.backup
-sudo cp /etc/asterisk/extensions.conf /etc/asterisk/extensions.conf.backup
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print("Summary data stored successfully")
 
-# Configure SIP trunk in sip.conf
-echo "[general]
-register => $ISP_USERNAME:$ISP_PASSWORD@$ISP_SERVER_IP
-
-[$SIP_TRUNK_NAME]
-type=friend
-host=$ISP_SERVER_IP
-context=from-trunk
-disallow=all
-allow=ulaw
-" | sudo tee -a /etc/asterisk/sip.conf > /dev/null
-
-# Configure extensions for bulk calling in extensions.conf
-echo "[from-trunk]
-exten => _X.,1,Dial(SIP/\${EXTEN}@$SIP_TRUNK_NAME)
-exten => _X.,n,Hangup()
-" | sudo tee -a /etc/asterisk/extensions.conf > /dev/null
-
-# Reload Asterisk configuration
-sudo asterisk -rx "reload"
-
-echo "Asterisk configuration for SIP trunk and extensions completed!"
-
-3. Automating Bulk Calling with Python:
-
-Once the installation and configuration are automated, you can create a Python script that generates and initiates calls to the 400 telecom numbers.
-
-bulk_call.py (Python script for bulk calling)
-
-import os
-import time
-
-# List of telecom numbers to call
-phone_numbers = ["9876543210", "9123456789", "9988776655"]  # Replace with 400 numbers
-
-# Loop through each number and initiate the call
-for number in phone_numbers:
-    call_command = f"sudo asterisk -rx 'channel originate SIP/{number}@mysiptrunk application Playback hello-world'"
-    print(f"Initiating call to {number}...")
-    os.system(call_command)  # Initiate the call
-    time.sleep(1)  # Wait for 1 second before initiating the next call
-
-print("Bulk call initiation complete!")
-
-4. Running the Automation Scripts
-
-1. First, run the installation script:
-
-sudo bash install_asterisk.sh
-
-
-2. After installation is complete, run the configuration script:
-
-sudo bash configure_asterisk.sh
-
-
-3. Finally, run the Python script to make bulk calls:
-
-python3 bulk_call.py
-
-
-
-5. Monitoring and Logging
-
-To monitor the status of the calls, you can use the Asterisk CLI or log files. Here’s how you can track call logs:
-
-View Asterisk CLI logs:
-
-sudo asterisk -rvvv
-
-Log call details: Edit the Asterisk dial plan to enable logging for each call:
-
-exten => _X.,n,Verbose(1, Calling ${EXTEN})
-exten => _X.,n,Hangup()
-
-
-You can also check logs in /var/log/asterisk/full for detailed information about each call attempt.
-
-
----
-
-This approach automates Asterisk installation, configuration, and bulk calling. It provides flexibility and scalability for testing your telecom numbers. Would you like further help with any part of this process?
+# Main execution flow
+if __name__ == "__main__":
+    try:
+        fetch_data_and_save_to_csv()
+        insert_raw_data_to_db()
+        summary_data = filter_and_summarize_data()
+        save_summary_to_db(summary_data)
+    except Exception as e:
+        print(f"Error in script execution: {e}")
