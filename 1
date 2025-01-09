@@ -1,1 +1,46 @@
+# Updated Function for Summary Calculation
+def store_summary_to_postgresql(filtered_data):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
 
+        # Create summary table if not exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS dashboard_summary (
+                media_type VARCHAR(50),
+                unique_toll_numbers INT,
+                ivr_offered_count INT,
+                ivr_abandon_count INT,
+                polite_disconnect_count INT,
+                queue_abandon_count INT
+            );
+        """)
+
+        # Calculating summary metrics
+        unique_toll_numbers = filtered_data['toAddress'].nunique()
+        ivr_offered_count = len(filtered_data)
+        ivr_abandon_count = len(filtered_data[filtered_data['preQueueSeconds'] > 1])
+        polite_disconnect_count = len(filtered_data[
+            filtered_data['endReason'].isin(["Contact Hung Up", "Contact Hang Up via Script"])
+        ])
+        queue_abandon_count = len(filtered_data[filtered_data['inQueueSeconds'] > 0])
+
+        # Insert summary data into PostgreSQL
+        cursor.execute("""
+            INSERT INTO dashboard_summary (media_type, unique_toll_numbers, ivr_offered_count, ivr_abandon_count, polite_disconnect_count, queue_abandon_count) 
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            '4',
+            unique_toll_numbers,
+            ivr_offered_count,
+            ivr_abandon_count,
+            polite_disconnect_count,
+            queue_abandon_count
+        ))
+
+        conn.commit()
+        print("Summary data successfully stored in PostgreSQL.")
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error storing summary data: {e}")
