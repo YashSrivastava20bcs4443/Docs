@@ -1,1 +1,142 @@
+import requests
+import json
+from datetime import datetime, timedelta, timezone
+import psycopg2
+
+# API and Access Token Details
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+
+# PostgreSQL Connection Details
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# Generate Access Token
+def get_access_token():
+    try:
+        response = requests.post(ACCESS_TOKEN_URL)
+        response_data = response.json()
+        if "access_token" in response_data:
+            print("Access Token generated successfully.")
+            return response_data['access_token']
+        else:
+            raise Exception("Failed to generate access token.")
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        exit()
+
+# Fetch data from API
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
+    all_data = []
+    skip = 0
+    top = 10000  
+
+    while True:
+        params = {
+            "startdate": start_date,
+            "enddate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+
+    print(f"Total records fetched: {len(all_data)}")
+    return all_data
+
+# Create 'raw' table dynamically
+def create_raw_table(cursor):
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS raw (
+        contact_id BIGINT,
+        master_contact_id BIGINT,
+        media_type INTEGER,
+        to_addr TEXT,
+        from_addr TEXT,
+        abandoned BOOLEAN,
+        abandon_seconds INTEGER,
+        agent_seconds BIGINT,
+        pre_queue_seconds BIGINT,
+        in_queue_seconds BIGINT,
+        end_reason TEXT,
+        contact_start TIMESTAMP,
+        last_update_time TIMESTAMP
+    );
+    """
+    cursor.execute(create_table_query)
+
+# Insert data into 'raw' table
+def insert_raw_data(cursor, data):
+    try:
+        insert_query = """
+        INSERT INTO raw (
+            contact_id, master_contact_id, media_type, to_addr, from_addr, 
+            abandoned, abandon_seconds, agent_seconds, pre_queue_seconds, 
+            in_queue_seconds, end_reason, contact_start, last_update_time
+        )
+        VALUES (
+            %(contactId)s, %(masterContactId)s, %(mediaType)s, %(toAddr)s, %(fromAddr)s, 
+            %(abandoned)s, %(abandonSeconds)s, %(agentSeconds)s, %(preQueueSeconds)s, 
+            %(inQueueSeconds)s, %(endReason)s, %(contactStart)s, %(lastUpdateTime)s
+        )
+        """
+        for record in data:
+            # Clean data for large numbers
+            record['agentSeconds'] = min(record.get('agentSeconds', 0), 9223372036854775807)
+            record['preQueueSeconds'] = min(record.get('preQueueSeconds', 0), 9223372036854775807)
+            record['inQueueSeconds'] = min(record.get('inQueueSeconds', 0), 9223372036854775807)
+            cursor.execute(insert_query, record)
+    except Exception as e:
+        print(f"Error storing raw data: {e}")
+
+# Main Execution Flow
+if __name__ == "__main__":
+    # Generate Access Token
+    auth_token = get_access_token()
+
+    # Set the time range for the last 2 hours
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    # Fetch data from the API
+    data = fetch_data(start_date, end_date, auth_token)
+
+    # Connect to PostgreSQL
+    try:
+        connection = psycopg2.connect(**DB_CONFIG)
+        cursor = connection.cursor()
+
+        # Create table and insert data
+        create_raw_table(cursor)
+        if data:
+            insert_raw_data(cursor, data)
+            print("Raw data stored successfully.")
+        else:
+            print("No data fetched for the given time range.")
+
+        # Commit the transaction
+        connection.commit()
+    except Exception as e:
+        print(f"Database error: {e}")
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
