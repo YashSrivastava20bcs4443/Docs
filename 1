@@ -1,7 +1,7 @@
 import requests
 import json
-from datetime import datetime, timedelta, timezone
 import psycopg2
+from datetime import datetime, timedelta, timezone
 
 # API and Access Token Details
 API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
@@ -9,9 +9,9 @@ ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api
 
 # PostgreSQL Connection Details
 DB_CONFIG = {
-    "host": "172.16.130.247",
-    "database": "postgres",
-    "user": "postgres",
+    "host": "172.16.130.247", 
+    "database": "postgres", 
+    "user": "postgres", 
     "password": "Zxcv@1234"
 }
 
@@ -29,7 +29,7 @@ def get_access_token():
         print(f"Error generating access token: {e}")
         exit()
 
-# Fetch data from API
+# Fetch Data from API
 def fetch_data(start_date, end_date, auth_token):
     headers = {
         "Authorization": f"Bearer {auth_token}",
@@ -37,7 +37,7 @@ def fetch_data(start_date, end_date, auth_token):
     }
     all_data = []
     skip = 0
-    top = 10000  
+    top = 10000  # Adjust this value as needed for pagination
 
     while True:
         params = {
@@ -60,50 +60,97 @@ def fetch_data(start_date, end_date, auth_token):
     print(f"Total records fetched: {len(all_data)}")
     return all_data
 
-# Create 'raw' table dynamically
-def create_raw_table(cursor):
-    create_table_query = """
-    CREATE TABLE IF NOT EXISTS raw (
-        contact_id BIGINT,
-        master_contact_id BIGINT,
-        media_type INTEGER,
-        to_addr TEXT,
-        from_addr TEXT,
-        abandoned BOOLEAN,
-        abandon_seconds INTEGER,
-        agent_seconds BIGINT,
-        pre_queue_seconds BIGINT,
-        in_queue_seconds BIGINT,
-        end_reason TEXT,
-        contact_start TIMESTAMP,
-        last_update_time TIMESTAMP
-    );
-    """
-    cursor.execute(create_table_query)
-
-# Insert data into 'raw' table
+# Insert Raw Data into Database
 def insert_raw_data(cursor, data):
     try:
         insert_query = """
         INSERT INTO raw (
-            contact_id, master_contact_id, media_type, to_addr, from_addr, 
+            contact_id, master_contact_id, media_type_id, to_addr, from_addr, 
             abandoned, abandon_seconds, agent_seconds, pre_queue_seconds, 
             in_queue_seconds, end_reason, contact_start, last_update_time
         )
         VALUES (
-            %(contactId)s, %(masterContactId)s, %(mediaType)s, %(toAddr)s, %(fromAddr)s, 
+            %(contactId)s, %(masterContactId)s, %(mediaTypeId)s, %(toAddr)s, %(fromAddr)s, 
             %(abandoned)s, %(abandonSeconds)s, %(agentSeconds)s, %(preQueueSeconds)s, 
             %(inQueueSeconds)s, %(endReason)s, %(contactStart)s, %(lastUpdateTime)s
         )
         """
         for record in data:
-            # Clean data for large numbers
-            record['agentSeconds'] = min(record.get('agentSeconds', 0), 9223372036854775807)
-            record['preQueueSeconds'] = min(record.get('preQueueSeconds', 0), 9223372036854775807)
-            record['inQueueSeconds'] = min(record.get('inQueueSeconds', 0), 9223372036854775807)
-            cursor.execute(insert_query, record)
+            # Ensure all required keys are present, and set defaults for missing ones
+            sanitized_record = {
+                'contactId': record.get('contactId', None),
+                'masterContactId': record.get('masterContactId', None),
+                'mediaTypeId': record.get('mediaTypeId', None),  # Corrected field name
+                'toAddr': record.get('toAddr', None),
+                'fromAddr': record.get('fromAddr', None),
+                'abandoned': record.get('abandoned', False),
+                'abandonSeconds': record.get('abandonSeconds', 0),
+                'agentSeconds': min(record.get('agentSeconds', 0), 9223372036854775807),
+                'preQueueSeconds': min(record.get('preQueueSeconds', 0), 9223372036854775807),
+                'inQueueSeconds': min(record.get('inQueueSeconds', 0), 9223372036854775807),
+                'endReason': record.get('endReason', None),
+                'contactStart': record.get('contactStart', None),
+                'lastUpdateTime': record.get('lastUpdateTime', None)
+            }
+
+            # Insert sanitized record into the database
+            cursor.execute(insert_query, sanitized_record)
     except Exception as e:
         print(f"Error storing raw data: {e}")
+
+# Establish Database Connection
+def connect_db():
+    try:
+        conn = psycopg2.connect(
+            host=DB_CONFIG["host"], 
+            database=DB_CONFIG["database"], 
+            user=DB_CONFIG["user"], 
+            password=DB_CONFIG["password"]
+        )
+        return conn
+    except Exception as e:
+        print(f"Error connecting to the database: {e}")
+        exit()
+
+# Filter Data and Store Processed Data
+def filter_and_store_data(cursor, data):
+    # Implement the logic for filtering based on your requirements
+    filtered_data = []
+    for record in data:
+        # Example filtering (you can customize this part)
+        if record.get('mediaTypeId') == 4 and record.get('isOutbound') is False:
+            filtered_data.append(record)
+
+    # Store the filtered data into a new table
+    insert_filtered_query = """
+    INSERT INTO filtered_data (
+        contact_id, master_contact_id, media_type_id, to_addr, from_addr, 
+        abandoned, abandon_seconds, agent_seconds, pre_queue_seconds, 
+        in_queue_seconds, end_reason, contact_start, last_update_time
+    )
+    VALUES (
+        %(contactId)s, %(masterContactId)s, %(mediaTypeId)s, %(toAddr)s, %(fromAddr)s, 
+        %(abandoned)s, %(abandonSeconds)s, %(agentSeconds)s, %(preQueueSeconds)s, 
+        %(inQueueSeconds)s, %(endReason)s, %(contactStart)s, %(lastUpdateTime)s
+    )
+    """
+    for record in filtered_data:
+        sanitized_filtered_record = {
+            'contactId': record.get('contactId', None),
+            'masterContactId': record.get('masterContactId', None),
+            'mediaTypeId': record.get('mediaTypeId', None),
+            'toAddr': record.get('toAddr', None),
+            'fromAddr': record.get('fromAddr', None),
+            'abandoned': record.get('abandoned', False),
+            'abandonSeconds': record.get('abandonSeconds', 0),
+            'agentSeconds': min(record.get('agentSeconds', 0), 9223372036854775807),
+            'preQueueSeconds': min(record.get('preQueueSeconds', 0), 9223372036854775807),
+            'inQueueSeconds': min(record.get('inQueueSeconds', 0), 9223372036854775807),
+            'endReason': record.get('endReason', None),
+            'contactStart': record.get('contactStart', None),
+            'lastUpdateTime': record.get('lastUpdateTime', None)
+        }
+        cursor.execute(insert_filtered_query, sanitized_filtered_record)
 
 # Main Execution Flow
 if __name__ == "__main__":
@@ -116,27 +163,24 @@ if __name__ == "__main__":
 
     # Fetch data from the API
     data = fetch_data(start_date, end_date, auth_token)
+    if data:
+        print("Data fetched successfully.")
 
-    # Connect to PostgreSQL
-    try:
-        connection = psycopg2.connect(**DB_CONFIG)
-        cursor = connection.cursor()
+        # Connect to the database
+        conn = connect_db()
+        cursor = conn.cursor()
 
-        # Create table and insert data
-        create_raw_table(cursor)
-        if data:
-            insert_raw_data(cursor, data)
-            print("Raw data stored successfully.")
-        else:
-            print("No data fetched for the given time range.")
+        # Store raw data into the database
+        insert_raw_data(cursor, data)
 
-        # Commit the transaction
-        connection.commit()
-    except Exception as e:
-        print(f"Database error: {e}")
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
+        # Filter and store processed data
+        filter_and_store_data(cursor, data)
 
+        # Commit and close connection
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        print("Data processing complete.")
+    else:
+        print("No data fetched for the given time range.")
