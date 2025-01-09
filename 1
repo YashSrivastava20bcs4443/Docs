@@ -1,46 +1,29 @@
-# Updated Function for Summary Calculation
-def store_summary_to_postgresql(filtered_data):
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
+#!/bin/bash
 
-        # Create summary table if not exists
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS dashboard_summary (
-                media_type VARCHAR(50),
-                unique_toll_numbers INT,
-                ivr_offered_count INT,
-                ivr_abandon_count INT,
-                polite_disconnect_count INT,
-                queue_abandon_count INT
-            );
-        """)
+# Update and install dependencies
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y build-essential wget subversion libjansson-dev libxml2-dev libssl-dev \
+                   libncurses5-dev libnewt-dev libcurl4-openssl-dev libtool bison \
+                   flex python3-dev git
 
-        # Calculating summary metrics
-        unique_toll_numbers = filtered_data['toAddress'].nunique()
-        ivr_offered_count = len(filtered_data)
-        ivr_abandon_count = len(filtered_data[filtered_data['preQueueSeconds'] > 1])
-        polite_disconnect_count = len(filtered_data[
-            filtered_data['endReason'].isin(["Contact Hung Up", "Contact Hang Up via Script"])
-        ])
-        queue_abandon_count = len(filtered_data[filtered_data['inQueueSeconds'] > 0])
+# Download and install Asterisk
+cd /usr/src
+sudo wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-20-current.tar.gz
+sudo tar -xzvf asterisk-20-current.tar.gz
+cd asterisk-20*/
 
-        # Insert summary data into PostgreSQL
-        cursor.execute("""
-            INSERT INTO dashboard_summary (media_type, unique_toll_numbers, ivr_offered_count, ivr_abandon_count, polite_disconnect_count, queue_abandon_count) 
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (
-            '4',
-            unique_toll_numbers,
-            ivr_offered_count,
-            ivr_abandon_count,
-            polite_disconnect_count,
-            queue_abandon_count
-        ))
+# Install required packages for Asterisk build
+sudo contrib/scripts/install_prereq install
 
-        conn.commit()
-        print("Summary data successfully stored in PostgreSQL.")
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        print(f"Error storing summary data: {e}")
+# Compile and install Asterisk
+sudo ./configure
+sudo make
+sudo make install
+sudo make samples
+sudo make config
+
+# Enable and start Asterisk service
+sudo systemctl enable asterisk
+sudo systemctl start asterisk
+
+echo "Asterisk installation completed successfully!"
