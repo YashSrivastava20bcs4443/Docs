@@ -1,1 +1,137 @@
+import requests
+import pandas as pd
+import psycopg2
+from datetime import datetime, timedelta
+from sqlalchemy import create_engine
+
+# API and Access Token Details
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# Generate Access Token
+def get_access_token():
+    try:
+        response = requests.post(ACCESS_TOKEN_URL)
+        response_data = response.json()
+        if "access_token" in response_data:
+            print("Access Token generated successfully.")
+            return response_data['access_token']
+        else:
+            raise Exception("Failed to generate access token.")
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        exit()
+
+# Fetch data from API
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
+    all_data = []
+    skip = 0
+    top = 10000  
+
+    while True:
+        params = {
+            "startdate": start_date,
+            "enddate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+
+    print(f"Total records fetched: {len(all_data)}")
+    return all_data
+
+# Save raw data to database
+def save_to_database(data, table_name):
+    df = pd.DataFrame(data)
+    print(f"Column Names: {list(df.columns)}")
+    print(f"First 5 Rows:\n{df.head()}")
+
+    # Use SQLAlchemy to dynamically handle bigints
+    engine = create_engine(
+        f"postgresql+psycopg2://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}/{DB_CONFIG['database']}"
+    )
+    df.to_sql(table_name, engine, if_exists="replace", index=False)
+    print(f"Data saved to table: {table_name}")
+
+# Filter data for expected output
+def filter_data(data):
+    df = pd.DataFrame(data)
+
+    # Convert necessary columns to proper data types
+    df["mediaTypeId"] = pd.to_numeric(df["mediaType"], errors="coerce")
+    df["preQueueSeconds"] = pd.to_numeric(df["preQueueSeconds"], errors="coerce")
+    df["agentSeconds"] = pd.to_numeric(df["agentSeconds"], errors="coerce")
+    df["inQueueSeconds"] = pd.to_numeric(df["inQueueSeconds"], errors="coerce")
+    df["endReason"] = df["endReason"].astype(str)
+
+    # Apply filters for expected metrics
+    ivr_offered = df[
+        (df["mediaTypeId"] == 4) &
+        (~df["isOutbound"]) &
+        (df["masterContactId"] == df["contactId"])
+    ]
+
+    polite_disconnect = ivr_offered[
+        (ivr_offered["abandoned"] == False) &
+        (ivr_offered["agentSeconds"] == 0) &
+        (ivr_offered["preQueueSeconds"] > 1) &
+        (ivr_offered["endReason"].str.contains("Script"))
+    ]
+
+    queue_abandon = df[
+        (df["mediaTypeId"] == 4) &
+        (df["isOutbound"]) &
+        (df["abandoned"] == False) &
+        (df["agentSeconds"] == 0) &
+        (df["inQueueSeconds"] > 0)
+    ]
+
+    # Prepare summarized table
+    result = pd.DataFrame({
+        "Number": df["toAddr"].unique(),
+        "Offered Calls": ivr_offered.groupby("toAddr").size(),
+        "Answered": ivr_offered[ivr_offered["agentSeconds"] > 0].groupby("toAddr").size(),
+        "IVR Abandon": ivr_offered[ivr_offered["preQueueSeconds"] > 1].groupby("toAddr").size(),
+        "Queue Abandon": queue_abandon.groupby("toAddr").size(),
+        "Polite Disconnect": polite_disconnect.groupby("toAddr").size()
+    }).fillna(0).reset_index()
+
+    return result
+
+# Main execution
+def main():
+    auth_token = get_access_token()
+    end_date = datetime.now()
+    start_date = end_date - timedelta(hours=2)
+
+    raw_data = fetch_data(start_date.isoformat(), end_date.isoformat(), auth_token)
+    save_to_database(raw_data, "raw_df")
+
+    filtered_data = filter_data(raw_data)
+    save_to_database(filtered_data.to_dict(orient="records"), "filtered_data")
+
+    print("Filtered Data:")
+    print(filtered_data.head())
+
+if __name__ == "__main__":
+    main()
 
