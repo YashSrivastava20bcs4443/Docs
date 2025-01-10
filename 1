@@ -60,19 +60,29 @@ def fetch_data(start_date, end_date, auth_token):
     print(f"Total records fetched: {len(all_data)}")
     return all_data
 
-# Save data to CSV
-def save_to_csv(data):
-    if not data:
-        print("No data to write to CSV.")
-        return
-    
-    keys = data[0].keys()
-    with open(CSV_FILE, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=keys)
-        writer.writeheader()
-        writer.writerows(data)
+import csv
 
-    print(f"Data written to {CSV_FILE}.")
+# Save data to a CSV file
+def save_to_csv(data, file_name="data.csv"):
+    if not data:
+        print("No data to save.")
+        return
+
+    # Dynamically determine fieldnames from the data
+    fieldnames = set()
+    for record in data:
+        fieldnames.update(record.keys())
+    fieldnames = list(fieldnames)
+
+    try:
+        with open(file_name, mode="w", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(data)
+        print(f"Data saved successfully to {file_name}.")
+    except Exception as e:
+        print(f"Error saving to CSV: {e}")
+
 
 # Print CSV column names and first 5 rows
 def print_csv_preview():
