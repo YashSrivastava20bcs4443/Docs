@@ -1,78 +1,24 @@
-sudo apt update && sudo apt upgrade -y
+sudo adduser --system --home /var/lib/asterisk --no-create-home --group asterisk
+
+sudo chown -R asterisk:asterisk /etc/asterisk
+sudo chown -R asterisk:asterisk /var/{lib,log,spool}/asterisk
+sudo chown -R asterisk:asterisk /usr/lib/asterisk
+sudo chown -R asterisk:asterisk /var/www/
 
 
-sudo hostnamectl set-hostname pbx.localdomain
+sudo nano /etc/asterisk/asterisk.conf
 
+runuser = asterisk
+rungroup = asterisk
 
-sudo apt install -y wget build-essential git curl apache2 mariadb-server mariadb-client \
-libapache2-mod-php php php-common php-curl php-cli php-mbstring php-xml php-pear php-bcmath php-zip \
-libncurses5-dev libssl-dev libxml2-dev uuid-dev libsqlite3-dev
-
-sudo systemctl enable mariadb
-sudo systemctl start mariadb
-
-
-sudo mysql_secure_installation
-
-
-cd /usr/src
-sudo wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-20-current.tar.gz
-sudo tar -zxvf asterisk-20-current.tar.gz
-cd asterisk-20.*
-
-
-sudo contrib/scripts/install_prereq install
-
-
-sudo ./configure
-sudo make menuselect
-
-
-sudo make
-sudo make install
-sudo make samples
-sudo make config
-sudo ldconfig
-
-
-sudo mysql -u root -p
-
-
-CREATE DATABASE asterisk;
-CREATE DATABASE asteriskcdrdb;
-GRANT ALL PRIVILEGES ON asterisk.* TO 'asteriskuser'@'localhost' IDENTIFIED BY 'password';
-GRANT ALL PRIVILEGES ON asteriskcdrdb.* TO 'asteriskuser'@'localhost' IDENTIFIED BY 'password';
-FLUSH PRIVILEGES;
-EXIT;
-
-
-cd /usr/src
-sudo wget http://mirror.freepbx.org/modules/packages/freepbx/freepbx-16.0-latest.tgz
-sudo tar xvfz freepbx-16.0-latest.tgz
-cd freepbx
-sudo ./install -n
-
-
-sudo chown -R asterisk:asterisk /var/www/html/
-sudo chown -R asterisk:asterisk /etc/asterisk/
-
-
-sudo systemctl restart apache2
-sudo systemctl restart asterisk
-
-optional
-
-sudo apt install ufw -y
-sudo ufw allow 80/tcp      # HTTP
-sudo ufw allow 443/tcp     # HTTPS
-sudo ufw allow 5060/udp    # SIP
-sudo ufw allow 10000:20000/udp  # RTP
-sudo ufw enable
-
-
-
+cd /usr/src/freepbx
+./start_asterisk start
 sudo asterisk -rvvv
 
 
+sudo systemctl enable asterisk
+sudo systemctl start asterisk
+sudo systemctl restart apache2
 
 
+sudo ./install -n
