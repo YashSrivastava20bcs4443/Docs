@@ -1,1 +1,149 @@
+import requests
+import pandas as pd
+from datetime import datetime, timedelta
+import psycopg2
+from psycopg2 import sql
+import os
 
+# API and Access Token Details
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+
+# PostgreSQL Connection Details
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# Generate Access Token
+def get_access_token():
+    response = requests.post(ACCESS_TOKEN_URL)
+    response_data = response.json()
+    if "access_token" in response_data:
+        return response_data['access_token']
+    else:
+        raise Exception("Failed to generate access token.")
+
+# Fetch Data from API
+def fetch_data(auth_token, start_date, end_date):
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    all_data = []
+    skip = 0
+    top = 10000  # Max records per request
+    
+    while True:
+        params = {
+            "startdate": start_date,
+            "enddate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(API_URL, headers=headers, params=params)
+        response.raise_for_status()  # Ensure any HTTP error is raised
+        data = response.json()
+        if not data:
+            break
+        all_data.extend(data)
+        skip += top
+    return all_data
+
+# Save Data to CSV
+def save_to_csv(data, filename):
+    df = pd.DataFrame(data)
+    df.to_csv(filename, index=False)
+
+# Filter Data
+def filter_data(raw_data):
+    df = pd.DataFrame(raw_data)
+    # Handle mediaTypeId and other column-related filtering
+    filtered_df = df[
+        (df['mediaTypeId'] == 4) &  # Change to mediaTypeId
+        (~df['isOutbound']) &
+        (df['masterContactId'] == df['contactId'])
+    ]
+    
+    # Handle dict data by converting it to a string representation
+    for column in df.columns:
+        if df[column].apply(lambda x: isinstance(x, dict)).any():
+            df[column] = df[column].apply(str)
+    
+    return filtered_df
+
+# Push Data to PostgreSQL
+def push_to_db(dataframe, table_name):
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    # Adjust for integer overflow by using biginteger or text for large values
+    create_table_query = sql.SQL("""
+        CREATE TABLE IF NOT EXISTS {} (
+            id SERIAL PRIMARY KEY,
+            data JSONB
+        )
+    """).format(sql.Identifier(table_name))
+    cursor.execute(create_table_query)
+    
+    for _, row in dataframe.iterrows():
+        insert_query = sql.SQL("INSERT INTO {} (data) VALUES (%s)").format(sql.Identifier(table_name))
+        cursor.execute(insert_query, [row.to_dict()])
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+# Generate Expected Data Table
+def generate_expected_data(filtered_df):
+    grouped = (
+        filtered_df.groupby('toAddr', as_index=False)
+        .agg({
+            'contactId': 'count',  # Count total calls offered
+            'agentSeconds': lambda x: (x > 0).sum(),  # Count of answered calls
+            'abandoned': lambda x: (x & (filtered_df['agentSeconds'] == 0) & (filtered_df['inQueueSeconds'] == 0) & (filtered_df['preQueueSeconds'] > 1)).sum(),  # IVR Abandon
+            'endReason': lambda x: (x == "Contact Hung Up").sum(),  # Polite Disconnect
+            'inQueueSeconds': lambda x: (x > 0).sum()  # Queue Abandon
+        })
+        .rename(columns={
+            'contactId': 'Offered Calls',
+            'agentSeconds': 'Answered',
+            'abandoned': 'IVR Abandon',
+            'endReason': 'Polite Disconnect',
+            'inQueueSeconds': 'Queue Abandon'
+        })
+    )
+    return grouped
+
+# Main Workflow
+def main():
+    try:
+        # Generate Access Token
+        token = get_access_token()
+        
+        # Define Time Range
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(hours=2)
+        start_date, end_date = start_date.isoformat(), end_date.isoformat()
+
+        # Fetch Data
+        raw_data = fetch_data(token, start_date, end_date)
+        raw_csv = "raw_data.csv"
+        save_to_csv(raw_data, raw_csv)
+
+        # Filter Data
+        filtered_data = filter_data(raw_data)
+
+        # Push Raw Data to DB
+        push_to_db(pd.DataFrame(raw_data), "raw_data_table")
+
+        # Generate and Push Expected Data
+        expected_data = generate_expected_data(filtered_data)
+        push_to_db(expected_data, "expected_data_table")
+        print(expected_data)
+
+        # Cleanup
+        os.remove(raw_csv)
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    main()
