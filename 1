@@ -1,1 +1,182 @@
+import requests
+import csv
+import psycopg2
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+import os
 
+# API URLs and Token
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+
+# PostgreSQL connection details
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# File paths
+RAW_CSV_FILE = "raw_data.csv"
+FINAL_CSV_FILE = "final_data.csv"
+
+# Step 1: Fetch access token
+def fetch_access_token():
+    try:
+        response = requests.post(ACCESS_TOKEN_URL)
+        response.raise_for_status()
+        token = response.json().get("accessToken")
+        if not token:
+            raise ValueError("No access token found in the response.")
+        print("Access token fetched successfully.")
+        return token
+    except Exception as e:
+        print(f"Error fetching access token: {e}")
+        return None
+
+# Step 2: Fetch data from API with the provided time range
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        'Authorization': f'Bearer {auth_token}',
+        'Content-Type': 'application/json'
+    }
+
+    params = {
+        'startDate': start_date,
+        'endDate': end_date
+    }
+
+    try:
+        response = requests.get(API_URL, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json().get("results", [])
+        if not data:
+            print("No data fetched.")
+        return data
+    except Exception as e:
+        print(f"Error fetching data: {e}")
+        return []
+
+# Step 3: Process raw data and clean unnecessary fields
+def process_raw_data():
+    raw_data = []
+    try:
+        with open(RAW_CSV_FILE, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                if "toAddress" in row and "endReason" in row:
+                    raw_data.append({
+                        "toAddress": row["toAddress"],
+                        "endReason": row["endReason"]
+                    })
+    except Exception as e:
+        print(f"Error processing raw data: {e}")
+    return raw_data
+
+# Step 4: Aggregate data into the expected table format
+def aggregate_data(raw_data):
+    aggregated = defaultdict(lambda: {"Offered Calls": 0, "Answered": 0, "IVR Abandon": 0, "Queue Abandon": 0, "Polite Disconnect": 0})
+
+    for record in raw_data:
+        to_address = record["toAddress"]
+        end_reason = record["endReason"]
+
+        if to_address:
+            aggregated[to_address]["Offered Calls"] += 1
+            if end_reason == "Answered":
+                aggregated[to_address]["Answered"] += 1
+            elif end_reason == "IVR Abandon":
+                aggregated[to_address]["IVR Abandon"] += 1
+            elif end_reason == "Queue Abandon":
+                aggregated[to_address]["Queue Abandon"] += 1
+            elif end_reason == "Polite Disconnect":
+                aggregated[to_address]["Polite Disconnect"] += 1
+
+    return aggregated
+
+# Step 5: Save aggregated data to CSV
+def save_final_table_to_csv(aggregated_data):
+    fieldnames = ["Number (toAddress)", "Offered Calls", "Answered", "IVR Abandon", "Queue Abandon", "Polite Disconnect"]
+    try:
+        with open(FINAL_CSV_FILE, mode='w', newline='', encoding='utf-8') as file:
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()
+            for to_address, metrics in aggregated_data.items():
+                row = {"Number (toAddress)": to_address}
+                row.update(metrics)
+                writer.writerow(row)
+        print(f"Final data saved to {FINAL_CSV_FILE}.")
+    except Exception as e:
+        print(f"Error saving final data: {e}")
+
+# Step 6: Push data to PostgreSQL
+def push_data_to_db(table_name, data, columns):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # Create table if not exists
+        cursor.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({', '.join([f'{col} TEXT' if i == 0 else f'{col} INT' for i, col in enumerate(columns)])});")
+
+        # Insert data
+        for row in data:
+            cursor.execute(f"INSERT INTO {table_name} VALUES ({', '.join(['%s'] * len(columns))});", row)
+
+        conn.commit()
+        print(f"Data pushed to {table_name}.")
+    except Exception as e:
+        print(f"Error pushing data to DB: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+
+# Main execution
+if __name__ == "__main__":
+    # Step 1: Fetch access token
+    auth_token = fetch_access_token()
+    if not auth_token:
+        print("Failed to fetch access token, exiting.")
+        exit()
+
+    # Step 2: Set time range for the last 2 hours
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    # Step 3: Fetch data from API
+    data = fetch_data(start_date, end_date, auth_token)
+
+    if data:
+        # Save data to raw CSV
+        fieldnames = list(data[0].keys())
+        with open(RAW_CSV_FILE, mode='w', newline='', encoding='utf-8') as file:
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(data)
+
+        print(f"Data fetched and saved to {RAW_CSV_FILE}.")
+
+        # Step 4: Process raw data
+        raw_data = process_raw_data()
+
+        # Push raw data to DB
+        raw_table_columns = ["toAddress", "endReason"]
+        raw_table_data = [(row["toAddress"], row["endReason"]) for row in raw_data]
+        push_data_to_db("raw_table", raw_table_data, raw_table_columns)
+
+        # Step 5: Aggregate final data
+        aggregated_data = aggregate_data(raw_data)
+
+        # Step 6: Save final table to CSV
+        save_final_table_to_csv(aggregated_data)
+
+        # Push final table to DB
+        final_table_columns = ["toAddress", "offeredCalls", "answered", "ivrAbandon", "queueAbandon", "politeDisconnect"]
+        final_table_data = [(to_address, metrics["Offered Calls"], metrics["Answered"], metrics["IVR Abandon"], metrics["Queue Abandon"], metrics["Polite Disconnect"]) for to_address, metrics in aggregated_data.items()]
+        push_data_to_db("final_table", final_table_data, final_table_columns)
+
+        # Cleanup: Delete intermediate CSVs
+        if os.path.exists(RAW_CSV_FILE):
+            os.remove(RAW_CSV_FILE)
+        if os.path.exists(FINAL_CSV_FILE):
+            os.remove(FINAL_CSV_FILE)
