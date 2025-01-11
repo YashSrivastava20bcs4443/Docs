@@ -1,1 +1,155 @@
+import os
+import requests
+import pandas as pd
+import psycopg2
+from psycopg2 import sql
+from datetime import datetime, timedelta, timezone
+
+# API and Database Configuration
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234",
+}
+
+RAW_CSV_PATH = "raw_data.csv"
+
+# Step 1: Generate Access Token
+def get_access_token():
+    response = requests.post(ACCESS_TOKEN_URL)
+    response_data = response.json()
+    if "access_token" in response_data:
+        return response_data['access_token']
+    else:
+        raise Exception("Failed to generate access token.")
+
+# Step 2: Fetch Data from API
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json",
+    }
+    all_data = []
+    skip = 0
+    top = 10000
+
+    while True:
+        params = {
+            "startdate": start_date,
+            "enddate": end_date,
+            "top": top,
+            "skip": skip,
+        }
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+
+    return all_data
+
+# Step 3: Save Raw Data to CSV
+def save_to_csv(data, file_path):
+    df = pd.DataFrame(data)
+    df.to_csv(file_path, index=False)
+    return df
+
+# Step 4: Filter Data
+def filter_data(df):
+    df_filtered = df[(df['mediaTypeId'] == 4) & (df['isOutbound'] == False) &
+                     (df['masterContactId'] == df['contactId'])]
+
+    df['IVR_Abandon'] = ((df_filtered['abandoned'] == False) &
+                         (df_filtered['agentSeconds'] == 0) &
+                         (df_filtered['inQueueSeconds'] == 0) &
+                         (df_filtered['preQueueSeconds'] > 1) &
+                         (df_filtered['endReason'] == 'Contact Hung Up'))
+
+    df['Polite_Disconnect'] = ((df_filtered['abandoned'] == False) &
+                               (df_filtered['agentSeconds'] == 0) &
+                               (df_filtered['inQueueSeconds'] == 0) &
+                               (df_filtered['preQueueSeconds'] > 1) &
+                               (df_filtered['endReason'] == 'Contact Hang Up via Script'))
+
+    df['Queue_Abandon'] = ((df_filtered['isOutbound'] == True) &
+                           (df_filtered['abandoned'] == False) &
+                           (df_filtered['agentSeconds'] == 0) &
+                           (df_filtered['inQueueSeconds'] > 0) &
+                           (df_filtered['preQueueSeconds'] > 0))
+
+    return df_filtered
+
+# Step 5: Push Data to PostgreSQL
+def push_to_postgres(df, table_name):
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    # Create table dynamically based on DataFrame structure
+    create_table_query = f"""
+    CREATE TABLE IF NOT EXISTS {table_name} (
+        {', '.join([f'{col} BIGINT' if df[col].dtype == 'int64' else f'{col} TEXT' for col in df.columns])}
+    );
+    """
+    cursor.execute(create_table_query)
+
+    # Insert data
+    for _, row in df.iterrows():
+        insert_query = sql.SQL("INSERT INTO {} VALUES ({})").format(
+            sql.Identifier(table_name),
+            sql.SQL(",").join(sql.Placeholder() * len(row))
+        )
+        cursor.execute(insert_query, tuple(row))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+# Step 6: Compute Expected Data
+def compute_summary(df):
+    summary = df.groupby('toAddr').agg(
+        Offered_Calls=('contactId', 'count'),
+        Answered=('contactId', lambda x: (x['abandoned'] == False).sum()),
+        IVR_Abandon=('IVR_Abandon', 'sum'),
+        Queue_Abandon=('Queue_Abandon', 'sum'),
+        Polite_Disconnect=('Polite_Disconnect', 'sum'),
+    ).reset_index()
+    return summary
+
+# Step 7: Main Execution
+def main():
+    try:
+        auth_token = get_access_token()
+
+        # Fetch data for the last 2 hours
+        end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        data = fetch_data(start_date, end_date, auth_token)
+        raw_df = save_to_csv(data, RAW_CSV_PATH)
+
+        # Filter and process data
+        filtered_df = filter_data(raw_df)
+        push_to_postgres(raw_df, "raw_data")
+
+        # Compute and save summary
+        summary_df = compute_summary(filtered_df)
+        push_to_postgres(summary_df, "summary_data")
+
+        # Cleanup
+        os.remove(RAW_CSV_PATH)
+        print("Process completed successfully.")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    main()
 
