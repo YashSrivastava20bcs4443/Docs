@@ -1,1 +1,206 @@
+import requests
+import pandas as pd
+import psycopg2
+from psycopg2 import sql
+from datetime import datetime, timedelta, timezone
 
+# API and Access Token Details
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# Generate Access Token
+def get_access_token():
+    try:
+        response = requests.post(ACCESS_TOKEN_URL)
+        response_data = response.json()
+        if "access_token" in response_data:
+            print("Access Token generated successfully.")
+            return response_data['access_token']
+        else:
+            raise Exception("Failed to generate access token.")
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        exit()
+
+# Fetch data from API
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
+    all_data = []
+    skip = 0
+    top = 10000
+
+    while True:
+        params = {
+            "startdate": start_date,
+            "enddate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+
+    print(f"Total records fetched: {len(all_data)}")
+    return all_data
+
+# Create PostgreSQL table if not exists
+def create_table_if_not_exists(connection):
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS contacts (
+        abandoned BOOLEAN,
+        abandonSeconds INTEGER,
+        ACWSeconds VARCHAR(255),
+        agentId INTEGER,
+        agentSeconds INTEGER,
+        callbackTime TIMESTAMP,
+        campaignId INTEGER,
+        campaignName VARCHAR(255),
+        confSeconds INTEGER,
+        contactId BIGINT,
+        contactStart TIMESTAMP,
+        dateACWWarehoused TIMESTAMP,
+        dateContactWarehoused TIMESTAMP,
+        dispositionNotes TEXT,
+        endReason VARCHAR(255),
+        firstName VARCHAR(255),
+        fromAddr VARCHAR(255),
+        holdCount INTEGER,
+        holdSeconds INTEGER,
+        inQueueSeconds INTEGER,
+        isLogged BOOLEAN,
+        isOutbound BOOLEAN,
+        isRefused BOOLEAN,
+        isShortAbandon BOOLEAN,
+        isTakeover BOOLEAN,
+        isWarehoused BOOLEAN,
+        lastName VARCHAR(255),
+        lastUpdateTime TIMESTAMP,
+        masterContactId BIGINT,
+        mediaTypeId INTEGER,
+        mediaTypeName VARCHAR(255),
+        mediaSubTypeID INTEGER,
+        mediaSubTypeName VARCHAR(255),
+        pointOfContactId INTEGER,
+        pointOfContactName VARCHAR(255),
+        postQueueSeconds INTEGER,
+        preQueueSeconds INTEGER,
+        primaryDispositionid INTEGER,
+        refuseReason VARCHAR(255),
+        refuseTime TIMESTAMP,
+        releaseSeconds INTEGER,
+        routingTime INTEGER,
+        secondaryDispositionid INTEGER,
+        serviceLevelFlag VARCHAR(255),
+        skillId INTEGER,
+        skillName VARCHAR(255),
+        tags INTEGER,
+        teamId INTEGER,
+        teamName VARCHAR(255),
+        toAddr VARCHAR(255),
+        totalDurationSeconds INTEGER,
+        transferIndicatorId INTEGER,
+        transferIndicatorName VARCHAR(255),
+        isAnalyticsProcessed BOOLEAN,
+        analyticsProcessedDate TIMESTAMP
+    );
+    """
+    cursor = connection.cursor()
+    cursor.execute(create_table_query)
+    connection.commit()
+    cursor.close()
+
+# Insert data into PostgreSQL
+def insert_data_to_postgres(connection, dataframe):
+    cursor = connection.cursor()
+    for _, row in dataframe.iterrows():
+        try:
+            # Prepare data for insertion
+            insert_query = sql.SQL("""
+                INSERT INTO contacts ({})
+                VALUES ({})
+            """).format(
+                sql.SQL(", ").join(map(sql.Identifier, dataframe.columns)),
+                sql.SQL(", ").join(sql.Placeholder() * len(row))
+            )
+
+            cursor.execute("SAVEPOINT before_row")  # Set a savepoint
+            cursor.execute(insert_query, tuple(row))
+        except psycopg2.DataError as e:
+            print(f"Data error for row {row.get('contactId', 'unknown')}: {e}")
+            cursor.execute("ROLLBACK TO SAVEPOINT before_row")  # Roll back to savepoint
+        except Exception as e:
+            print(f"Error inserting row {row.get('contactId', 'unknown')}: {e}")
+            cursor.execute("ROLLBACK TO SAVEPOINT before_row")  # Roll back to savepoint
+
+    connection.commit()
+    cursor.close()
+
+# Main Execution Flow
+if __name__ == "__main__":
+    try:
+        # Generate Access Token
+        auth_token = get_access_token()
+
+        # Set the time range for the last 2 hours
+        end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        # Fetch data from the API
+        data = fetch_data(start_date, end_date, auth_token)
+        if not data:
+            print("No data fetched for the given time range.")
+            exit()
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data)
+
+        # Rename mediaType to mediaTypeId
+        if 'mediaType' in df.columns:
+            df.rename(columns={'mediaType': 'mediaTypeId'}, inplace=True)
+
+        # Convert dictionary-like columns to strings
+        for col in df.columns:
+            if df[col].apply(lambda x: isinstance(x, dict)).any():
+                df[col] = df[col].apply(lambda x: str(x) if isinstance(x, dict) else x)
+
+        # Convert timestamp fields
+        timestamp_fields = [
+            "callbackTime", "contactStart", "dateACWWarehoused", "dateContactWarehoused", "lastUpdateTime", "refuseTime", "analyticsProcessedDate"
+        ]
+        for field in timestamp_fields:
+            if field in df.columns:
+                df[field] = pd.to_datetime(df[field], errors='coerce')
+
+        # Connect to PostgreSQL
+        conn = psycopg2.connect(**DB_CONFIG)
+
+        # Create table if not exists
+        create_table_if_not_exists(conn)
+
+        # Insert data into PostgreSQL
+        insert_data_to_postgres(conn, df)
+
+        print("Data inserted successfully.")
+
+    except Exception as e:
+        print(f"Error in execution: {e}")
+
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
