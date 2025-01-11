@@ -1,1 +1,208 @@
+import requests
+import psycopg2
+from datetime import datetime, timedelta, timezone
 
+# API and Access Token Details
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+
+# PostgreSQL connection details
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# Generate Access Token
+def get_access_token():
+    try:
+        response = requests.post(ACCESS_TOKEN_URL)
+        response_data = response.json()
+        if "access_token" in response_data:
+            print("Access Token generated successfully.")
+            return response_data['access_token']
+        else:
+            raise Exception("Failed to generate access token.")
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        exit()
+
+# Fetch data from API
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
+    all_data = []
+    skip = 0
+    top = 10000  
+
+    while True:
+        params = {
+            "startdate": start_date,
+            "enddate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+
+    print(f"Total records fetched: {len(all_data)}")
+    return all_data
+
+# Save data to PostgreSQL
+def save_to_postgres(data):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        
+        # Create table if not exists
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS contacts (
+            abandoned BOOLEAN,
+            abandon_seconds INTEGER,
+            acw_seconds VARCHAR(255),
+            agent_id INTEGER,
+            agent_seconds INTEGER,
+            callback_time TIMESTAMP,
+            campaign_id INTEGER,
+            campaign_name VARCHAR(255),
+            conf_seconds INTEGER,
+            contact_id INTEGER,
+            contact_start TIMESTAMP,
+            date_acw_warehoused TIMESTAMP,
+            date_contact_warehoused TIMESTAMP,
+            disposition_notes TEXT,
+            end_reason VARCHAR(255),
+            first_name VARCHAR(255),
+            from_addr VARCHAR(255),
+            hold_count INTEGER,
+            hold_seconds INTEGER,
+            in_queue_seconds INTEGER,
+            is_logged BOOLEAN,
+            is_outbound BOOLEAN,
+            is_refused BOOLEAN,
+            is_short_abandon BOOLEAN,
+            is_takeover BOOLEAN,
+            is_warehoused BOOLEAN,
+            last_name VARCHAR(255),
+            last_update_time TIMESTAMP,
+            master_contact_id INTEGER,
+            media_type_id INTEGER,
+            media_type_name VARCHAR(255),
+            media_sub_type_id INTEGER,
+            media_sub_type_name VARCHAR(255),
+            point_of_contact_id INTEGER,
+            point_of_contact_name VARCHAR(255),
+            post_queue_seconds INTEGER,
+            pre_queue_seconds INTEGER,
+            primary_disposition_id INTEGER,
+            refuse_reason VARCHAR(255),
+            refuse_time TIMESTAMP,
+            release_seconds INTEGER,
+            routing_time INTEGER,
+            secondary_disposition_id INTEGER,
+            service_level_flag VARCHAR(255),
+            skill_id INTEGER,
+            skill_name VARCHAR(255),
+            tags INTEGER,
+            team_id INTEGER,
+            team_name VARCHAR(255),
+            to_addr VARCHAR(255),
+            total_duration_seconds INTEGER,
+            transfer_indicator_id INTEGER,
+            transfer_indicator_name VARCHAR(255),
+            is_analytics_processed BOOLEAN,
+            analytics_processed_date TIMESTAMP
+        );
+        """
+        cursor.execute(create_table_query)
+
+        for record in data:
+            media_type_id = record.get('mediaType', None)
+            if isinstance(media_type_id, int) and media_type_id > 2147483647:
+                media_type_id = None
+            
+            insert_query = """
+            INSERT INTO contacts (
+                abandoned, abandon_seconds, acw_seconds, agent_id, agent_seconds, callback_time, 
+                campaign_id, campaign_name, conf_seconds, contact_id, contact_start, date_acw_warehoused, 
+                date_contact_warehoused, disposition_notes, end_reason, first_name, from_addr, hold_count, 
+                hold_seconds, in_queue_seconds, is_logged, is_outbound, is_refused, is_short_abandon, 
+                is_takeover, is_warehoused, last_name, last_update_time, master_contact_id, media_type_id, 
+                media_type_name, media_sub_type_id, media_sub_type_name, point_of_contact_id, 
+                point_of_contact_name, post_queue_seconds, pre_queue_seconds, primary_disposition_id, 
+                refuse_reason, refuse_time, release_seconds, routing_time, secondary_disposition_id, 
+                service_level_flag, skill_id, skill_name, tags, team_id, team_name, to_addr, 
+                total_duration_seconds, transfer_indicator_id, transfer_indicator_name, is_analytics_processed, 
+                analytics_processed_date
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
+                      %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
+                      %s, %s, %s, %s, %s);
+            """
+            data_tuple = (
+                record.get('abandoned', None), record.get('abandonSeconds', None),
+                record.get('ACWSeconds', None), record.get('agentId', None),
+                record.get('agentSeconds', None), record.get('callbackTime', None),
+                record.get('campaignId', None), record.get('campaignName', None),
+                record.get('confSeconds', None), record.get('contactId', None),
+                record.get('contactStart', None), record.get('dateACWWarehoused', None),
+                record.get('dateContactWarehoused', None), record.get('dispositionNotes', None),
+                record.get('endReason', None), record.get('firstName', None),
+                record.get('fromAddr', None), record.get('holdCount', None),
+                record.get('holdSeconds', None), record.get('inQueueSeconds', None),
+                record.get('isLogged', None), record.get('isOutbound', None),
+                record.get('isRefused', None), record.get('isShortAbandon', None),
+                record.get('isTakeover', None), record.get('isWarehoused', None),
+                record.get('lastName', None), record.get('lastUpdateTime', None),
+                record.get('masterContactId', None), media_type_id, record.get('mediaTypeName', None),
+                record.get('mediaSubTypeID', None), record.get('mediaSubTypeName', None),
+                record.get('pointOfContactId', None), record.get('pointOfContactName', None),
+                record.get('postQueueSeconds', None), record.get('preQueueSeconds', None),
+                record.get('primaryDispositionid', None), record.get('refuseReason', None),
+                record.get('refuseTime', None), record.get('releaseSeconds', None),
+                record.get('routingTime', None), record.get('secondaryDispositionid', None),
+                record.get('serviceLevelFlag', None), record.get('skillId', None),
+                record.get('skillName', None), record.get('tags', None),
+                record.get('teamId', None), record.get('teamName', None),
+                record.get('toAddr', None), record.get('totalDurationSeconds', None),
+                record.get('transferIndicatorId', None), record.get('transferIndicatorName', None),
+                record.get('isAnalyticsProcessed', None), record.get('analyticsProcessedDate', None)
+            )
+
+            try:
+                cursor.execute(insert_query, data_tuple)
+            except psycopg2.DataError as de:
+                print(f"Data error: {de}")
+            except Exception as e:
+                print(f"Error inserting record: {e}")
+
+        conn.commit()
+        print("Data saved successfully.")
+    except Exception as e:
+        print(f"Error connecting to PostgreSQL: {e}")
+    finally:
+        if conn:
+            cursor.close()
+            conn.close()
+
+# Main Execution Flow
+if __name__ == "__main__":
+    auth_token = get_access_token()
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    data = fetch_data(start_date, end_date, auth_token)
+    if data:
+        save_to_postgres(data)
+    else:
+        print("No data fetched for the given time range.")
