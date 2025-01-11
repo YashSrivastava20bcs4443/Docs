@@ -1,1 +1,92 @@
+# Function to summarize and transform data for final output
+def summarize_data(data):
+    df = pd.DataFrame(data)
+    
+    # Ensure the required columns are present
+    if 'toAddress' not in df.columns or 'endReason' not in df.columns:
+        print("Required columns are missing. Please check the data.")
+        return pd.DataFrame()
+
+    # Convert necessary columns to the correct type
+    df['isOutbound'] = df['isOutbound'].astype(bool)
+    
+    # Group and summarize the data
+    summary = df.groupby('toAddress').agg(
+        Offered_Calls=('contactId', 'count'),
+        Answered=('agentSeconds', lambda x: sum(x > 0)),
+        IVR_Abandon=('preQueueSeconds', lambda x: sum((x > 1) & (df['inQueueSeconds'] == 0) & (df['agentSeconds'] == 0))),
+        Queue_Abandon=('inQueueSeconds', lambda x: sum((x > 0) & (df['agentSeconds'] == 0))),
+        Polite_Disconnect=('endReason', lambda x: sum(x.isin(["Contact Hung Up", "Contact Hang Up via Script"])))
+    ).reset_index()
+
+    print(f"Summarized data prepared: {len(summary)} rows.")
+    return summary
+
+# Modified PostgreSQL Table Creation to match new schema
+def create_summary_table_if_not_exists():
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS contact_summary (
+        to_address VARCHAR(100) PRIMARY KEY,
+        offered_calls INT,
+        answered INT,
+        ivr_abandon INT,
+        queue_abandon INT,
+        polite_disconnect INT
+    );
+    """
+    cursor.execute(create_table_query)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print("Table 'contact_summary' is ready.")
+
+# Modified function to store summary data in PostgreSQL
+def store_summary_to_postgresql(summary):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        create_summary_table_if_not_exists()
+        
+        for _, row in summary.iterrows():
+            cursor.execute("""
+                INSERT INTO contact_summary (to_address, offered_calls, answered, ivr_abandon, queue_abandon, polite_disconnect)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (to_address) DO UPDATE 
+                SET offered_calls = EXCLUDED.offered_calls,
+                    answered = EXCLUDED.answered,
+                    ivr_abandon = EXCLUDED.ivr_abandon,
+                    queue_abandon = EXCLUDED.queue_abandon,
+                    polite_disconnect = EXCLUDED.polite_disconnect;
+            """, (
+                row['toAddress'], row['Offered_Calls'], row['Answered'], row['IVR_Abandon'], row['Queue_Abandon'], row['Polite_Disconnect']
+            ))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("Summary data stored successfully.")
+    except Exception as e:
+        print(f"Error storing summary data to PostgreSQL: {e}")
+
+# Main Execution Flow Update
+if __name__ == "__main__":
+    auth_token = get_access_token()
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    data = fetch_data(start_date, end_date, auth_token)
+
+    if data:
+        csv_file = save_data_to_csv(data)
+        filtered_data = filter_data(data)
+        if not filtered_data.empty:
+            summary_data = summarize_data(filtered_data)
+            if not summary_data.empty:
+                store_summary_to_postgresql(summary_data)
+            delete_csv_file(csv_file)
+        else:
+            print("No matching records found.")
+    else:
+        print("No data fetched for the given time range.")
 
