@@ -1,15 +1,12 @@
 import requests
-import pandas as pd
-from datetime import datetime, timedelta
 import psycopg2
-from psycopg2 import sql
-import os
+from psycopg2.extras import execute_values
+from datetime import datetime, timedelta, timezone
+import json
 
-# API and Access Token Details
+# API and DB Configurations
 API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
 ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
-
-# PostgreSQL Connection Details
 DB_CONFIG = {
     "host": "172.16.130.247",
     "database": "postgres",
@@ -17,22 +14,28 @@ DB_CONFIG = {
     "password": "Zxcv@1234"
 }
 
-# Generate Access Token
 def get_access_token():
-    response = requests.post(ACCESS_TOKEN_URL)
-    response_data = response.json()
-    if "access_token" in response_data:
-        return response_data['access_token']
-    else:
-        raise Exception("Failed to generate access token.")
+    try:
+        response = requests.post(ACCESS_TOKEN_URL)
+        response_data = response.json()
+        if "access_token" in response_data:
+            print("Access Token generated successfully.")
+            return response_data['access_token']
+        else:
+            raise Exception("Failed to generate access token.")
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        exit()
 
-# Fetch Data from API
-def fetch_data(auth_token, start_date, end_date):
-    headers = {"Authorization": f"Bearer {auth_token}"}
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
     all_data = []
     skip = 0
-    top = 10000  # Max records per request
-    
+    top = 10000
+
     while True:
         params = {
             "startdate": start_date,
@@ -41,109 +44,119 @@ def fetch_data(auth_token, start_date, end_date):
             "skip": skip
         }
         response = requests.get(API_URL, headers=headers, params=params)
-        response.raise_for_status()  # Ensure any HTTP error is raised
+        if response.status_code != 200:
+            raise Exception(f"API request failed with status code {response.status_code}: {response.text}")
+
         data = response.json()
-        if not data:
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
             break
-        all_data.extend(data)
-        skip += top
+
+    print(f"Total records fetched: {len(all_data)}")
     return all_data
 
-# Save Data to CSV
-def save_to_csv(data, filename):
-    df = pd.DataFrame(data)
-    df.to_csv(filename, index=False)
-
-# Filter Data
-def filter_data(raw_data):
-    df = pd.DataFrame(raw_data)
-    # Handle mediaTypeId and other column-related filtering
-    filtered_df = df[
-        (df['mediaTypeId'] == 4) &  # Change to mediaTypeId
-        (~df['isOutbound']) &
-        (df['masterContactId'] == df['contactId'])
-    ]
-    
-    # Handle dict data by converting it to a string representation
-    for column in df.columns:
-        if df[column].apply(lambda x: isinstance(x, dict)).any():
-            df[column] = df[column].apply(str)
-    
-    return filtered_df
-
-# Push Data to PostgreSQL
-def push_to_db(dataframe, table_name):
-    conn = psycopg2.connect(**DB_CONFIG)
-    cursor = conn.cursor()
-    # Adjust for integer overflow by using biginteger or text for large values
-    create_table_query = sql.SQL("""
-        CREATE TABLE IF NOT EXISTS {} (
-            id SERIAL PRIMARY KEY,
-            data JSONB
-        )
-    """).format(sql.Identifier(table_name))
-    cursor.execute(create_table_query)
-    
-    for _, row in dataframe.iterrows():
-        insert_query = sql.SQL("INSERT INTO {} (data) VALUES (%s)").format(sql.Identifier(table_name))
-        cursor.execute(insert_query, [row.to_dict()])
-    
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-# Generate Expected Data Table
-def generate_expected_data(filtered_df):
-    grouped = (
-        filtered_df.groupby('toAddr', as_index=False)
-        .agg({
-            'contactId': 'count',  # Count total calls offered
-            'agentSeconds': lambda x: (x > 0).sum(),  # Count of answered calls
-            'abandoned': lambda x: (x & (filtered_df['agentSeconds'] == 0) & (filtered_df['inQueueSeconds'] == 0) & (filtered_df['preQueueSeconds'] > 1)).sum(),  # IVR Abandon
-            'endReason': lambda x: (x == "Contact Hung Up").sum(),  # Polite Disconnect
-            'inQueueSeconds': lambda x: (x > 0).sum()  # Queue Abandon
-        })
-        .rename(columns={
-            'contactId': 'Offered Calls',
-            'agentSeconds': 'Answered',
-            'abandoned': 'IVR Abandon',
-            'endReason': 'Polite Disconnect',
-            'inQueueSeconds': 'Queue Abandon'
-        })
-    )
-    return grouped
-
-# Main Workflow
-def main():
+def save_to_postgres(data):
     try:
-        # Generate Access Token
-        token = get_access_token()
-        
-        # Define Time Range
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(hours=2)
-        start_date, end_date = start_date.isoformat(), end_date.isoformat()
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
 
-        # Fetch Data
-        raw_data = fetch_data(token, start_date, end_date)
-        raw_csv = "raw_data.csv"
-        save_to_csv(raw_data, raw_csv)
+        # Create table if not exists
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS completed_contacts (
+            contact_id BIGINT PRIMARY KEY,
+            abandoned BOOLEAN,
+            abandon_seconds INT,
+            acw_seconds INT,
+            agent_id BIGINT,
+            agent_seconds INT,
+            callback_time BIGINT,
+            campaign_id BIGINT,
+            campaign_name TEXT,
+            conf_seconds INT,
+            contact_start TIMESTAMP,
+            date_contact_warehoused TIMESTAMP,
+            disposition_notes TEXT,
+            end_reason TEXT,
+            first_name TEXT,
+            last_name TEXT,
+            from_addr TEXT,
+            hold_count INT,
+            hold_seconds INT,
+            media_type_id INT,
+            media_type_name TEXT,
+            to_addr TEXT,
+            raw_data JSONB
+        );
+        """
+        cursor.execute(create_table_query)
 
-        # Filter Data
-        filtered_data = filter_data(raw_data)
+        # Insert data into the table
+        insert_query = """
+        INSERT INTO completed_contacts (
+            contact_id, abandoned, abandon_seconds, acw_seconds, agent_id, agent_seconds,
+            callback_time, campaign_id, campaign_name, conf_seconds, contact_start,
+            date_contact_warehoused, disposition_notes, end_reason, first_name, last_name,
+            from_addr, hold_count, hold_seconds, media_type_id, media_type_name, to_addr, raw_data
+        ) VALUES %s
+        ON CONFLICT (contact_id) DO NOTHING;
+        """
 
-        # Push Raw Data to DB
-        push_to_db(pd.DataFrame(raw_data), "raw_data_table")
+        # Prepare data for insertion
+        records = [
+            (
+                record.get("contactId"),
+                record.get("abandoned"),
+                record.get("abandonSeconds"),
+                int(record.get("ACWSeconds", 0)) if record.get("ACWSeconds") else None,
+                record.get("agentId"),
+                record.get("agentSeconds"),
+                int(record.get("callbackTime", 0)) if record.get("callbackTime") else None,
+                record.get("campaignId"),
+                record.get("campaignName"),
+                record.get("confSeconds"),
+                record.get("contactStart"),
+                record.get("dateContactWarehoused"),
+                record.get("dispositionNotes"),
+                record.get("endReason"),
+                record.get("firstName"),
+                record.get("lastName"),
+                record.get("fromAddr"),
+                record.get("holdCount"),
+                record.get("holdSeconds"),
+                record.get("mediaTypeId"),  # Correcting mediaType to mediaTypeId
+                record.get("mediaTypeName"),
+                record.get("toAddr"),
+                json.dumps(record)  # Storing raw data as JSON
+            )
+            for record in data
+        ]
 
-        # Generate and Push Expected Data
-        expected_data = generate_expected_data(filtered_data)
-        push_to_db(expected_data, "expected_data_table")
-        print(expected_data)
+        execute_values(cursor, insert_query, records)
+        conn.commit()
+        print("Data saved to PostgreSQL successfully.")
 
-        # Cleanup
-        os.remove(raw_csv)
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error saving data to PostgreSQL: {e}")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 if __name__ == "__main__":
-    main()
+    auth_token = get_access_token()
+
+    # Set the time range for the last 2 hours
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    data = fetch_data(start_date, end_date, auth_token)
+    if data:
+        save_to_postgres(data)
+    else:
+        print("No data fetched for the given time range.")
