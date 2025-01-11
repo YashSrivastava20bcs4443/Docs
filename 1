@@ -121,7 +121,9 @@ def push_data_to_db(table_name, data, columns):
 
         # Insert data
         for row in data:
-            cursor.execute(f"INSERT INTO {table_name} VALUES ({', '.join(['%s'] * len(columns))});", row)
+            # Convert dictionary values into a tuple
+            values = tuple(row[col] for col in columns)
+            cursor.execute(f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))});", values)
 
         conn.commit()
         print(f"Data pushed to {table_name}.")
@@ -130,6 +132,7 @@ def push_data_to_db(table_name, data, columns):
     finally:
         cursor.close()
         conn.close()
+
 
 # Main execution
 if __name__ == "__main__":
