@@ -1,1 +1,15 @@
-
+SELECT 
+    to_addr AS "Number(toAddress)",
+    COUNT(*) AS "Offered Calls",
+    SUM(CASE WHEN agentSeconds > 0 THEN 1 ELSE 0 END) AS "Answered",
+    SUM(CASE WHEN abandoned = TRUE AND preQueueSeconds > 0 AND inQueueSeconds = 0 THEN 1 ELSE 0 END) AS "IVR Abandon",
+    SUM(CASE WHEN abandoned = TRUE AND inQueueSeconds > 0 THEN 1 ELSE 0 END) AS "Queue Abandon",
+    SUM(CASE WHEN endReason IN ('Contact Hung Up', 'Contact Hang Up via Script') THEN 1 ELSE 0 END) AS "Polite Disconnect"
+FROM 
+    raw
+WHERE 
+    mediaTypeId = '4' AND isOutbound = FALSE
+GROUP BY 
+    to_addr
+ORDER BY 
+    "Offered Calls" DESC;
