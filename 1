@@ -1,142 +1,65 @@
-import requests
-import psycopg2
-import pandas as pd
-from datetime import datetime, timedelta, timezone
-import os
-
-DB_CONFIG = {
-    "host": "172.16.130.247",
-    "database": "postgres",
-    "user": "postgres",
-    "password": "Zxcv@1234"
-}
-API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
-ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
-
-# Counters
-success_count = 0
-failed_count = 0
-failure_reasons = []
-
-# Generate access token
-def get_access_token():
-    global failed_count
-    try:
-        response = requests.post(ACCESS_TOKEN_URL)
-        response_data = response.json()
-        if "access_token" in response_data:
-            print("Access Token generated successfully.")
-            return response_data['access_token']
-        else:
-            failed_count += 1
-            failure_reasons.append("Access token missing from response.")
-    except Exception as e:
-        failed_count += 1
-        failure_reasons.append(str(e))
-
-# Fetch API data
-def fetch_data(start_date, end_date, auth_token):
-    global success_count, failed_count
-    headers = {"Authorization": f"Bearer {auth_token}"}
-    params = {"startdate": start_date, "enddate": end_date, "top": 10000, "skip": 0}
-    try:
-        response = requests.get(API_URL, headers=headers, params=params)
-        response.raise_for_status()
-        data = response.json()
-        if "completedContacts" in data:
-            success_count += len(data["completedContacts"])
-            return data["completedContacts"]
-        else:
-            failed_count += 1
-            failure_reasons.append("No contacts in response data.")
-    except Exception as e:
-        failed_count += 1
-        failure_reasons.append(str(e))
-    return []
-
-# Store raw data in PostgreSQL
-def store_raw_data(data):
-    global success_count, failed_count
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS raw (
-                contact_id VARCHAR(50),
-                start_date TIMESTAMP,
-                end_date TIMESTAMP,
-                from_addr VARCHAR(100),
-                to_addr VARCHAR(100),
-                media_type VARCHAR(50),
-                is_outbound BOOLEAN,
-                master_contact_id VARCHAR(50)
-            )
-        """)
-        for contact in data:
-            try:
-                cursor.execute("""
-                    INSERT INTO raw (contact_id, start_date, end_date, from_addr, to_addr, media_type, is_outbound, master_contact_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    contact.get('contactId'), contact.get('contactStartDate'),
-                    contact.get('lastUpdateTime'), contact.get('fromAddress'),
-                    contact.get('toAddress'), contact.get('mediaTypeId'),
-                    contact.get('isOutbound'), contact.get('masterContactId')
-                ))
-                success_count += 1
-            except Exception as e:
-                failed_count += 1
-                failure_reasons.append(f"Row error: {str(e)}")
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        failed_count += 1
-        failure_reasons.append(str(e))
-
-# Generate summary from raw data
-def generate_summary():
-    global success_count, failed_count
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS summary AS
-            SELECT
-                to_addr,
-                COUNT(*) AS offered_calls,
-                SUM(CASE WHEN agent_seconds > 0 THEN 1 ELSE 0 END) AS answered,
-                SUM(CASE WHEN pre_queue_seconds > 0 AND agent_seconds = 0 THEN 1 ELSE 0 END) AS ivr_abandon,
-                SUM(CASE WHEN in_queue_seconds > 0 THEN 1 ELSE 0 END) AS queue_abandon,
-                SUM(CASE WHEN end_reason = 'Contact Hung Up' THEN 1 ELSE 0 END) AS polite_disconnect
-            FROM raw
-            GROUP BY to_addr;
-        """)
-        conn.commit()
-        cursor.close()
-        conn.close()
-        success_count += 1
-    except Exception as e:
-        failed_count += 1
-        failure_reasons.append(str(e))
-
-# Main Execution Flow
-if __name__ == "__main__":
-    auth_token = get_access_token()
-    if auth_token:
-        end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-        start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
-        data = fetch_data(start_date, end_date, auth_token)
-        if data:
-            store_raw_data(data)
-            generate_summary()
-
-    # Printing final success and failure report
-    print(f"Total Successful Operations: {success_count}")
-    print(f"Total Failed Operations: {failed_count}")
-    if failure_reasons:
-        print("Failure Reasons:")
-        for reason in failure_reasons:
-            print(f"- {reason}")
-
+SELECT 
+    toll_number,
+    COALESCE(ivr_offered_count, 0) AS offered_calls,
+    COALESCE(ivr_offered_count - ivr_abandoned_count, 0) AS answered,
+    COALESCE(ivr_abandoned_count, 0) AS ivr_abandon,
+    COALESCE(queue_abandon_count, 0) AS queue_abandon,
+    COALESCE(polite_disconnect_count, 0) AS polite_disconnect
+FROM (
+    SELECT DISTINCT (data->>'toAddress') AS toll_number
+    FROM raw_api_data
+) toll_numbers
+LEFT JOIN (
+    SELECT 
+        (data->>'toAddress') AS toll_number,
+        COUNT(*) AS ivr_offered_count
+    FROM raw_api_data
+    WHERE (data->>'mediaTypeId')::INTEGER = 4
+      AND (data->>'isOutbound')::BOOLEAN = FALSE
+      AND (data->>'masterContactId') = (data->>'contactId')
+    GROUP BY (data->>'toAddress')
+) ivr_offered ON toll_numbers.toll_number = ivr_offered.toll_number
+LEFT JOIN (
+    SELECT 
+        (data->>'toAddress') AS toll_number,
+        COUNT(*) AS ivr_abandoned_count
+    FROM raw_api_data
+    WHERE (data->>'mediaTypeId')::INTEGER = 4
+      AND (data->>'isOutbound')::BOOLEAN = FALSE
+      AND (data->>'abandoned')::BOOLEAN = FALSE
+      AND (data->>'masterContactId') = (data->>'contactId')
+      AND (data->>'agentSeconds')::NUMERIC = 0
+      AND (data->>'inQueueSeconds')::NUMERIC = 0
+      AND (data->>'preQueueSeconds')::NUMERIC > 1
+      AND (data->>'endReason') = 'Contact Hung Up'
+    GROUP BY (data->>'toAddress')
+) ivr_abandoned ON toll_numbers.toll_number = ivr_abandoned.toll_number
+LEFT JOIN (
+    SELECT 
+        (data->>'toAddress') AS toll_number,
+        COUNT(*) AS polite_disconnect_count
+    FROM raw_api_data
+    WHERE (data->>'mediaTypeId')::INTEGER = 4
+      AND (data->>'isOutbound')::BOOLEAN = FALSE
+      AND (data->>'abandoned')::BOOLEAN = FALSE
+      AND (data->>'masterContactId') = (data->>'contactId')
+      AND (data->>'agentSeconds')::NUMERIC = 0
+      AND (data->>'inQueueSeconds')::NUMERIC = 0
+      AND (data->>'preQueueSeconds')::NUMERIC > 1
+      AND (data->>'endReason') = 'Contact Hang Up via Script'
+    GROUP BY (data->>'toAddress')
+) polite_disconnect ON toll_numbers.toll_number = polite_disconnect.toll_number
+LEFT JOIN (
+    SELECT 
+        (data->>'toAddress') AS toll_number,
+        COUNT(*) AS queue_abandon_count
+    FROM raw_api_data
+    WHERE (data->>'mediaTypeId')::INTEGER = 4
+      AND (data->>'isOutbound')::BOOLEAN = TRUE
+      AND (data->>'abandoned')::BOOLEAN = FALSE
+      AND (data->>'masterContactId') = (data->>'contactId')
+      AND (data->>'agentSeconds')::NUMERIC = 0
+      AND (data->>'inQueueSeconds')::NUMERIC > 0
+      AND (data->>'preQueueSeconds')::NUMERIC > 0
+    GROUP BY (data->>'toAddress')
+) queue_abandon ON toll_numbers.toll_number = queue_abandon.toll_number;
