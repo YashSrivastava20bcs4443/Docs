@@ -1,1 +1,198 @@
+import requests
+import psycopg2
+import json
+from datetime import datetime, timedelta, timezone
 
+# PostgreSQL connection details
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+# API and Access Token Details
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+
+
+# Function to generate access token
+def get_access_token():
+    try:
+        response = requests.post(ACCESS_TOKEN_URL)
+        response_data = response.json()
+        if "access_token" in response_data:
+            print("Access Token generated successfully.")
+            return response_data['access_token']
+        else:
+            raise Exception("Failed to generate access token.")
+    except Exception as e:
+        print(f"Error generating access token: {e}")
+        exit()
+
+
+# Function to fetch data from the API
+def fetch_data(start_date, end_date, auth_token):
+    headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "Content-Type": "application/json"
+    }
+    all_data = []
+    skip = 0
+    top = 10000  # Fetching maximum 10,000 records per request
+    while True:
+        params = {
+            "startdate": start_date,
+            "enddate": end_date,
+            "top": top,
+            "skip": skip
+        }
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+    print(f"Total records fetched: {len(all_data)}")
+    return all_data
+
+
+# Create a table for raw JSON data
+def create_raw_data_table():
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS raw_api_data (
+            id SERIAL PRIMARY KEY,
+            data JSONB NOT NULL,
+            inserted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        cursor.execute(create_table_query)
+        conn.commit()
+        print("Table 'raw_api_data' is ready.")
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error creating raw data table: {e}")
+
+
+# Store raw JSON data
+def store_raw_data(raw_data):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # Ensure the table exists
+        create_raw_data_table()
+
+        # Insert each record into the database
+        for record in raw_data:
+            cursor.execute(
+                "INSERT INTO raw_api_data (data) VALUES (%s);",
+                [json.dumps(record)]
+            )
+
+        conn.commit()
+        print(f"Stored {len(raw_data)} records in 'raw_api_data' table.")
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error storing raw data: {e}")
+
+
+# Create a structured table dynamically based on data
+def create_structured_table_from_data(raw_data):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # Extract all unique fields and their types
+        columns = {}
+        for record in raw_data:
+            for key, value in record.items():
+                if key not in columns:
+                    if isinstance(value, int):
+                        columns[key] = "BIGINT"
+                    elif isinstance(value, float):
+                        columns[key] = "DOUBLE PRECISION"
+                    elif isinstance(value, bool):
+                        columns[key] = "BOOLEAN"
+                    elif isinstance(value, dict) or isinstance(value, list):
+                        columns[key] = "JSONB"
+                    else:
+                        columns[key] = "TEXT"
+
+        # Generate the CREATE TABLE query
+        column_definitions = ", ".join([f"{col} {dtype}" for col, dtype in columns.items()])
+        create_table_query = f"""
+        CREATE TABLE IF NOT EXISTS structured_api_data (
+            id SERIAL PRIMARY KEY,
+            {column_definitions},
+            inserted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        cursor.execute(create_table_query)
+        conn.commit()
+        print("Structured table 'structured_api_data' created successfully.")
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error creating structured table: {e}")
+
+
+# Insert flattened data into the structured table
+def insert_structured_data(raw_data):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        for record in raw_data:
+            # Prepare the insert statement dynamically
+            columns = ", ".join(record.keys())
+            placeholders = ", ".join(["%s"] * len(record))
+            values = [json.dumps(value) if isinstance(value, (dict, list)) else value for value in record.values()]
+
+            insert_query = f"""
+            INSERT INTO structured_api_data ({columns}) VALUES ({placeholders});
+            """
+            cursor.execute(insert_query, values)
+
+        conn.commit()
+        print(f"Inserted {len(raw_data)} records into 'structured_api_data'.")
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error inserting structured data: {e}")
+
+
+# Main Execution Flow
+if __name__ == "__main__":
+    # Step 1: Get the access token
+    auth_token = get_access_token()
+
+    # Step 2: Set the time range for the last 2 hours
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    # Step 3: Fetch data from the API
+    data = fetch_data(start_date, end_date, auth_token)
+
+    if data:
+        # Step 4: Store raw data
+        store_raw_data(data)
+
+        # Step 5: Create structured table dynamically
+        create_structured_table_from_data(data)
+
+        # Step 6: Insert data into the structured table
+        insert_structured_data(data)
+
+        print("Data successfully stored in both raw and structured tables.")
+    else:
+        print("No data fetched for the given time range.")
+        
