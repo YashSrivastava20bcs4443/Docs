@@ -1,106 +1,20 @@
-import pandas as pd
-from datetime import datetime
-from msal import ConfidentialClientApplication
-import config
-import requests
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+# Azure AD and Graph API Configuration
+CLIENT_ID = "your-client-id"
+CLIENT_SECRET = "your-client-secret"
+TENANT_ID = "your-tenant-id"
+USER_ID = "your-user-id"
+AD_DRIVE_ID = "your-drive-id"
+AD_DRIVE_ITEM = "your-drive-item-id"
 
-# Suppress warnings
-import warnings
-warnings.simplefilter(action='ignore', category=UserWarning)
+# Excel Columns and Sheet Configuration
+X_COLUMN = "Domain"
+Y_COLUMN = "Expiry Date (MM/DD/YYYY)"
 
-# Config values from config.py
-client_id = config.CLIENT_ID
-client_secret = config.CLIENT_SECRET
-tenant_id = config.TENANT_ID
-user_id = config.USER_ID
-remote_item_drive_id2 = config.AD_DRIVE_ID
-remote_item_id2 = config.AD_DRIVE_ITEM
+# SMTP Server Configuration
+SMTP_SERVER = "smtp.yourcompany.com"
+SMTP_PORT = 587
+SENDER_EMAIL = "no-reply@yourcompany.com"
 
-# Microsoft Graph API authentication
-authority = f'https://login.microsoftonline.com/{tenant_id}'
-app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
-result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
-
-access_token = result.get('access_token')
-if not access_token:
-    print("Error obtaining access token")
-    exit()
-
-# Fetch AD file from OneDrive
-my_files_url = f'https://graph.microsoft.com/v1.0/users/{user_id}/drives/{remote_item_drive_id2}/items/{remote_item_id2}/children'
-response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access_token}"})
-
-if response.status_code == 200:
-    children = response.json().get('value', [])
-    ad_file = next((item for item in children if item['name'] == 'ADDevices.xlsx'), None)
-
-    if ad_file:
-        ad_file_url = ad_file['@microsoft.graph.downloadUrl']
-        ad_file_response = requests.get(ad_file_url)
-
-        if ad_file_response.status_code == 200:
-            # Load the Excel file and process data
-            ad_df = pd.read_excel(ad_file_response.content, sheet_name='Sheet1')
-            print("Data Read Successfully")
-
-            # Column assignments based on your provided details
-            x_column = config.X_COLUMN
-            y_column = config.Y_COLUMN
-            ad_df[y_column] = pd.to_datetime(ad_df[y_column], errors='coerce')
-            today = datetime.now()
-
-            # Email function supporting multiple recipients in 'To' and 'CC'
-            def send_email(name, expiry_date, days_left):
-                sender_email = config.SENDER_EMAIL
-                recipients_to = config.RECIPIENTS_TO
-                recipients_cc = config.RECIPIENTS_CC
-                subject = f"Certificate Expiry Alert for {name}"
-                
-                # HTML body for better formatting
-                body = f"""
-                <html>
-                <body>
-                    <p>Please update the certificate for <strong>{name}</strong>.<br>
-                    Expiry Date: <strong>{expiry_date.strftime('%Y-%m-%d')}</strong>.<br>
-                    <strong>{days_left}</strong> days left to expire.</p>
-                </body>
-                </html>
-                """
-                
-                msg = MIMEMultipart()
-                msg['From'] = sender_email
-                msg['To'] = ', '.join(recipients_to)
-                msg['CC'] = ', '.join(recipients_cc)
-                msg['Subject'] = subject
-                msg.attach(MIMEText(body, 'html'))
-
-                try:
-                    with smtplib.SMTP(config.SMTP_SERVER, config.SMTP_PORT) as server:
-                        server.sendmail(sender_email, recipients_to + recipients_cc, msg.as_string())
-                        print(f"Email sent successfully for {name}.")
-                except Exception as e:
-                    print(f"Error sending email: {e}")
-
-            # Check certificate expiry and send one email per run
-            for index, row in ad_df.iterrows():
-                name = row[x_column]
-                expiry_date = row[y_column]
-
-                if pd.isnull(expiry_date):
-                    continue
-
-                days_left = (expiry_date - today).days
-
-                if days_left <= 30:
-                    send_email(name, expiry_date, days_left)
-                    break  # Send only one email per run
-
-        else:
-            print(f"Error fetching AD file content: {ad_file_response.status_code}")
-    else:
-        print("File 'ADDevices.xlsx' not found in the specified location.")
-else:
-    print(f"Error fetching DriveItem children: {response.status_code}")
+# Recipients for the Email
+RECIPIENTS_TO = ["recipient1@example.com", "recipient2@example.com"]
+RECIPIENTS_CC = ["cc1@example.com", "cc2@example.com"]
