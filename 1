@@ -1,1 +1,68 @@
+import psycopg2
+import pandas as pd
+
+DB_CONFIG = {
+    "host": "172.16.130.247",
+    "database": "postgres",
+    "user": "postgres",
+    "password": "Zxcv@1234"
+}
+
+def generate_ivr_bucket_summary():
+    try:
+        # Connect to PostgreSQL
+        conn = psycopg2.connect(**DB_CONFIG)
+        query = """
+        SELECT 
+            to_addr, 
+            preQueueSeconds,
+            abandoned
+        FROM raw;
+        """
+        df = pd.read_sql_query(query, conn)
+        conn.close()
+
+        # Bucket calculations
+        df['Bucket'] = pd.cut(
+            df['preQueueSeconds'],
+            bins=[0, 30, 60, 120, float('inf')],
+            labels=['0-30 Seconds', '30-60 Seconds', '60-120 Seconds', '>120 Seconds']
+        )
+
+        # Grouping data to generate summary
+        summary = df.groupby('Bucket').agg(
+            Offered_Calls=('to_addr', 'count'),
+            IVR_Abandon=('abandoned', 'sum')
+        ).reset_index()
+
+        # Store the summary back into PostgreSQL
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ivr_bucket_summary (
+            bucket VARCHAR(20),
+            offered_calls INT,
+            ivr_abandon INT
+        )
+        """)
+
+        cursor.execute("DELETE FROM ivr_bucket_summary")  # Clear old data
+
+        for _, row in summary.iterrows():
+            cursor.execute(
+                "INSERT INTO ivr_bucket_summary (bucket, offered_calls, ivr_abandon) VALUES (%s, %s, %s)",
+                (row['Bucket'], int(row['Offered_Calls']), int(row['IVR_Abandon']))
+            )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("Bucket-wise IVR Abandonment Summary updated successfully.")
+
+    except Exception as e:
+        print(f"Error generating IVR bucket summary: {e}")
+
+# Call the function if needed
+# generate_ivr_bucket_summary()
 
