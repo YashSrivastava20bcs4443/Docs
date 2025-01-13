@@ -1,1 +1,173 @@
+To automate bulk calling using Asterisk + Python and log call data into MariaDB (without FreePBX), follow these steps:
+
+
+---
+
+✅ Step 1: Install Required Packages
+
+Ensure Asterisk, Python, and MariaDB are installed:
+
+sudo apt update
+sudo apt install -y asterisk mariadb-server python3 python3-pip
+sudo pip3 install pymysql
+
+
+---
+
+✅ Step 2: Configure MariaDB for Logging
+
+sudo mysql -u root -p
+
+CREATE DATABASE asterisk_logs;
+CREATE USER 'asteriskuser'@'localhost' IDENTIFIED BY 'password123';
+GRANT ALL PRIVILEGES ON asterisk_logs.* TO 'asteriskuser'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+
+Create Table for Call Logs:
+
+USE asterisk_logs;
+CREATE TABLE call_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    phone_number VARCHAR(15),
+    call_status VARCHAR(50),
+    call_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+---
+
+✅ Step 3: Configure SIP Trunk in Asterisk (/etc/asterisk/sip.conf)
+
+[general]
+context=default
+allowguest=no
+srvlookup=yes
+udpbindaddr=0.0.0.0:5060
+tcpenable=no
+
+[my_isp_trunk]
+type=peer
+host=sip.isp.com       ; Replace with your SIP provider's server
+username=YOUR_USERNAME
+secret=YOUR_PASSWORD
+qualify=yes
+insecure=port,invite
+disallow=all
+allow=ulaw
+
+Reload SIP Config:
+
+sudo asterisk -rx "sip reload"
+
+
+---
+
+✅ Step 4: Configure Dial Plan (/etc/asterisk/extensions.conf)
+
+[default]
+exten => _X.,1,NoOp(Incoming call from ${CALLERID(num)})
+    same => n,Answer()
+    same => n,Playback(hello-world)
+    same => n,Hangup()
+
+Reload Asterisk:
+
+sudo asterisk -rx "core reload"
+
+
+---
+
+✅ Step 5: Python Script for Bulk Calling and Logging
+
+Create a file named bulk_call.py:
+
+import pymysql
+import os
+import time
+
+# Database Connection Setup
+db_conn = pymysql.connect(host='localhost',
+                          user='asteriskuser',
+                          password='password123',
+                          database='asterisk_logs')
+cursor = db_conn.cursor()
+
+# Load the list of numbers
+csv_file = "/root/numbers.csv"
+
+# Asterisk Call File Path
+call_file_path = "/var/spool/asterisk/outgoing/"
+
+# SIP Trunk Settings
+trunk = "SIP/my_isp_trunk"
+caller_id = "1234567890"  # Replace with your number
+
+def create_call_file(number):
+    filename = f"{call_file_path}{number}.call"
+    with open(filename, "w") as call_file:
+        call_file.write(f"""Channel: {trunk}/{number}
+CallerID: "{caller_id}" <{caller_id}>
+MaxRetries: 2
+RetryTime: 60
+WaitTime: 30
+Context: default
+Extension: 100
+Priority: 1
+""")
+    os.chmod(filename, 0o755)
+    time.sleep(1)
+
+def log_call(number, status):
+    cursor.execute("INSERT INTO call_logs (phone_number, call_status) VALUES (%s, %s)", (number, status))
+    db_conn.commit()
+
+# Read CSV and Call Numbers
+with open(csv_file, "r") as file:
+    next(file)  # Skip header
+    for line in file:
+        phone_number = line.strip()
+        print(f"Calling: {phone_number}")
+        create_call_file(phone_number)
+        log_call(phone_number, "Initiated")
+
+cursor.close()
+db_conn.close()
+print("Bulk calling completed!")
+
+
+---
+
+✅ Step 6: Run the Bulk Calling Script
+
+sudo python3 bulk_call.py
+
+
+---
+
+✅ Step 7: Verify Call Logs in MariaDB
+
+sudo mysql -u asteriskuser -p
+
+USE asterisk_logs;
+SELECT * FROM call_logs;
+
+
+---
+
+✅ Step 8: Automate with Cron (Optional)
+
+You can schedule the bulk calling script using cron for regular testing:
+
+sudo crontab -e
+
+Add the following line to run the script daily at 10 AM:
+
+0 10 * * * /usr/bin/python3 /root/bulk_call.py
+
+
+---
+
+✅ Let me know if you need further help with call reports or advanced analytics!
+
 
