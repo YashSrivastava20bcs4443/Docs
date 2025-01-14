@@ -1,1 +1,129 @@
+import pandas as pd
+from datetime import datetime
+from msal import ConfidentialClientApplication
+import config
+import requests
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
+# Suppress warnings
+import warnings
+warnings.simplefilter(action='ignore', category=UserWarning)
+
+# Config values from config.py
+client_id = config.CLIENT_ID
+client_secret = config.CLIENT_SECRET
+tenant_id = config.TENANT_ID
+user_id = config.USER_ID
+remote_item_drive_id = config.AD_DRIVE_ID
+remote_item_id = config.AD_DRIVE_ITEM
+
+# Microsoft Graph API authentication
+authority = f'https://login.microsoftonline.com/{tenant_id}'
+app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
+result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
+
+access_token = result.get('access_token')
+if not access_token:
+    print("Error obtaining access token")
+    exit()
+
+# Fetch the list of files in the specified folder
+my_files_url = f'https://graph.microsoft.com/v1.0/users/{user_id}/drives/{remote_item_drive_id}/items/{remote_item_id}/children'
+response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access_token}"})
+
+if response.status_code == 200:
+    children = response.json().get('value', [])
+    
+    if len(children) == 1:  # If only one file present, fetch it
+        file_item = children[0]
+        print(f"File Found: {file_item['name']}")
+        
+        # Download the file
+        file_url = file_item['@microsoft.graph.downloadUrl']
+        file_response = requests.get(file_url)
+
+        if file_response.status_code == 200:
+            ad_df = pd.read_excel(file_response.content, sheet_name=config.SHEET_NAME)
+            print(f"Data from {file_item['name']} loaded successfully.")
+        else:
+            print(f"Error downloading the file: {file_response.status_code}")
+            exit()
+    else:
+        print("Error: No files or multiple files found in the specified location.")
+        exit()
+else:
+    print(f"Error fetching drive items: {response.status_code}, {response.text}")
+    exit()
+
+# Column assignments based on your provided details
+x_column = config.X_COLUMN
+y_column = config.Y_COLUMN
+ad_df[y_column] = pd.to_datetime(ad_df[y_column], errors='coerce')
+today = datetime.now()
+
+# ✅ Function to send email with categorized certificates
+def send_email(certificates):
+    sender_email = config.SENDER_EMAIL
+    recipients_to = config.RECIPIENTS_TO
+    recipients_cc = config.RECIPIENTS_CC
+    subject = "Certificate Expiry Alert"
+
+    # HTML Table to categorize certificates
+    table_html = "<html><body>"
+    table_html += "<h2>Certificates Expiring Soon</h2>"
+
+    # Categorize certificates by days left
+    for category, certificates_list in certificates.items():
+        if certificates_list:
+            table_html += f"<h3>{category}</h3>"
+            table_html += "<table border='1'><tr><th>Name</th><th>Expiry Date</th><th>Days Left</th></tr>"
+            for cert in certificates_list:
+                table_html += f"<tr><td>{cert['name']}</td><td>{cert['expiry_date'].strftime('%Y-%m-%d')}</td><td>{cert['days_left']}</td></tr>"
+            table_html += "</table><br>"
+
+    table_html += "</body></html>"
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = ', '.join(recipients_to)
+    msg['CC'] = ', '.join(recipients_cc)
+    msg['Subject'] = subject
+    msg.attach(MIMEText(table_html, 'html'))
+
+    try:
+        with smtplib.SMTP(config.SMTP_SERVER, config.SMTP_PORT) as server:
+            server.sendmail(sender_email, recipients_to + recipients_cc, msg.as_string())
+            print("Email sent successfully.")
+    except Exception as e:
+        print(f"Error sending email: {e}")
+
+# ✅ Categorize certificates by expiry date
+certificates_by_category = {
+    'Certificates expiring in less than 30 days': [],
+    'Certificates expiring in less than 20 days': [],
+    'Certificates expiring in less than 10 days': []
+}
+
+for index, row in ad_df.iterrows():
+    name = row[x_column]
+    expiry_date = row[y_column]
+
+    if pd.isnull(expiry_date):
+        continue
+
+    days_left = (expiry_date - today).days
+
+    if days_left <= 30:
+        cert_info = {'name': name, 'expiry_date': expiry_date, 'days_left': days_left}
+        
+        if days_left <= 10:
+            certificates_by_category['Certificates expiring in less than 10 days'].append(cert_info)
+        elif days_left <= 20:
+            certificates_by_category['Certificates expiring in less than 20 days'].append(cert_info)
+        else:
+            certificates_by_category['Certificates expiring in less than 30 days'].append(cert_info)
+
+# Send the email with the categorized certificates
+send_email(certificates_by_category)
