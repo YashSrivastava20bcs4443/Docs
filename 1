@@ -11,7 +11,20 @@ from email.mime.multipart import MIMEMultipart
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-# Config values from config.py
+# === Config Validation ===
+required_config_keys = [
+    'CLIENT_ID', 'CLIENT_SECRET', 'TENANT_ID', 'USER_ID',
+    'AD_DRIVE_ID', 'AD_DRIVE_ITEM', 'SENDER_EMAIL',
+    'SMTP_SERVER', 'SMTP_PORT', 'RECIPIENTS_TO', 'RECIPIENTS_CC',
+    'X_COLUMN', 'Y_COLUMN', 'SHEET_NAME'
+]
+
+# Ensure all config values exist
+for key in required_config_keys:
+    if not hasattr(config, key):
+        raise ValueError(f"Missing required configuration key: {key}")
+
+# === Load Config Values ===
 client_id = config.CLIENT_ID
 client_secret = config.CLIENT_SECRET
 tenant_id = config.TENANT_ID
@@ -19,67 +32,101 @@ user_id = config.USER_ID
 remote_item_drive_id = config.AD_DRIVE_ID
 remote_item_id = config.AD_DRIVE_ITEM
 
-# Microsoft Graph API authentication
-authority = f'https://login.microsoftonline.com/{tenant_id}'
-app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
-result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
-
-access_token = result.get('access_token')
-if not access_token:
-    print("Error obtaining access token")
+# === Authenticate with Microsoft Graph API ===
+try:
+    authority = f'https://login.microsoftonline.com/{tenant_id}'
+    app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
+    result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
+    access_token = result.get('access_token')
+    if not access_token:
+        raise Exception("Failed to obtain access token.")
+except Exception as e:
+    print(f"Error during authentication: {e}")
     exit()
 
-# Fetch the list of files in the specified folder
-my_files_url = f'https://graph.microsoft.com/v1.0/users/{user_id}/drives/{remote_item_drive_id}/items/{remote_item_id}/children'
-response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access_token}"})
+# === Fetch AD File from OneDrive ===
+try:
+    my_files_url = f'https://graph.microsoft.com/v1.0/users/{user_id}/drives/{remote_item_drive_id}/items/{remote_item_id}/children'
+    response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access_token}"})
+    response.raise_for_status()  # Raise an error for bad responses
 
-if response.status_code == 200:
     children = response.json().get('value', [])
-    
-    if len(children) == 1:  # If only one file present, fetch it
-        file_item = children[0]
-        print(f"File Found: {file_item['name']}")
-        
-        # Download the file
-        file_url = file_item['@microsoft.graph.downloadUrl']
-        file_response = requests.get(file_url)
+    if len(children) != 1:
+        raise Exception("No file or multiple files found in the specified folder.")
 
-        if file_response.status_code == 200:
-            ad_df = pd.read_excel(file_response.content, sheet_name=config.SHEET_NAME)
-            print(f"Data from {file_item['name']} loaded successfully.")
-        else:
-            print(f"Error downloading the file: {file_response.status_code}")
-            exit()
-    else:
-        print("Error: No files or multiple files found in the specified location.")
-        exit()
-else:
-    print(f"Error fetching drive items: {response.status_code}, {response.text}")
+    file_item = children[0]
+    file_url = file_item['@microsoft.graph.downloadUrl']
+
+    # Download the file
+    file_response = requests.get(file_url)
+    file_response.raise_for_status()
+    ad_df = pd.read_excel(file_response.content, sheet_name=config.SHEET_NAME)
+
+except Exception as e:
+    print(f"Error fetching AD file: {e}")
     exit()
 
-# Column assignments based on your provided details
+# === Validate Data ===
 x_column = config.X_COLUMN
 y_column = config.Y_COLUMN
-ad_df[y_column] = pd.to_datetime(ad_df[y_column], errors='coerce')
-today = datetime.now()
 
-# ✅ Function to send email with multiple To and CC recipients
-def send_email(name, expiry_date, days_left):
+try:
+    if x_column not in ad_df.columns or y_column not in ad_df.columns:
+        raise ValueError(f"Columns '{x_column}' or '{y_column}' not found in the Excel file.")
+    ad_df[y_column] = pd.to_datetime(ad_df[y_column], errors='coerce')
+except Exception as e:
+    print(f"Error processing data: {e}")
+    exit()
+
+# === Prepare Expiry Report ===
+today = datetime.now()
+expiring_certificates = []
+
+for index, row in ad_df.iterrows():
+    name = row[x_column]
+    expiry_date = row[y_column]
+
+    # Skip invalid dates or missing data
+    if pd.isnull(expiry_date):
+        continue
+
+    days_left = (expiry_date - today).days
+
+    # Priority Logic
+    if days_left <= 10:
+        priority = "🚨URGENT"
+    elif days_left <= 20:
+        priority = "⚠️IMPORTANT"
+    elif days_left <= 30:
+        priority = "INFO"
+    else:
+        continue  # Ignore certificates expiring after 30 days
+
+    expiring_certificates.append(f"{priority} - {name} - Expiring on: {expiry_date.strftime('%Y-%m-%d')} ({days_left} days left)")
+
+# === Email Sending Function ===
+def send_email(expiring_certificates):
+    if not expiring_certificates:
+        print("✅ No certificates expiring within the next 30 days.")
+        return
+
     sender_email = config.SENDER_EMAIL
     recipients_to = config.RECIPIENTS_TO
     recipients_cc = config.RECIPIENTS_CC
-    subject = f"Certificate Expiry Alert for {name}"
+    subject = "Certificate Expiry Alert: Important & Urgent Notices"
 
-    body = f"""
-    <html>
-    <body>
-        <p>Please update the certificate for <strong>{name}</strong>.<br>
-        Expiry Date: <strong>{expiry_date.strftime('%Y-%m-%d')}</strong>.<br>
-        <strong>{days_left}</strong> days left to expire.</p>
-    </body>
-    </html>
-    """
+    # Prepare HTML email body
+    body = "<html><body><p><strong>The following certificates are expiring soon:</strong></p><ul>"
+    for cert in expiring_certificates:
+        if "URGENT" in cert:
+            body += f'<li><span style="color: red; font-weight: bold;">{cert}</span></li>'
+        elif "IMPORTANT" in cert:
+            body += f'<li><span style="color: orange; font-weight: bold;">{cert}</span></li>'
+        else:
+            body += f'<li>{cert}</li>'
+    body += "</ul><p>Please take necessary action based on the priority levels above.</p></body></html>"
 
+    # Prepare Email
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = ', '.join(recipients_to)
@@ -87,23 +134,13 @@ def send_email(name, expiry_date, days_left):
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'html'))
 
+    # Send the Email
     try:
         with smtplib.SMTP(config.SMTP_SERVER, config.SMTP_PORT) as server:
             server.sendmail(sender_email, recipients_to + recipients_cc, msg.as_string())
-            print(f"Email sent successfully for {name}.")
+            print("✅ Consolidated email sent successfully!")
     except Exception as e:
         print(f"Error sending email: {e}")
 
-# ✅ Check certificate expiry and send a single email per run
-for index, row in ad_df.iterrows():
-    name = row[x_column]
-    expiry_date = row[y_column]
-
-    if pd.isnull(expiry_date):
-        continue
-
-    days_left = (expiry_date - today).days
-
-    if days_left <= 30:
-        send_email(name, expiry_date, days_left)
-        break  # Sends only one email per run
+# === Send the Email ===
+send_email(expiring_certificates)
