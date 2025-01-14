@@ -1,1 +1,56 @@
+import requests
+from msal import ConfidentialClientApplication
+import config
 
+# Authentication setup
+authority = f'https://login.microsoftonline.com/{config.TENANT_ID}'
+app = ConfidentialClientApplication(config.CLIENT_ID, authority=authority, client_credential=config.CLIENT_SECRET)
+result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
+access_token = result.get('access_token')
+
+if not access_token:
+    print("Error obtaining access token")
+    exit()
+
+# List all items in the specified folder (to find the subfolder)
+my_files_url = f'https://graph.microsoft.com/v1.0/users/{config.USER_ID}/drives/{config.AD_DRIVE_ID}/items/{config.AD_DRIVE_ITEM}/children'
+response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access_token}"})
+
+if response.status_code == 200:
+    children = response.json().get('value', [])
+    # Check for a subfolder
+    subfolder = next((item for item in children if item['folder'] and item['name'] == "Your_Subfolder_Name"), None)
+
+    if subfolder:
+        subfolder_id = subfolder['id']
+        print(f"Subfolder Found: {subfolder['name']}")
+        
+        # Accessing the file inside the subfolder
+        subfolder_url = f"https://graph.microsoft.com/v1.0/users/{config.USER_ID}/drives/{config.AD_DRIVE_ID}/items/{subfolder_id}/children"
+        subfolder_response = requests.get(subfolder_url, headers={"Authorization": f"Bearer {access_token}"})
+        
+        if subfolder_response.status_code == 200:
+            subfolder_children = subfolder_response.json().get('value', [])
+            
+            if len(subfolder_children) == 1:  # Ensure only one file exists
+                file_item = subfolder_children[0]
+                print(f"File Found: {file_item['name']}")
+                
+                # Download the file
+                file_url = file_item['@microsoft.graph.downloadUrl']
+                file_response = requests.get(file_url)
+                
+                if file_response.status_code == 200:
+                    with open(file_item['name'], 'wb') as f:
+                        f.write(file_response.content)
+                    print(f"File '{file_item['name']}' downloaded successfully!")
+                else:
+                    print(f"Error downloading the file: {file_response.status_code}")
+            else:
+                print("No files or multiple files found in the subfolder.")
+        else:
+            print(f"Error accessing subfolder items: {subfolder_response.status_code}")
+    else:
+        print("Subfolder not found.")
+else:
+    print(f"Error fetching drive items: {response.status_code}, {response.text}")
