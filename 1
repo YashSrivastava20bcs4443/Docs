@@ -12,11 +12,13 @@ from io import BytesIO
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-# === Microsoft Graph API Authentication ===
+# === Authentication with Microsoft Graph API ===
 try:
     authority = f'https://login.microsoftonline.com/{config.TENANT_ID}'
     app = ConfidentialClientApplication(
-        config.CLIENT_ID, authority=authority, client_credential=config.CLIENT_SECRET
+        config.CLIENT_ID, 
+        authority=authority, 
+        client_credential=config.CLIENT_SECRET
     )
     result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
     access_token = result.get('access_token')
@@ -26,13 +28,16 @@ except Exception as e:
     print(f"Error during authentication: {e}")
     exit()
 
-# === Fetch AD File from OneDrive ===
+# === Fetch AD File from OneDrive Using the New URL ===
 try:
+    # Corrected URL format with the specified path
     my_files_url = f"https://graph.microsoft.com/v1.0/users/{config.USER_ID}/drive/root:/2024/GRC/Domains/Domains and Certificates/Domains and Certificates 2024.xlsm:/content"
+
+    # FIXED: Correct request structure
     response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access_token}"})
     response.raise_for_status()
 
-    # Load the Excel file using BytesIO
+    # Using BytesIO to load the Excel file properly
     file_content = BytesIO(response.content)
     ad_df = pd.read_excel(file_content, sheet_name=config.SHEET_NAME)
 
@@ -49,7 +54,7 @@ except Exception as e:
     print(f"Error processing data: {e}")
     exit()
 
-# === Prepare Expiry Report with Priority Labels ===
+# === Prepare Expiry Report ===
 today = datetime.now()
 expiring_certificates = []
 
@@ -62,25 +67,18 @@ for index, row in ad_df.iterrows():
 
     days_left = (expiry_date - today).days
 
-    # **Priority Classification (Teams Friendly)**
-    if days_left < 0:
-        priority = "**🚨 URGENT (PAST DUE)**"
-        days_left_text = "**PAST DUE!**"
-    elif days_left <= 10:
-        priority = "**🚨 URGENT**"
-        days_left_text = f"**{days_left} days left**"
+    if days_left <= 10:
+        priority = "🚨URGENT"
     elif days_left <= 20:
-        priority = "**⚠️ IMPORTANT**"
-        days_left_text = f"**{days_left} days left**"
+        priority = "⚠️IMPORTANT"
     elif days_left <= 30:
-        priority = "**✅ INFO**"
-        days_left_text = f"**{days_left} days left**"
+        priority = "INFO"
     else:
-        continue  # Ignore if more than 30 days left
+        continue
 
-    expiring_certificates.append(f"{priority} - **{name}** - Expiring on: **{expiry_date.strftime('%Y-%m-%d')}** ({days_left_text})")
+    expiring_certificates.append(f"{priority} - {name} - Expiring on: {expiry_date.strftime('%Y-%m-%d')} ({days_left} days left)")
 
-# === Send Consolidated Email (Teams Compatible) ===
+# === Email Sending Function ===
 def send_email(expiring_certificates):
     if not expiring_certificates:
         print("✅ No certificates expiring within the next 30 days.")
@@ -91,18 +89,24 @@ def send_email(expiring_certificates):
     recipients_cc = config.RECIPIENTS_CC
     subject = "Certificate Expiry Alert: Important & Urgent Notices"
 
-    # **Teams-Compatible Text Formatting (No HTML Styling)**
-    body = "**Certificate Expiry Report:**\n\n"
-    body += "\n".join(expiring_certificates)
-    body += "\n\n**Please take necessary actions based on the priority.**"
+    # **Updated Body with Inline CSS**
+    body = "<html><body><p><strong>The following certificates are expiring soon:</strong></p><ul>"
+    for cert in expiring_certificates:
+        if "URGENT" in cert:
+            body += f'<li style="color: red; font-weight: bold;">{cert}</li>'
+        elif "IMPORTANT" in cert:
+            body += f'<li style="color: orange; font-weight: bold;">{cert}</li>'
+        else:
+            body += f'<li>{cert}</li>'
+    body += "</ul><p>Please take necessary action based on the priority levels above.</p></body></html>"
 
-    # Prepare the email
+    # Prepare Email with UTF-8 encoding
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = ', '.join(recipients_to)
     msg['CC'] = ', '.join(recipients_cc)
     msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain', 'utf-8'))  # **Changed to plain text for Teams compatibility**
+    msg.attach(MIMEText(body, 'html', 'utf-8'))  
 
     try:
         with smtplib.SMTP(config.SMTP_SERVER, config.SMTP_PORT) as server:
@@ -111,5 +115,5 @@ def send_email(expiring_certificates):
     except Exception as e:
         print(f"Error sending email: {e}")
 
-# === Trigger the Email Sending ===
+# === Send the Email ===
 send_email(expiring_certificates)
