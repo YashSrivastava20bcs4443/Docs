@@ -1,1 +1,123 @@
+import pandas as pd
+from datetime import datetime
+from msal import ConfidentialClientApplication
+import config
+import requests
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from io import BytesIO
 
+# Suppress warnings
+import warnings
+warnings.simplefilter(action='ignore', category=UserWarning)
+
+# === Microsoft Graph API Authentication ===
+try:
+    authority = f'https://login.microsoftonline.com/{config.TENANT_ID}'
+    app = ConfidentialClientApplication(
+        config.CLIENT_ID, authority=authority, client_credential=config.CLIENT_SECRET
+    )
+    result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
+    access_token = result.get('access_token')
+    if not access_token:
+        raise Exception("Failed to obtain access token.")
+except Exception as e:
+    print(f"Error during authentication: {e}")
+    exit()
+
+# === Fetch AD File from OneDrive Using the New URL ===
+try:
+    my_files_url = f"https://graph.microsoft.com/v1.0/users/{config.USER_ID}/drive/root:/2024/GRC/Domains/Domains and Certificates/Domains and Certificates 2024.xlsm:/content"
+    response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access_token}"})
+    response.raise_for_status()
+
+    # Load the Excel file using BytesIO
+    file_content = BytesIO(response.content)
+    ad_df = pd.read_excel(file_content, sheet_name=config.SHEET_NAME)
+
+except Exception as e:
+    print(f"Error fetching AD file: {e}")
+    exit()
+
+# === Validate Data ===
+try:
+    if config.X_COLUMN not in ad_df.columns or config.Y_COLUMN not in ad_df.columns:
+        raise ValueError(f"Columns '{config.X_COLUMN}' or '{config.Y_COLUMN}' not found.")
+    ad_df[config.Y_COLUMN] = pd.to_datetime(ad_df[config.Y_COLUMN], errors='coerce')
+except Exception as e:
+    print(f"Error processing data: {e}")
+    exit()
+
+# === Prepare Expiry Report with Updated Logic ===
+today = datetime.now()
+expiring_certificates = []
+
+for index, row in ad_df.iterrows():
+    name = row[config.X_COLUMN]
+    expiry_date = row[config.Y_COLUMN]
+
+    if pd.isnull(expiry_date):
+        continue
+
+    days_left = (expiry_date - today).days
+
+    # **Updated Priority Logic (with PAST DUE)**
+    if days_left < 0:
+        priority = "🚨URGENT (PAST DUE)"
+        days_left_text = "PAST DUE"
+    elif days_left <= 10:
+        priority = "🚨URGENT"
+        days_left_text = f"{days_left} days left"
+    elif days_left <= 20:
+        priority = "⚠️IMPORTANT"
+        days_left_text = f"{days_left} days left"
+    elif days_left <= 30:
+        priority = "INFO"
+        days_left_text = f"{days_left} days left"
+    else:
+        continue  # Ignore if more than 30 days left
+
+    expiring_certificates.append(f"{priority} - {name} - Expiring on: {expiry_date.strftime('%Y-%m-%d')} ({days_left_text})")
+
+# === Email Sending Function ===
+def send_email(expiring_certificates):
+    if not expiring_certificates:
+        print("✅ No certificates expiring within the next 30 days.")
+        return
+
+    sender_email = config.SENDER_EMAIL
+    recipients_to = config.RECIPIENTS_TO
+    recipients_cc = config.RECIPIENTS_CC
+    subject = "Certificate Expiry Alert: Important & Urgent Notices"
+
+    # **HTML Formatting Updated for PAST DUE Styling**
+    body = "<html><body><p><strong>The following certificates are expiring soon:</strong></p><ul>"
+    for cert in expiring_certificates:
+        if "PAST DUE" in cert:
+            body += f'<li><span style="color: darkred; font-weight: bold;">{cert}</span></li>'
+        elif "URGENT" in cert:
+            body += f'<li><span style="color: red; font-weight: bold;">{cert}</span></li>'
+        elif "IMPORTANT" in cert:
+            body += f'<li><span style="color: orange; font-weight: bold;">{cert}</span></li>'
+        else:
+            body += f'<li>{cert}</li>'
+    body += "</ul><p>Please take necessary action based on the priority levels above.</p></body></html>"
+
+    # Prepare the email with UTF-8 encoding
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = ', '.join(recipients_to)
+    msg['CC'] = ', '.join(recipients_cc)
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'html', 'utf-8'))
+
+    try:
+        with smtplib.SMTP(config.SMTP_SERVER, config.SMTP_PORT) as server:
+            server.sendmail(sender_email, recipients_to + recipients_cc, msg.as_string())
+            print("✅ Consolidated email sent successfully!")
+    except Exception as e:
+        print(f"Error sending email: {e}")
+
+# === Send the Email ===
+send_email(expiring_certificates)
