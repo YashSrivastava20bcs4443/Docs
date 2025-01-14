@@ -6,36 +6,20 @@ import requests
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from io import BytesIO
 
 # Suppress warnings
 import warnings
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-# === Config Validation ===
-required_config_keys = [
-    'CLIENT_ID', 'CLIENT_SECRET', 'TENANT_ID', 'USER_ID',
-    'AD_DRIVE_ID', 'AD_DRIVE_ITEM', 'SENDER_EMAIL',
-    'SMTP_SERVER', 'SMTP_PORT', 'RECIPIENTS_TO', 'RECIPIENTS_CC',
-    'X_COLUMN', 'Y_COLUMN', 'SHEET_NAME'
-]
-
-# Ensure all config values exist
-for key in required_config_keys:
-    if not hasattr(config, key):
-        raise ValueError(f"Missing required configuration key: {key}")
-
-# === Load Config Values ===
-client_id = config.CLIENT_ID
-client_secret = config.CLIENT_SECRET
-tenant_id = config.TENANT_ID
-user_id = config.USER_ID
-remote_item_drive_id = config.AD_DRIVE_ID
-remote_item_id = config.AD_DRIVE_ITEM
-
-# === Authenticate with Microsoft Graph API ===
+# === Authentication with Microsoft Graph API ===
 try:
-    authority = f'https://login.microsoftonline.com/{tenant_id}'
-    app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
+    authority = f'https://login.microsoftonline.com/{config.TENANT_ID}'
+    app = ConfidentialClientApplication(
+        config.CLIENT_ID, 
+        authority=authority, 
+        client_credential=config.CLIENT_SECRET
+    )
     result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
     access_token = result.get('access_token')
     if not access_token:
@@ -46,10 +30,9 @@ except Exception as e:
 
 # === Fetch AD File from OneDrive ===
 try:
-    my_files_url = f'https://graph.microsoft.com/v1.0/users/{user_id}/drives/{remote_item_drive_id}/items/{remote_item_id}/children'
+    my_files_url = f'https://graph.microsoft.com/v1.0/users/{config.USER_ID}/drives/{config.AD_DRIVE_ID}/items/{config.AD_DRIVE_ITEM}/children'
     response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access_token}"})
-    response.raise_for_status()  # Raise an error for bad responses
-
+    response.raise_for_status()
     children = response.json().get('value', [])
     if len(children) != 1:
         raise Exception("No file or multiple files found in the specified folder.")
@@ -57,23 +40,20 @@ try:
     file_item = children[0]
     file_url = file_item['@microsoft.graph.downloadUrl']
 
-    # Download the file
+    # FIX: Using BytesIO to avoid the warning
     file_response = requests.get(file_url)
     file_response.raise_for_status()
-    ad_df = pd.read_excel(file_response.content, sheet_name=config.SHEET_NAME)
+    ad_df = pd.read_excel(BytesIO(file_response.content), sheet_name=config.SHEET_NAME)
 
 except Exception as e:
     print(f"Error fetching AD file: {e}")
     exit()
 
 # === Validate Data ===
-x_column = config.X_COLUMN
-y_column = config.Y_COLUMN
-
 try:
-    if x_column not in ad_df.columns or y_column not in ad_df.columns:
-        raise ValueError(f"Columns '{x_column}' or '{y_column}' not found in the Excel file.")
-    ad_df[y_column] = pd.to_datetime(ad_df[y_column], errors='coerce')
+    if config.X_COLUMN not in ad_df.columns or config.Y_COLUMN not in ad_df.columns:
+        raise ValueError(f"Columns '{config.X_COLUMN}' or '{config.Y_COLUMN}' not found.")
+    ad_df[config.Y_COLUMN] = pd.to_datetime(ad_df[config.Y_COLUMN], errors='coerce')
 except Exception as e:
     print(f"Error processing data: {e}")
     exit()
@@ -83,16 +63,14 @@ today = datetime.now()
 expiring_certificates = []
 
 for index, row in ad_df.iterrows():
-    name = row[x_column]
-    expiry_date = row[y_column]
+    name = row[config.X_COLUMN]
+    expiry_date = row[config.Y_COLUMN]
 
-    # Skip invalid dates or missing data
     if pd.isnull(expiry_date):
         continue
 
     days_left = (expiry_date - today).days
 
-    # Priority Logic
     if days_left <= 10:
         priority = "🚨URGENT"
     elif days_left <= 20:
@@ -100,7 +78,7 @@ for index, row in ad_df.iterrows():
     elif days_left <= 30:
         priority = "INFO"
     else:
-        continue  # Ignore certificates expiring after 30 days
+        continue
 
     expiring_certificates.append(f"{priority} - {name} - Expiring on: {expiry_date.strftime('%Y-%m-%d')} ({days_left} days left)")
 
@@ -115,7 +93,6 @@ def send_email(expiring_certificates):
     recipients_cc = config.RECIPIENTS_CC
     subject = "Certificate Expiry Alert: Important & Urgent Notices"
 
-    # Prepare HTML email body
     body = "<html><body><p><strong>The following certificates are expiring soon:</strong></p><ul>"
     for cert in expiring_certificates:
         if "URGENT" in cert:
@@ -126,15 +103,14 @@ def send_email(expiring_certificates):
             body += f'<li>{cert}</li>'
     body += "</ul><p>Please take necessary action based on the priority levels above.</p></body></html>"
 
-    # Prepare Email
+    # Prepare Email with UTF-8 encoding
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = ', '.join(recipients_to)
     msg['CC'] = ', '.join(recipients_cc)
     msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'html'))
+    msg.attach(MIMEText(body, 'html', 'utf-8'))  # FIX: Added UTF-8 encoding
 
-    # Send the Email
     try:
         with smtplib.SMTP(config.SMTP_SERVER, config.SMTP_PORT) as server:
             server.sendmail(sender_email, recipients_to + recipients_cc, msg.as_string())
