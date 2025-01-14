@@ -18,8 +18,9 @@ response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access
 
 if response.status_code == 200:
     children = response.json().get('value', [])
-    # Check for a subfolder
-    subfolder = next((item for item in children if item['folder'] and item['name'] == "Your_Subfolder_Name"), None)
+    
+    # FIXED: Check if 'folder' exists using .get()
+    subfolder = next((item for item in children if item.get('folder') and item['name'] == "Domains and Certificates"), None)
 
     if subfolder:
         subfolder_id = subfolder['id']
