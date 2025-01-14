@@ -13,12 +13,12 @@ result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.defa
 
 access_token = result.get('access_token')
 if not access_token:
-    print("Error obtaining access token")
+    print("Error obtaining access token.")
     exit()
 
 headers = {"Authorization": f"Bearer {access_token}"}
 
-# Step 1: Fetch User ID
+# Fetch User ID
 user_email = input("Enter the user's email to search for: ")
 user_url = f"https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '{user_email}'"
 user_response = requests.get(user_url, headers=headers)
@@ -31,30 +31,22 @@ else:
     print(f"Error fetching User ID: {user_response.status_code}, {user_response.text}")
     exit()
 
-# Step 2: List Drive IDs for the User
-drive_url = f"https://graph.microsoft.com/v1.0/users/{user_id}/drives"
-drive_response = requests.get(drive_url, headers=headers)
+# Fetch Shared Drive Files
+shared_url = f"https://graph.microsoft.com/v1.0/users/{user_id}/drive/sharedWithMe"
+shared_response = requests.get(shared_url, headers=headers)
 
-if drive_response.status_code == 200:
-    drives = drive_response.json()['value']
-    if drives:
-        print("\nDrive IDs and Item details:")
-        for drive in drives:
-            drive_id = drive['id']
-            drive_name = drive['name']
-            print(f"\nDrive Name: {drive_name}, Drive ID: {drive_id}")
-            
-            # Step 3: List Drive Items for each Drive
-            item_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root/children"
-            item_response = requests.get(item_url, headers=headers)
+if shared_response.status_code == 200:
+    shared_files = shared_response.json()['value']
 
-            if item_response.status_code == 200:
-                items = item_response.json()['value']
-                for item in items:
-                    print(f"  Item Name: {item['name']} | Item ID: {item['id']}")
-            else:
-                print(f"Error fetching items for Drive ID {drive_id}: {item_response.status_code}, {item_response.text}")
+    if shared_files:
+        print("\nShared Files:")
+        for file in shared_files:
+            file_name = file.get('name', 'Unknown File')
+            file_id = file.get('id')
+            file_link = file.get('webUrl')
+            print(f"File Name: {file_name} | File ID: {file_id}")
+            print(f"File Link: {file_link}\n")
     else:
-        print("No drives found for the user.")
+        print("No shared files found.")
 else:
-    print(f"Error fetching Drive IDs: {drive_response.status_code}, {drive_response.text}")
+    print(f"Error fetching shared files: {shared_response.status_code}, {shared_response.text}")
