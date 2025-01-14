@@ -26,7 +26,7 @@ except Exception as e:
     print(f"Error during authentication: {e}")
     exit()
 
-# === Fetch AD File from OneDrive Using the New URL ===
+# === Fetch AD File from OneDrive ===
 try:
     my_files_url = f"https://graph.microsoft.com/v1.0/users/{config.USER_ID}/drive/root:/2024/GRC/Domains/Domains and Certificates/Domains and Certificates 2024.xlsm:/content"
     response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access_token}"})
@@ -49,7 +49,7 @@ except Exception as e:
     print(f"Error processing data: {e}")
     exit()
 
-# === Prepare Expiry Report with Updated Logic ===
+# === Prepare Expiry Report with Priority Labels ===
 today = datetime.now()
 expiring_certificates = []
 
@@ -62,25 +62,25 @@ for index, row in ad_df.iterrows():
 
     days_left = (expiry_date - today).days
 
-    # **Updated Priority Logic (with PAST DUE)**
+    # **Priority Classification (Teams Friendly)**
     if days_left < 0:
-        priority = "🚨URGENT (PAST DUE)"
-        days_left_text = "PAST DUE"
+        priority = "**🚨 URGENT (PAST DUE)**"
+        days_left_text = "**PAST DUE!**"
     elif days_left <= 10:
-        priority = "🚨URGENT"
-        days_left_text = f"{days_left} days left"
+        priority = "**🚨 URGENT**"
+        days_left_text = f"**{days_left} days left**"
     elif days_left <= 20:
-        priority = "⚠️IMPORTANT"
-        days_left_text = f"{days_left} days left"
+        priority = "**⚠️ IMPORTANT**"
+        days_left_text = f"**{days_left} days left**"
     elif days_left <= 30:
-        priority = "INFO"
-        days_left_text = f"{days_left} days left"
+        priority = "**✅ INFO**"
+        days_left_text = f"**{days_left} days left**"
     else:
         continue  # Ignore if more than 30 days left
 
-    expiring_certificates.append(f"{priority} - {name} - Expiring on: {expiry_date.strftime('%Y-%m-%d')} ({days_left_text})")
+    expiring_certificates.append(f"{priority} - **{name}** - Expiring on: **{expiry_date.strftime('%Y-%m-%d')}** ({days_left_text})")
 
-# === Email Sending Function ===
+# === Send Consolidated Email (Teams Compatible) ===
 def send_email(expiring_certificates):
     if not expiring_certificates:
         print("✅ No certificates expiring within the next 30 days.")
@@ -91,26 +91,18 @@ def send_email(expiring_certificates):
     recipients_cc = config.RECIPIENTS_CC
     subject = "Certificate Expiry Alert: Important & Urgent Notices"
 
-    # **HTML Formatting Updated for PAST DUE Styling**
-    body = "<html><body><p><strong>The following certificates are expiring soon:</strong></p><ul>"
-    for cert in expiring_certificates:
-        if "PAST DUE" in cert:
-            body += f'<li><span style="color: darkred; font-weight: bold;">{cert}</span></li>'
-        elif "URGENT" in cert:
-            body += f'<li><span style="color: red; font-weight: bold;">{cert}</span></li>'
-        elif "IMPORTANT" in cert:
-            body += f'<li><span style="color: orange; font-weight: bold;">{cert}</span></li>'
-        else:
-            body += f'<li>{cert}</li>'
-    body += "</ul><p>Please take necessary action based on the priority levels above.</p></body></html>"
+    # **Teams-Compatible Text Formatting (No HTML Styling)**
+    body = "**Certificate Expiry Report:**\n\n"
+    body += "\n".join(expiring_certificates)
+    body += "\n\n**Please take necessary actions based on the priority.**"
 
-    # Prepare the email with UTF-8 encoding
+    # Prepare the email
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = ', '.join(recipients_to)
     msg['CC'] = ', '.join(recipients_cc)
     msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'html', 'utf-8'))
+    msg.attach(MIMEText(body, 'plain', 'utf-8'))  # **Changed to plain text for Teams compatibility**
 
     try:
         with smtplib.SMTP(config.SMTP_SERVER, config.SMTP_PORT) as server:
@@ -119,5 +111,5 @@ def send_email(expiring_certificates):
     except Exception as e:
         print(f"Error sending email: {e}")
 
-# === Send the Email ===
+# === Trigger the Email Sending ===
 send_email(expiring_certificates)
