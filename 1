@@ -1,1 +1,60 @@
+import requests
+from msal import ConfidentialClientApplication
+import config
 
+# Microsoft Graph API Authentication
+client_id = config.CLIENT_ID
+client_secret = config.CLIENT_SECRET
+tenant_id = config.TENANT_ID
+
+authority = f'https://login.microsoftonline.com/{tenant_id}'
+app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
+result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
+
+access_token = result.get('access_token')
+if not access_token:
+    print("Error obtaining access token")
+    exit()
+
+headers = {"Authorization": f"Bearer {access_token}"}
+
+# Step 1: Fetch User ID
+user_email = input("Enter the user's email to search for: ")
+user_url = f"https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '{user_email}'"
+user_response = requests.get(user_url, headers=headers)
+
+if user_response.status_code == 200 and user_response.json()['value']:
+    user_info = user_response.json()['value'][0]
+    user_id = user_info['id']
+    print(f"\nUser ID for {user_email}: {user_id}")
+else:
+    print(f"Error fetching User ID: {user_response.status_code}, {user_response.text}")
+    exit()
+
+# Step 2: List Drive IDs for the User
+drive_url = f"https://graph.microsoft.com/v1.0/users/{user_id}/drives"
+drive_response = requests.get(drive_url, headers=headers)
+
+if drive_response.status_code == 200:
+    drives = drive_response.json()['value']
+    if drives:
+        print("\nDrive IDs and Item details:")
+        for drive in drives:
+            drive_id = drive['id']
+            drive_name = drive['name']
+            print(f"\nDrive Name: {drive_name}, Drive ID: {drive_id}")
+            
+            # Step 3: List Drive Items for each Drive
+            item_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root/children"
+            item_response = requests.get(item_url, headers=headers)
+
+            if item_response.status_code == 200:
+                items = item_response.json()['value']
+                for item in items:
+                    print(f"  Item Name: {item['name']} | Item ID: {item['id']}")
+            else:
+                print(f"Error fetching items for Drive ID {drive_id}: {item_response.status_code}, {item_response.text}")
+    else:
+        print("No drives found for the user.")
+else:
+    print(f"Error fetching Drive IDs: {drive_response.status_code}, {drive_response.text}")
