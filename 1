@@ -1,52 +1,109 @@
-import requests
+import pandas as pd
+from datetime import datetime
 from msal import ConfidentialClientApplication
 import config
+import requests
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-# Microsoft Graph API Authentication
+# Suppress warnings
+import warnings
+warnings.simplefilter(action='ignore', category=UserWarning)
+
+# Config values from config.py
 client_id = config.CLIENT_ID
 client_secret = config.CLIENT_SECRET
 tenant_id = config.TENANT_ID
+user_id = config.USER_ID
+remote_item_drive_id = config.AD_DRIVE_ID
+remote_item_id = config.AD_DRIVE_ITEM
 
+# Microsoft Graph API authentication
 authority = f'https://login.microsoftonline.com/{tenant_id}'
 app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
 result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
 
 access_token = result.get('access_token')
 if not access_token:
-    print("Error obtaining access token.")
+    print("Error obtaining access token")
     exit()
 
-headers = {"Authorization": f"Bearer {access_token}"}
+# Fetch the list of files in the specified folder
+my_files_url = f'https://graph.microsoft.com/v1.0/users/{user_id}/drives/{remote_item_drive_id}/items/{remote_item_id}/children'
+response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access_token}"})
 
-# Fetch User ID
-user_email = input("Enter the user's email to search for: ")
-user_url = f"https://graph.microsoft.com/v1.0/users?$filter=userPrincipalName eq '{user_email}'"
-user_response = requests.get(user_url, headers=headers)
+if response.status_code == 200:
+    children = response.json().get('value', [])
+    
+    if len(children) == 1:  # If only one file present, fetch it
+        file_item = children[0]
+        print(f"File Found: {file_item['name']}")
+        
+        # Download the file
+        file_url = file_item['@microsoft.graph.downloadUrl']
+        file_response = requests.get(file_url)
 
-if user_response.status_code == 200 and user_response.json()['value']:
-    user_info = user_response.json()['value'][0]
-    user_id = user_info['id']
-    print(f"\nUser ID for {user_email}: {user_id}")
-else:
-    print(f"Error fetching User ID: {user_response.status_code}, {user_response.text}")
-    exit()
-
-# Fetch Shared Drive Files
-shared_url = f"https://graph.microsoft.com/v1.0/users/{user_id}/drive/sharedWithMe"
-shared_response = requests.get(shared_url, headers=headers)
-
-if shared_response.status_code == 200:
-    shared_files = shared_response.json()['value']
-
-    if shared_files:
-        print("\nShared Files:")
-        for file in shared_files:
-            file_name = file.get('name', 'Unknown File')
-            file_id = file.get('id')
-            file_link = file.get('webUrl')
-            print(f"File Name: {file_name} | File ID: {file_id}")
-            print(f"File Link: {file_link}\n")
+        if file_response.status_code == 200:
+            ad_df = pd.read_excel(file_response.content, sheet_name=config.SHEET_NAME)
+            print(f"Data from {file_item['name']} loaded successfully.")
+        else:
+            print(f"Error downloading the file: {file_response.status_code}")
+            exit()
     else:
-        print("No shared files found.")
+        print("Error: No files or multiple files found in the specified location.")
+        exit()
 else:
-    print(f"Error fetching shared files: {shared_response.status_code}, {shared_response.text}")
+    print(f"Error fetching drive items: {response.status_code}, {response.text}")
+    exit()
+
+# Column assignments based on your provided details
+x_column = config.X_COLUMN
+y_column = config.Y_COLUMN
+ad_df[y_column] = pd.to_datetime(ad_df[y_column], errors='coerce')
+today = datetime.now()
+
+# ✅ Function to send email with multiple To and CC recipients
+def send_email(name, expiry_date, days_left):
+    sender_email = config.SENDER_EMAIL
+    recipients_to = config.RECIPIENTS_TO
+    recipients_cc = config.RECIPIENTS_CC
+    subject = f"Certificate Expiry Alert for {name}"
+
+    body = f"""
+    <html>
+    <body>
+        <p>Please update the certificate for <strong>{name}</strong>.<br>
+        Expiry Date: <strong>{expiry_date.strftime('%Y-%m-%d')}</strong>.<br>
+        <strong>{days_left}</strong> days left to expire.</p>
+    </body>
+    </html>
+    """
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = ', '.join(recipients_to)
+    msg['CC'] = ', '.join(recipients_cc)
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'html'))
+
+    try:
+        with smtplib.SMTP(config.SMTP_SERVER, config.SMTP_PORT) as server:
+            server.sendmail(sender_email, recipients_to + recipients_cc, msg.as_string())
+            print(f"Email sent successfully for {name}.")
+    except Exception as e:
+        print(f"Error sending email: {e}")
+
+# ✅ Check certificate expiry and send a single email per run
+for index, row in ad_df.iterrows():
+    name = row[x_column]
+    expiry_date = row[y_column]
+
+    if pd.isnull(expiry_date):
+        continue
+
+    days_left = (expiry_date - today).days
+
+    if days_left <= 30:
+        send_email(name, expiry_date, days_left)
+        break  # Sends only one email per run
