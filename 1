@@ -13,9 +13,7 @@ URLS = [
     "yourwebsite.com"
 ]
 SMTP_SERVER = "smtp.example.com"
-SMTP_PORT = 587
-SMTP_USERNAME = "your-email@example.com"
-SMTP_PASSWORD = "yourpassword"
+SMTP_PORT = 25  # Standard port for unauthenticated SMTP
 RECIPIENTS_TO = ["recipient1@example.com"]
 RECIPIENTS_CC = ["recipient2@example.com"]
 
@@ -35,7 +33,7 @@ def get_certificate_expiry(url):
 
 def send_email(expiring_certificates):
     msg = MIMEMultipart()
-    msg["From"] = SMTP_USERNAME
+    msg["From"] = "noreply@example.com"
     msg["To"] = ", ".join(RECIPIENTS_TO)
     msg["Cc"] = ", ".join(RECIPIENTS_CC)
     msg["Subject"] = "SSL Certificate Expiry Notification"
@@ -58,12 +56,10 @@ def send_email(expiring_certificates):
     html += "</table></body></html>"
     msg.attach(MIMEText(html, "html"))
 
-    # Send Email
+    # Send Email without authentication
     try:
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.sendmail(SMTP_USERNAME, RECIPIENTS_TO + RECIPIENTS_CC, msg.as_string())
+            server.sendmail("noreply@example.com", RECIPIENTS_TO + RECIPIENTS_CC, msg.as_string())
         print("Email sent successfully!")
     except Exception as e:
         print(f"Error sending email: {e}")
