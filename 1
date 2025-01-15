@@ -1,119 +1,92 @@
-import pandas as pd
-from datetime import datetime
-from msal import ConfidentialClientApplication
-import config
-import requests
 import smtplib
+import ssl
+import socket
+from datetime import datetime
+import OpenSSL
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from io import BytesIO
 
-# Suppress warnings
-import warnings
-warnings.simplefilter(action='ignore', category=UserWarning)
+# Configuration
+URLS = [
+    "example.com",
+    "test.com",
+    "yourwebsite.com"
+]
+SMTP_SERVER = "smtp.example.com"
+SMTP_PORT = 587
+SMTP_USERNAME = "your-email@example.com"
+SMTP_PASSWORD = "yourpassword"
+RECIPIENTS_TO = ["recipient1@example.com"]
+RECIPIENTS_CC = ["recipient2@example.com"]
 
-# === Authentication with Microsoft Graph API ===
-try:
-    authority = f'https://login.microsoftonline.com/{config.TENANT_ID}'
-    app = ConfidentialClientApplication(
-        config.CLIENT_ID, 
-        authority=authority, 
-        client_credential=config.CLIENT_SECRET
-    )
-    result = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
-    access_token = result.get('access_token')
-    if not access_token:
-        raise Exception("Failed to obtain access token.")
-except Exception as e:
-    print(f"Error during authentication: {e}")
-    exit()
-
-# === Fetch AD File from OneDrive Using the New URL ===
-try:
-    # Corrected URL format with the specified path
-    my_files_url = f"https://graph.microsoft.com/v1.0/users/{config.USER_ID}/drive/root:/2024/GRC/Domains/Domains and Certificates/Domains and Certificates 2024.xlsm:/content"
-
-    # FIXED: Correct request structure
-    response = requests.get(my_files_url, headers={"Authorization": f"Bearer {access_token}"})
-    response.raise_for_status()
-
-    # Using BytesIO to load the Excel file properly
-    file_content = BytesIO(response.content)
-    ad_df = pd.read_excel(file_content, sheet_name=config.SHEET_NAME)
-
-except Exception as e:
-    print(f"Error fetching AD file: {e}")
-    exit()
-
-# === Validate Data ===
-try:
-    if config.X_COLUMN not in ad_df.columns or config.Y_COLUMN not in ad_df.columns:
-        raise ValueError(f"Columns '{config.X_COLUMN}' or '{config.Y_COLUMN}' not found.")
-    ad_df[config.Y_COLUMN] = pd.to_datetime(ad_df[config.Y_COLUMN], errors='coerce')
-except Exception as e:
-    print(f"Error processing data: {e}")
-    exit()
-
-# === Prepare Expiry Report ===
-today = datetime.now()
-expiring_certificates = []
-
-for index, row in ad_df.iterrows():
-    name = row[config.X_COLUMN]
-    expiry_date = row[config.Y_COLUMN]
-
-    if pd.isnull(expiry_date):
-        continue
-
-    days_left = (expiry_date - today).days
-
-    if days_left <= 10:
-        priority = "🚨URGENT"
-    elif days_left <= 20:
-        priority = "⚠️IMPORTANT"
-    elif days_left <= 30:
-        priority = "INFO"
-    else:
-        continue
-
-    expiring_certificates.append(f"{priority} - {name} - Expiring on: {expiry_date.strftime('%Y-%m-%d')} ({days_left} days left)")
-
-# === Email Sending Function ===
-def send_email(expiring_certificates):
-    if not expiring_certificates:
-        print("✅ No certificates expiring within the next 30 days.")
-        return
-
-    sender_email = config.SENDER_EMAIL
-    recipients_to = config.RECIPIENTS_TO
-    recipients_cc = config.RECIPIENTS_CC
-    subject = "Certificate Expiry Alert: Important & Urgent Notices"
-
-    # **Updated Body with Inline CSS**
-    body = "<html><body><p><strong>The following certificates are expiring soon:</strong></p><ul>"
-    for cert in expiring_certificates:
-        if "URGENT" in cert:
-            body += f'<li style="color: red; font-weight: bold;">{cert}</li>'
-        elif "IMPORTANT" in cert:
-            body += f'<li style="color: orange; font-weight: bold;">{cert}</li>'
-        else:
-            body += f'<li>{cert}</li>'
-    body += "</ul><p>Please take necessary action based on the priority levels above.</p></body></html>"
-
-    # Prepare Email with UTF-8 encoding
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = ', '.join(recipients_to)
-    msg['CC'] = ', '.join(recipients_cc)
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'html', 'utf-8'))  
-
+def get_certificate_expiry(url):
     try:
-        with smtplib.SMTP(config.SMTP_SERVER, config.SMTP_PORT) as server:
-            server.sendmail(sender_email, recipients_to + recipients_cc, msg.as_string())
-            print("✅ Consolidated email sent successfully!")
+        conn = socket.create_connection((url, 443))
+        context = ssl.create_default_context()
+        sock = context.wrap_socket(conn, server_hostname=url)
+        cert = ssl.DER_cert_to_PEM_cert(sock.getpeercert(True))
+        x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
+        expiry_date = datetime.strptime(x509.get_notAfter().decode('utf-8'), "%Y%m%d%H%M%SZ")
+        sock.close()
+        return expiry_date
+    except Exception as e:
+        print(f"Error fetching certificate for {url}: {e}")
+        return None
+
+def send_email(expiring_certificates):
+    msg = MIMEMultipart()
+    msg["From"] = SMTP_USERNAME
+    msg["To"] = ", ".join(RECIPIENTS_TO)
+    msg["Cc"] = ", ".join(RECIPIENTS_CC)
+    msg["Subject"] = "SSL Certificate Expiry Notification"
+
+    # Prepare HTML body
+    html = """<html><body><h2>SSL Certificate Expiry Report</h2><table border='1'><tr><th>URL</th><th>Expiry Date</th><th>Days Left</th><th>Status</th></tr>"""
+
+    for entry in expiring_certificates:
+        color = "black"
+        status = "Information"
+        if entry['days_left'] <= 10:
+            color = "red"
+            status = "Urgent"
+        elif entry['days_left'] <= 20:
+            color = "orange"
+            status = "Important"
+
+        html += f"<tr><td>{entry['url']}</td><td>{entry['expiry_date']}</td><td>{entry['days_left']}</td><td style='color:{color}'>{status}</td></tr>"
+
+    html += "</table></body></html>"
+    msg.attach(MIMEText(html, "html"))
+
+    # Send Email
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.sendmail(SMTP_USERNAME, RECIPIENTS_TO + RECIPIENTS_CC, msg.as_string())
+        print("Email sent successfully!")
     except Exception as e:
         print(f"Error sending email: {e}")
 
-# === Send the Email ===
-send_email(expiring_certificates)
+def main():
+    expiring_certificates = []
+    current_date = datetime.now()
+
+    for url in URLS:
+        expiry_date = get_certificate_expiry(url)
+        if expiry_date:
+            days_left = (expiry_date - current_date).days
+            if days_left <= 30:
+                expiring_certificates.append({
+                    "url": url,
+                    "expiry_date": expiry_date.strftime('%Y-%m-%d'),
+                    "days_left": days_left
+                })
+
+    if expiring_certificates:
+        send_email(expiring_certificates)
+    else:
+        print("No certificates expiring within 30 days.")
+
+if __name__ == "__main__":
+    main()
