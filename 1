@@ -4,24 +4,58 @@ import socket
 from datetime import datetime
 import OpenSSL
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from email.multipart import MIMEMultipart
 
-# Configuration
+# Configuration with your provided URLs
 URLS = [
-    "example.com",
-    "test.com",
-    "yourwebsite.com"
+    "*.fareportal.com",
+    "tourpromo.royalscenic.com",
+    "*.cheapair.com",
+    "fp-a-express-edge.jabber-a.fareportal.com",
+    "*.fareportal.biz",
+    "*.cheapoair.co.uk",
+    "*.fareportallabs.com",
+    "*.cheapoair.com",
+    "fp-a-expedge.fareportal.com",
+    "*.onetravel.com",
+    "www.travelweeklyupdate.com",
+    "*.cheapoair.ca",
+    "rental.cheapoair.com",
+    "slan.fareportal.com",
+    "rdsindia3.fareportal.com",
+    "assist.onetravel.com",
+    "fp-a-expedge.fareportal.com",
+    "*.cheapoair.mx",
+    "stay.cheapoair.com",
+    "rds.fareportal.com",
+    "*.cheapoair.mx",
+    "rdsindia.fareportal.com",
+    "*.insanelycheapflights.com",
+    "www.clubmiles.com",
+    "www.fareportal.com",
+    "www.travelspot.us",
+    "www.royalscenic.com",
+    "*.clubmiles.com",
+    "assist.cheapoair.com",
+    "rdsindia2.fareportal.com",
+    "www.voyager.tech",
+    "thingstodo.cheapoair.com",
+    "*.voyager.tech",
+    "*.azure.fareportal.com"
 ]
-SMTP_SERVER = "smtp.example.com"
-SMTP_PORT = 25  # Standard port for unauthenticated SMTP
+
+SMTP_SERVER = "smtp.example.com"  # Replace with your SMTP server
+SMTP_PORT = 25  # No authentication required
 RECIPIENTS_TO = ["recipient1@example.com"]
 RECIPIENTS_CC = ["recipient2@example.com"]
 
 def get_certificate_expiry(url):
     try:
-        conn = socket.create_connection((url, 443))
+        # Remove wildcards for SSL certificate validation
+        clean_url = url.replace("*.", "")
+        conn = socket.create_connection((clean_url, 443))
         context = ssl.create_default_context()
-        sock = context.wrap_socket(conn, server_hostname=url)
+        sock = context.wrap_socket(conn, server_hostname=clean_url)
         cert = ssl.DER_cert_to_PEM_cert(sock.getpeercert(True))
         x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
         expiry_date = datetime.strptime(x509.get_notAfter().decode('utf-8'), "%Y%m%d%H%M%SZ")
@@ -38,7 +72,7 @@ def send_email(expiring_certificates):
     msg["Cc"] = ", ".join(RECIPIENTS_CC)
     msg["Subject"] = "SSL Certificate Expiry Notification"
 
-    # Prepare HTML body
+    # Prepare HTML body with color coding
     html = """<html><body><h2>SSL Certificate Expiry Report</h2><table border='1'><tr><th>URL</th><th>Expiry Date</th><th>Days Left</th><th>Status</th></tr>"""
 
     for entry in expiring_certificates:
