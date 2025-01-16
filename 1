@@ -1,38 +1,8 @@
 filebeat.inputs:
-  # Collecting Windows Event Logs
   - type: winlog
     id: windows-event-logs
     enabled: true
     event_logs:
       - name: Application
       - name: System
-      - name: Security
-
-  # Collecting IIS Logs (Uncomment if IIS is enabled)
-  #- type: log
-  #  enabled: true
-  #  paths:
-  #    - 'C:\inetpub\logs\LogFiles\*/*.log'
-
-  # Collecting PowerShell Logs
-  - type: log
-    enabled: true
-    paths:
-      - 'C:\Windows\System32\winevt\Logs\Microsoft-Windows-PowerShell%4Operational.evtx'
-
-# Output to Elasticsearch (Change to your server IP or URL)
-output.elasticsearch:
-  hosts: ["http://your-elasticsearch-server:9200"]
-  username: "elastic"
-  password: "yourpassword"
-
-# Optional: Output to Logstash instead
-# output.logstash:
-#   hosts: ["your-logstash-server:5044"]
-
-# Setup Kibana for Visualization
-setup.kibana:
-  host: "http://your-kibana-server:5601"
-
-# Enable default dashboards
-setup.dashboards.enabled: true
+      - name: Security laga 
