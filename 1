@@ -15,7 +15,7 @@ def ivr_bucket_summary():
         # Properly encoding the password to handle special characters
         encoded_password = quote_plus(DB_CONFIG['password'])
         
-        # Correcting the connection string with the encoded password
+        # Corrected the connection string with the encoded password
         engine = create_engine(f"postgresql+psycopg2://{DB_CONFIG['user']}:{encoded_password}@{DB_CONFIG['host']}:5432/{DB_CONFIG['database']}")
 
         query = """
@@ -26,7 +26,11 @@ def ivr_bucket_summary():
         # Fetch data using SQLAlchemy engine
         df = pd.read_sql_query(query, engine)
 
-        # Ensure 'preQueueSeconds' exists and is numeric
+        # **Check for column existence and data type handling**
+        if 'preQueueSeconds' not in df.columns:
+            raise ValueError("Column 'preQueueSeconds' not found in the raw data.")
+
+        # Convert preQueueSeconds to numeric and handle errors
         df['preQueueSeconds'] = pd.to_numeric(df['preQueueSeconds'], errors='coerce').fillna(0)
 
         # Generate 30-minute time intervals
