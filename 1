@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 import pandas as pd
+from urllib.parse import quote_plus
 
 # Ensure your DB_CONFIG dictionary is correctly defined here or imported from config.py
 DB_CONFIG = {
@@ -11,10 +12,12 @@ DB_CONFIG = {
 
 def ivr_bucket_summary():
     try:
-        # Create the SQLAlchemy engine using the existing DB_CONFIG
-        engine = create_engine(f"postgresql+psycopg2://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:5432/{DB_CONFIG['database']}")
+        # Properly encoding the password to handle special characters
+        encoded_password = quote_plus(DB_CONFIG['password'])
+        
+        # Correcting the connection string with the encoded password
+        engine = create_engine(f"postgresql+psycopg2://{DB_CONFIG['user']}:{encoded_password}@{DB_CONFIG['host']}:5432/{DB_CONFIG['database']}")
 
-        # Ensure schema is properly referenced
         query = """
         SELECT contactStartDate, abandoned, agentSeconds, preQueueSeconds
         FROM public.raw;
