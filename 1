@@ -1,27 +1,32 @@
-def ivr_bucket_summary(conn):
+def ivr_bucket_summary():
     try:
-        # Check if the column exists in the raw data
-        query = "SELECT * FROM raw LIMIT 1;"
-        df = pd.read_sql_query(query, conn)
-        
-        # Verify column presence and rename if necessary
-        if 'preQueueSeconds' not in df.columns:
-            raise ValueError("The column 'preQueueSeconds' is missing from the raw data table.")
+        # Create the database connection inside the function
+        conn = psycopg2.connect(
+            dbname=config.DB_NAME, 
+            user=config.DB_USER, 
+            password=config.DB_PASSWORD, 
+            host=config.DB_HOST, 
+            port=config.DB_PORT
+        )
 
-        # Fetch all required data for processing
+        # Fetch required data for processing from the 'raw' table
         query = """
         SELECT contactStartDate, abandoned, agentSeconds, preQueueSeconds
         FROM raw;
         """
         df = pd.read_sql_query(query, conn)
 
-        # Ensure preQueueSeconds is treated as numeric
+        # Ensure the 'preQueueSeconds' column exists and is numeric
+        if 'preQueueSeconds' not in df.columns:
+            raise ValueError("The column 'preQueueSeconds' is missing from the raw data table.")
+        
+        # Convert 'preQueueSeconds' to numeric and handle any errors
         df['preQueueSeconds'] = pd.to_numeric(df['preQueueSeconds'], errors='coerce').fillna(0)
 
         # Convert contactStartDate to 30-minute intervals
         df['time_interval'] = pd.to_datetime(df['contactStartDate']).dt.floor('30min')
 
-        # Create IVR Buckets
+        # Create IVR Buckets based on preQueueSeconds
         df['ivr_bucket'] = pd.cut(
             df['preQueueSeconds'],
             bins=[0, 30, 60, 120, float('inf')],
@@ -35,27 +40,13 @@ def ivr_bucket_summary(conn):
             IVR_Abandon=('abandoned', lambda x: (x & (df['agentSeconds'] == 0)).sum())
         ).reset_index()
 
-        # Create a new table or update existing records in PostgreSQL
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS ivr_bucket_summary (
-                    time_interval TIMESTAMP,
-                    ivr_bucket VARCHAR(20),
-                    Offered_Calls INT,
-                    IVR_Abandon INT
-                );
-            """)
-            conn.commit()
-
-            # Insert or update data
-            for _, row in summary.iterrows():
-                cursor.execute("""
-                    INSERT INTO ivr_bucket_summary (time_interval, ivr_bucket, Offered_Calls, IVR_Abandon)
-                    VALUES (%s, %s, %s, %s)
-                """, (row['time_interval'], row['ivr_bucket'], row['Offered_Calls'], row['IVR_Abandon']))
-            
-            conn.commit()
+        # Store the result back into the 'ivr_bucket_summary' table in PostgreSQL
+        summary.to_sql('ivr_bucket_summary', conn, if_exists='append', index=False)
 
         print("IVR Bucket Summary stored successfully.")
+
     except Exception as e:
         print(f"Error generating IVR bucket summary: {e}")
+    
+    finally:
+        conn.close()
