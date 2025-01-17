@@ -1,42 +1,24 @@
-from sqlalchemy import create_engine
-import pandas as pd
-from urllib.parse import quote_plus
-
-# Ensure your DB_CONFIG dictionary is correctly defined here or imported from config.py
-DB_CONFIG = {
-    "host": "172.16.130.247",
-    "database": "postgres",
-    "user": "postgres",
-    "password": "Zxcv@1234"
-}
-
 def ivr_bucket_summary():
     try:
-        # Properly encoding the password to handle special characters
-        encoded_password = quote_plus(DB_CONFIG['password'])
         
-        # Corrected the connection string with the encoded password
+        # Encode password for database URL safety
+        encoded_password = quote_plus(DB_CONFIG['password'])
         engine = create_engine(f"postgresql+psycopg2://{DB_CONFIG['user']}:{encoded_password}@{DB_CONFIG['host']}:5432/{DB_CONFIG['database']}")
 
+        # Fetch raw data
         query = """
         SELECT contactStartDate, abandoned, agentSeconds, preQueueSeconds
         FROM public.raw;
         """
-        
-        # Fetch data using SQLAlchemy engine
         df = pd.read_sql_query(query, engine)
 
-        # **Check for column existence and data type handling**
-        if 'preQueueSeconds' not in df.columns:
-            raise ValueError("Column 'preQueueSeconds' not found in the raw data.")
-
-        # Convert preQueueSeconds to numeric and handle errors
+        # Ensure the preQueueSeconds column is numeric
         df['preQueueSeconds'] = pd.to_numeric(df['preQueueSeconds'], errors='coerce').fillna(0)
 
-        # Generate 30-minute time intervals
+        # Generate 30-minute intervals for grouping
         df['time_interval'] = pd.to_datetime(df['contactStartDate']).dt.floor('30min')
 
-        # Create IVR buckets based on 'preQueueSeconds'
+        # Create IVR Buckets
         df['ivr_bucket'] = pd.cut(
             df['preQueueSeconds'], 
             bins=[0, 30, 60, 120, float('inf')],
@@ -44,16 +26,30 @@ def ivr_bucket_summary():
             right=False
         )
 
-        # Calculate Offered Calls and IVR Abandonment
-        summary = df.groupby(['time_interval', 'ivr_bucket']).agg(
+        # Create the summary DataFrame
+        summary = df.groupby('time_interval').agg(
             Offered_Calls=('contactStartDate', 'count'),
-            IVR_Abandon=('abandoned', lambda x: (x & (df['agentSeconds'] == 0)).sum())
+            IVR_Abandon=('abandoned', 'sum')
         ).reset_index()
 
-        # Save the summary data back to PostgreSQL in the 'ivr_bucket_summary' table
-        summary.to_sql('ivr_bucket_summary', engine, if_exists='append', index=False)
+        # Calculate bucket counts
+        bucket_counts = df.pivot_table(
+            index='time_interval',
+            columns='ivr_bucket',
+            values='contactStartDate',
+            aggfunc='count',
+            fill_value=0
+        ).reset_index()
 
-        print("IVR Bucket Summary stored successfully.")
+        # Merge summary and bucket counts for final output
+        final_summary = summary.merge(bucket_counts, on='time_interval', how='left')
+        final_summary.columns = ['Interval', 'Offered Calls', 'IVR Abandon', '0-30s', '30-60s', '60-120s', '>120s']
+
+        # Store the final result into a PostgreSQL table
+        final_summary.to_sql('ivr_bucket_summary', engine, if_exists='replace', index=False)
+
+        print("IVR Bucket Summary generated and stored successfully!")
+        print(final_summary)
 
     except Exception as e:
         print(f"Error generating IVR bucket summary: {e}")
