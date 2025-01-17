@@ -1,25 +1,61 @@
-def main():
-    """Main function to check certificate expiry and send notifications."""
-    expiring_certificates = []
-    current_date = datetime.now()
+def ivr_bucket_summary(conn):
+    try:
+        # Check if the column exists in the raw data
+        query = "SELECT * FROM raw LIMIT 1;"
+        df = pd.read_sql_query(query, conn)
+        
+        # Verify column presence and rename if necessary
+        if 'preQueueSeconds' not in df.columns:
+            raise ValueError("The column 'preQueueSeconds' is missing from the raw data table.")
 
-    for url in URLS:
-        expiry_date = get_certificate_expiry(url)
-        if expiry_date:
-            days_left = (expiry_date - current_date).days
+        # Fetch all required data for processing
+        query = """
+        SELECT contactStartDate, abandoned, agentSeconds, preQueueSeconds
+        FROM raw;
+        """
+        df = pd.read_sql_query(query, conn)
 
-            # ✅ If more than 30 days, print the result instead of sending email
-            if days_left > 30:
-                print(f"{url} - Certificate expires in {days_left} days on {expiry_date.strftime('%Y-%m-%d')}.")
-            else:
-                expiring_certificates.append({
-                    "url": url,
-                    "expiry_date": expiry_date.strftime('%Y-%m-%d'),
-                    "days_left": days_left
-                })
+        # Ensure preQueueSeconds is treated as numeric
+        df['preQueueSeconds'] = pd.to_numeric(df['preQueueSeconds'], errors='coerce').fillna(0)
 
-    # ✅ Send email only if certificates expire within 30 days
-    if expiring_certificates:
-        send_email(expiring_certificates)
-    else:
-        print("No certificates expiring within 30 days.")
+        # Convert contactStartDate to 30-minute intervals
+        df['time_interval'] = pd.to_datetime(df['contactStartDate']).dt.floor('30min')
+
+        # Create IVR Buckets
+        df['ivr_bucket'] = pd.cut(
+            df['preQueueSeconds'],
+            bins=[0, 30, 60, 120, float('inf')],
+            labels=['0-30s', '30-60s', '60-120s', '>120s'],
+            right=False
+        )
+
+        # Calculate Offered Calls and IVR Abandon by bucket
+        summary = df.groupby(['time_interval', 'ivr_bucket']).agg(
+            Offered_Calls=('contactStartDate', 'count'),
+            IVR_Abandon=('abandoned', lambda x: (x & (df['agentSeconds'] == 0)).sum())
+        ).reset_index()
+
+        # Create a new table or update existing records in PostgreSQL
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ivr_bucket_summary (
+                    time_interval TIMESTAMP,
+                    ivr_bucket VARCHAR(20),
+                    Offered_Calls INT,
+                    IVR_Abandon INT
+                );
+            """)
+            conn.commit()
+
+            # Insert or update data
+            for _, row in summary.iterrows():
+                cursor.execute("""
+                    INSERT INTO ivr_bucket_summary (time_interval, ivr_bucket, Offered_Calls, IVR_Abandon)
+                    VALUES (%s, %s, %s, %s)
+                """, (row['time_interval'], row['ivr_bucket'], row['Offered_Calls'], row['IVR_Abandon']))
+            
+            conn.commit()
+
+        print("IVR Bucket Summary stored successfully.")
+    except Exception as e:
+        print(f"Error generating IVR bucket summary: {e}")
