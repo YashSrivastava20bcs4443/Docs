@@ -1,55 +1,8 @@
-def ivr_bucket_summary():
-    try:
-        
-        # Encode password for database URL safety
-        encoded_password = quote_plus(DB_CONFIG['password'])
-        engine = create_engine(f"postgresql+psycopg2://{DB_CONFIG['user']}:{encoded_password}@{DB_CONFIG['host']}:5432/{DB_CONFIG['database']}")
+DROP USER IF EXISTS 'asteriskuser'@'localhost';
 
-        # Fetch raw data
-        query = """
-        SELECT contactStartDate, abandoned, agentSeconds, preQueueSeconds
-        FROM public.raw;
-        """
-        df = pd.read_sql_query(query, engine)
+CREATE DATABASE asterisk_logs;
 
-        # Ensure the preQueueSeconds column is numeric
-        df['preQueueSeconds'] = pd.to_numeric(df['preQueueSeconds'], errors='coerce').fillna(0)
-
-        # Generate 30-minute intervals for grouping
-        df['time_interval'] = pd.to_datetime(df['contactStartDate']).dt.floor('30min')
-
-        # Create IVR Buckets
-        df['ivr_bucket'] = pd.cut(
-            df['preQueueSeconds'], 
-            bins=[0, 30, 60, 120, float('inf')],
-            labels=['0-30s', '30-60s', '60-120s', '>120s'],
-            right=False
-        )
-
-        # Create the summary DataFrame
-        summary = df.groupby('time_interval').agg(
-            Offered_Calls=('contactStartDate', 'count'),
-            IVR_Abandon=('abandoned', 'sum')
-        ).reset_index()
-
-        # Calculate bucket counts
-        bucket_counts = df.pivot_table(
-            index='time_interval',
-            columns='ivr_bucket',
-            values='contactStartDate',
-            aggfunc='count',
-            fill_value=0
-        ).reset_index()
-
-        # Merge summary and bucket counts for final output
-        final_summary = summary.merge(bucket_counts, on='time_interval', how='left')
-        final_summary.columns = ['Interval', 'Offered Calls', 'IVR Abandon', '0-30s', '30-60s', '60-120s', '>120s']
-
-        # Store the final result into a PostgreSQL table
-        final_summary.to_sql('ivr_bucket_summary', engine, if_exists='replace', index=False)
-
-        print("IVR Bucket Summary generated and stored successfully!")
-        print(final_summary)
-
-    except Exception as e:
-        print(f"Error generating IVR bucket summary: {e}")
+CREATE USER 'asteriskuser'@'localhost' IDENTIFIED BY 'password123';
+GRANT ALL PRIVILEGES ON asterisk_logs.* TO 'asteriskuser'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
