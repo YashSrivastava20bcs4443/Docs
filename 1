@@ -1,1 +1,3 @@
-
+[default]
+exten => _X.,1,Dial(SIP/${EXTEN}@voip_provider)
+ same => n,Hangup()
