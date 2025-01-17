@@ -1,13 +1,21 @@
-[default]
+[general]
+context=default
+udpbindaddr=0.0.0.0:5060
+tcpenable=no
+transport=udp
+nat=force_rport,comedia
+externrefresh=30
 
-; Dial the number using the SIP trunk
-exten => _X.,1,Dial(SIP/${EXTEN}@voip_provider)
-
-; Answer the call once connected
-same => n,Answer()
-
-; Play a test audio file ("hello-world")
-same => n,Playback(hello-world)
-
-; Hang up the call
-same => n,Hangup()
+[voip_provider]
+type=peer
+host=sbc0-nycpnyyk-voip.broadviewnet.net
+username=8458480150
+secret=1F82A2A16
+fromuser=8458480150
+fromdomain=sbc0-nycpnyyk-voip.broadviewnet.net
+insecure=port,invite
+qualify=yes
+dtmfmode=rfc2833
+disallow=all
+allow=ulaw,alaw
+context=default
