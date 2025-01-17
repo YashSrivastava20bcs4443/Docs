@@ -1,3 +1,13 @@
 [default]
+
+; Dial the number using the SIP trunk
 exten => _X.,1,Dial(SIP/${EXTEN}@voip_provider)
- same => n,Hangup()
+
+; Answer the call once connected
+same => n,Answer()
+
+; Play a test audio file ("hello-world")
+same => n,Playback(hello-world)
+
+; Hang up the call
+same => n,Hangup()
