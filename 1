@@ -1,21 +1,12 @@
-Additional Training Requirements
-
-1. Data Engineering Training:
-
-To gain expertise in building and managing scalable data pipelines, data integration, and storage systems.
-
-Focus on tools and technologies like Apache Spark, Kafka, and advanced SQL for better data management and processing.
-
-
-
-2. DevOps Training:
-
-To deepen skills in automating infrastructure deployment, managing CI/CD pipelines, and improving system reliability.
-
-Focus areas: Kubernetes, Docker, Jenkins, and cloud-native DevOps practices.
-
-
-
-
-These trainings will help enhance technical proficiency, streamline processes, and align with organizational goals for automation and scalability.
-
+filter {
+  if [fields][log_type] == "linux_logs" {
+    grok {
+      match => { "message" => "%{SYSLOGBASE}" }
+    }
+  }
+  else if [fields][log_type] == "windows_logs" {
+    json {
+      source => "message"
+    }
+  }
+}
