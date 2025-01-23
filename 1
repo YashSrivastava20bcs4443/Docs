@@ -13,3 +13,13 @@ filter {
 
 
 LS_JAVA_OPTS="-Xms256m -Xmx512m" ./logstash -f /path/to/logstash.conf
+
+output {
+  elasticsearch {
+    hosts => ["https://172.16.130.242:9200"]
+    user => "yash"
+    password => "Asdf@1234"
+    index => "%{[fields][log_type]}-%{+YYYY.MM.dd}"
+    ssl_certificate_authorities => ["/home/yash/ELK/kibana-8.16.1/data/ca_1733397098136.crt"]
+  }
+}
