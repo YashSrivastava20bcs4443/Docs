@@ -5,45 +5,23 @@ input {
 }
 
 filter {
-  # Linux Logs Processing
-  if [fields][log_type] == "linux_logs" {
-    grok {
-      match => { "message" => "%{SYSLOGBASE}" }
-      target => "parsed_message"  # Parsed fields go under 'parsed_message'
+  if [@metadata][beat] == "filebeat" {
+    mutate {
+      add_field => { "source_type" => "linux_log" }
     }
   }
-  # Windows Logs Processing
-  else if [fields][log_type] == "windows_logs" {
-    json {
-      source => "message"
-      target => "parsed_message"  # Parsed fields go under 'parsed_message'
+  if [@metadata][beat] == "winlogbeat" {
+    mutate {
+      add_field => { "source_type" => "windows_event" }
     }
   }
 }
 
 output {
   elasticsearch {
-    hosts => ["https://172.16.130.242:9200"]
-    user => "yash"
-    password => "Asdf@1234"
-    index => "%{[fields][log_type]}-%{+YYYY.MM.dd}"
-    ssl_certificate_authorities => ["/home/yash/ELK/kibana-8.16.1/data/ca_1733397098136.crt"]
-    ssl_verification_mode => "full"  # Ensure secure communication
-  }
-  stdout {
-    codec => rubydebug  # Output debug information to console
-  }
-}
-
-
-LS_JAVA_OPTS="-Xms256m -Xmx512m" ./logstash -f /path/to/logstash.conf
-
-output {
-  elasticsearch {
-    hosts => ["https://172.16.130.242:9200"]
-    user => "yash"
-    password => "Asdf@1234"
-    index => "%{[fields][log_type]}-%{+YYYY.MM.dd}"
-    ssl_certificate_authorities => ["/home/yash/ELK/kibana-8.16.1/data/ca_1733397098136.crt"]
+    hosts => ["http://<elasticsearch_ip>:9200"]
+    index => "%{[@metadata][beat]}-%{+YYYY.MM.dd}"
+    user => "elastic"
+    password => "your_elastic_password"
   }
 }
