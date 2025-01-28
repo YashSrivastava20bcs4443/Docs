@@ -1,1 +1,75 @@
+import subprocess
 
+# Save the PowerShell script to a temporary file
+powershell_script = r'''
+$serverList = Get-Content -Path "C:\Temp\Servers.txt"
+
+$outputcsvpath = "C:\TEMP\Reboot_patching_log\Corp_RebootAndPatchingDetails$((Get-Date).ToString('MM-dd-yyyy')).csv"
+
+$serviceaccountusername = "corp.local\svc_automation"
+
+$securepassword = ConvertTo-SecureString "%]1%; m13e034" -AsPlainText -Force
+
+$serviceAccountCred = New-Object System.Management.Automation.PSCredential ($serviceaccountusername, $securepassword)
+
+$outputDirectory = Split-Path -Path $outputcsvpath
+
+if (-Not (Test-Path -Path $outputDirectory)) {
+    New-Item -Path $outputDirectory -ItemType Directory -Force
+}
+
+$results = @()
+
+foreach ($server in $serverList) {
+    Write-Host "Processing $server..." -ForegroundColor Cyan
+    try {
+        $data = Invoke-Command -ComputerName $server -Credential $serviceAccountCred -ErrorAction Stop -ScriptBlock {
+            $osInfo = Get-WmiObject -Class Win32_OperatingSystem
+            $lastboottime = $osInfo.ConvertToDateTime($osInfo.LastBootUpTime)
+            $details = Get-HotFix | Sort-Object InstalledOn -Descending
+            $firstdate = $details | Select-Object -First 1
+            $latestdate = $firstdate.InstalledOn
+            $latestUpdates = $details | Where-Object { $_.InstalledOn -eq $latestdate }
+            $hotFixDetails = ($latestUpdates | ForEach-Object { "$($_.HotFixID) ($($_.Description))" }) -join "; "
+            [PSCustomObject]@{
+                ComputerName    = $env:COMPUTERNAME
+                LastRebootDate  = $lastboottime
+                LatestPatchKB   = $hotFixDetails
+                LatestPatchDate = $latestdate
+            }
+        }
+        $results += $data
+    } catch {
+        Write-Host "Failed to connect to $server. Error: $_" -ForegroundColor Red
+        $results += [PSCustomObject]@{
+            ComputerName    = $server
+            LastRebootDate  = "Failed to connect"
+            LatestPatchKB   = "Failed to connect"
+            LatestPatchDate = "Failed to connect"
+        }
+    }
+}
+
+$results | Select-Object -Property ComputerName, LastRebootDate, LatestPatchKB, LatestPatchDate | Export-Csv -Path $outputcsvpath -NoTypeInformation -Force
+
+Write-Host "Details exported to $outputcsvpath" -ForegroundColor Green
+'''
+
+# Save the PowerShell script to a temporary file
+with open("temp_script.ps1", "w", encoding="utf-8") as f:
+    f.write(powershell_script)
+
+# Run the PowerShell script using subprocess
+try:
+    result = subprocess.run(
+        ["powershell.exe", "-ExecutionPolicy", "Bypass", "-File", "temp_script.ps1"],
+        capture_output=True,
+        text=True
+    )
+    print("PowerShell script executed successfully.")
+    print("Output:")
+    print(result.stdout)
+    print("Errors:")
+    print(result.stderr)
+except subprocess.CalledProcessError as e:
+    print(f"An error occurred: {e}")
