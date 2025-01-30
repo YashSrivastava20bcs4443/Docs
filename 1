@@ -1,14 +1,15 @@
-(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))
+User Story 1: Planning and Implementation
+Description:
+Background:
+Setting up a staging rack requires careful planning to ensure optimal performance, efficiency, and reliability. This phase focuses on the design, installation, and initial configuration of network, compute, and storage components. The rack layout must be well-defined, with proper power distribution, cable management, and airflow considerations. Additionally, all devices need to be securely mounted and powered on before network configuration begins.
+
+This user story will cover the entire setup process, including the physical and logical design, hardware installation, and basic device configuration.
 
 
-AI/ML-Based VM Capacity Forecasting → Improved resource utilization and prevented over-provisioning.
 
-DR Drill (Phase 1) → Ensured 100% uptime and validated IT resilience.
+User Story 2: Testing and Handover
+Description:
+Background:
+After successfully setting up the staging rack, it is crucial to validate all configurations and performance metrics before handing it over for use. This phase ensures that the compute, storage, and network devices function as expected under real-world conditions.
 
-Cloud Centralized Cost Dashboard → Achieved a 15% cloud cost reduction by identifying unused resources.
-
-Firewall Policy Auditing Automation → Reduced 25% of unused firewall policies, ensuring compliance.
-
-Syslog Centralized Dashboard → Decreased troubleshooting time by 30%, improving operational efficiency.
-
-Infra Auto-Healing → Reduced downtime incidents by 20%, ensuring high availability.
+Testing will involve power-on verification, network connectivity checks, and system performance validation. Any issues found during this phase will be documented and resolved before the rack is handed over to the operations team for production use.
