@@ -1,28 +1,29 @@
-Got it! Here’s the revised Epic 2 with updated User Stories and Acceptance Criteria based on the new scope.
+Below is an updated breakdown for Epic 2: TFN-IVR Performance Matrix Dashboard that separates the work into frontend, backend, and Kibana integration components. Each section includes user stories with clear acceptance criteria.
 
 
 ---
 
-Epic 2: Contact Center Monitoring Website & Kibana Dashboard
-
-Description: Develop a website similar to a contact center for real-time monitoring, integrated with Kibana for data visualization and analysis.
+Epic 2: TFN-IVR Performance Matrix Dashboard
 
 
 ---
 
-User Story 1: Develop a website for contact center-style monitoring
+User Story 1: Frontend Development for Contact Center Monitoring Website
 
-Description: Build a web-based interface to monitor TFN-IVR call performance and agent availability.
+Description: Develop a responsive web interface that mimics a contact center dashboard, displaying key call center metrics and agent statuses.
 
 Acceptance Criteria:
 
-1. The website displays key contact center metrics (e.g., active calls, queue times, agent status).
+1. The UI displays key metrics (e.g., active calls, queue times, agent status) in real time.
 
 
-2. The interface is user-friendly and accessible from desktops and mobile devices.
+2. The website is responsive and accessible on both desktop and mobile devices.
 
 
-3. Role-based access control is implemented for security.
+3. Role-based access controls are implemented for different user types (e.g., managers, agents).
+
+
+4. User interactions (e.g., filtering, searching, and report generation) function smoothly with appropriate loading states and error handling.
 
 
 
@@ -30,19 +31,22 @@ Acceptance Criteria:
 
 ---
 
-User Story 2: Integrate website with Kibana for real-time monitoring
+User Story 2: Backend API for Data Aggregation and Management
 
-Description: Connect the website to Kibana to visualize call performance and system health.
+Description: Build the backend services that aggregate data from various call center sources, process it, and expose RESTful APIs for the frontend and Kibana integration.
 
 Acceptance Criteria:
 
-1. Kibana dashboards are embedded or linked within the website.
+1. RESTful endpoints are created to serve call metrics and agent status data in JSON format.
 
 
-2. Real-time data syncs between the website and Kibana.
+2. The backend supports secure data retrieval with proper authentication and authorization.
 
 
-3. Users can filter, search, and analyze call center metrics within the website.
+3. Data aggregation processes (e.g., collecting call logs, processing performance metrics) run automatically on a set schedule or in real time.
+
+
+4. The API can handle high volumes of requests without significant performance degradation.
 
 
 
@@ -50,39 +54,22 @@ Acceptance Criteria:
 
 ---
 
-User Story 3: Automate data pipelines to feed Kibana dashboards
+User Story 3: Integration with Kibana for Real-Time Data Visualization
 
-Description: Create automated processes to collect and send call metrics to Kibana for analysis.
+Description: Connect the backend data pipelines with Kibana to visualize real-time call performance metrics and system health, and embed or link these dashboards within the website.
 
 Acceptance Criteria:
 
-1. Call logs and agent performance data are collected in real-time.
+1. Automated pipelines push the processed call center data to Kibana in real time.
 
 
-2. Data pipelines automatically send processed data to Kibana.
+2. Kibana dashboards are configured to display key metrics such as call volumes, average handling time, and agent performance.
 
 
-3. The system can handle high call volumes without delays or failures.
+3. The integration allows users to filter and drill down into specific data points directly from the website.
 
 
-
-
-
----
-
-User Story 4: Implement alerting system for call center anomalies
-
-Description: Set up alerts for abnormal call center performance (e.g., high wait times, agent unavailability).
-
-Acceptance Criteria:
-
-1. Alerts trigger when call wait times exceed a defined threshold.
-
-
-2. Notifications are sent to contact center managers via email/SMS/Slack.
-
-
-3. Alerts are logged for future analysis and troubleshooting.
+4. The embedded or linked Kibana dashboards update without requiring a page refresh and maintain synchronization with the backend data.
 
 
 
@@ -90,26 +77,4 @@ Acceptance Criteria:
 
 ---
 
-User Story 5: Enable reporting and analytics on the website
-
-Description: Allow users to generate reports on call performance and agent efficiency.
-
-Acceptance Criteria:
-
-1. Users can download reports in PDF/CSV formats.
-
-
-2. Reports include historical trends and key performance indicators (KPIs).
-
-
-3. Reports can be scheduled to be sent via email.
-
-
-
-
-
----
-
-This new version aligns with your changes and automation focus. Let me know if you need further refinements!
-
-
+This breakdown ensures that work is organized by frontend, backend, and data visualization via Kibana, aligning with the updated scope of the TFN-IVR Performance Matrix Dashboard. Let me know if you need further details or additional stories for any component!
