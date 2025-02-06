@@ -1,80 +1,13 @@
-Below is an updated breakdown for Epic 2: TFN-IVR Performance Matrix Dashboard that separates the work into frontend, backend, and Kibana integration components. Each section includes user stories with clear acceptance criteria.
+An open-source event correlation engine can help you analyze and correlate logs, alerts, and events from various sources within your environment. Here are some notable options:
 
+1. Simple Event Correlator (SEC): SEC is a lightweight, platform-independent tool written in Perl. It's designed for advanced event processing and can be utilized for event log monitoring, network and security management, and fraud detection. SEC processes event streams to detect and act on specific event patterns within predefined time windows. 
 
----
+2. Dsiem: Dsiem is a security event correlation engine tailored for the ELK stack, enabling it to function as a comprehensive SIEM system. It offers OSSIM-style correlation for normalized logs and events, integrates threat intelligence and vulnerability information, and generates risk-adjusted alarms. 
 
-Epic 2: TFN-IVR Performance Matrix Dashboard
+3. Cortex: Developed by Myntra, Cortex is a fault-tolerant events correlation engine that groups and correlates incoming events to facilitate actions such as creating or resolving incidents and conducting root cause analysis. 
 
+4. Sagan: Sagan is a multi-threaded, high-performance, real-time log analysis and correlation engine. Written in C, it operates on Unix-like systems and is designed to provide real-time alerting and correlation with compatibility to Snort or Suricata rule management software. 
 
----
+5. Prelude SIEM: Prelude is a Security Information and Event Management system that collects and centralizes IT security information, offering real-time alerts about intrusions and security threats. It supports multiple tools for forensic reporting on big data and smart data to identify weak signals and advanced persistent threats. 
 
-User Story 1: Frontend Development for Contact Center Monitoring Website
-
-Description: Develop a responsive web interface that mimics a contact center dashboard, displaying key call center metrics and agent statuses.
-
-Acceptance Criteria:
-
-1. The UI displays key metrics (e.g., active calls, queue times, agent status) in real time.
-
-
-2. The website is responsive and accessible on both desktop and mobile devices.
-
-
-3. Role-based access controls are implemented for different user types (e.g., managers, agents).
-
-
-4. User interactions (e.g., filtering, searching, and report generation) function smoothly with appropriate loading states and error handling.
-
-
-
-
-
----
-
-User Story 2: Backend API for Data Aggregation and Management
-
-Description: Build the backend services that aggregate data from various call center sources, process it, and expose RESTful APIs for the frontend and Kibana integration.
-
-Acceptance Criteria:
-
-1. RESTful endpoints are created to serve call metrics and agent status data in JSON format.
-
-
-2. The backend supports secure data retrieval with proper authentication and authorization.
-
-
-3. Data aggregation processes (e.g., collecting call logs, processing performance metrics) run automatically on a set schedule or in real time.
-
-
-4. The API can handle high volumes of requests without significant performance degradation.
-
-
-
-
-
----
-
-User Story 3: Integration with Kibana for Real-Time Data Visualization
-
-Description: Connect the backend data pipelines with Kibana to visualize real-time call performance metrics and system health, and embed or link these dashboards within the website.
-
-Acceptance Criteria:
-
-1. Automated pipelines push the processed call center data to Kibana in real time.
-
-
-2. Kibana dashboards are configured to display key metrics such as call volumes, average handling time, and agent performance.
-
-
-3. The integration allows users to filter and drill down into specific data points directly from the website.
-
-
-4. The embedded or linked Kibana dashboards update without requiring a page refresh and maintain synchronization with the backend data.
-
-
-
-
-
----
-
-This breakdown ensures that work is organized by frontend, backend, and data visualization via Kibana, aligning with the updated scope of the TFN-IVR Performance Matrix Dashboard. Let me know if you need further details or additional stories for any component!
+When selecting an event correlation engine, consider factors such as integration capabilities with your existing systems, scalability, performance requirements, and the specific features that align with your organization's needs.
