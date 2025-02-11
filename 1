@@ -1,1 +1,270 @@
 
+// Creates the "contact_data" table if it does not already exist.
+// All numeric fields are defined as BIGINT to allow for very large numbers.
+async function initializeDatabase() {
+  try {
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS contact_data (
+        id SERIAL PRIMARY KEY,
+        abandoned BOOLEAN,
+        abandonSeconds BIGINT,
+        acwSeconds BIGINT,
+        agentId VARCHAR(50),
+        agentSeconds BIGINT,
+        analyticsProcessedDate TIMESTAMPTZ,
+        callbackTime TIMESTAMPTZ,
+        conferenceSeconds BIGINT,
+        contactId VARCHAR(50),
+        campaignId VARCHAR(50),
+        campaignName VARCHAR(255),
+        contactStartDate TIMESTAMPTZ,
+        dateACWWarehoused TIMESTAMPTZ,
+        dateContactWarehoused TIMESTAMPTZ,
+        dispositionNotes TEXT,
+        endReason VARCHAR(255),
+        firstName VARCHAR(100),
+        lastName VARCHAR(100),
+        fromAddress VARCHAR(255),
+        highProficiency BOOLEAN,
+        holdCount BIGINT,
+        holdSeconds BIGINT,
+        inQueueSeconds BIGINT,
+        isAnalyticsProcessed BOOLEAN,
+        isLogged BOOLEAN,
+        isOutbound BOOLEAN,
+        isRefused BOOLEAN,
+        isShortAbandon BOOLEAN,
+        isTakeover BOOLEAN,
+        lastUpdateTime TIMESTAMPTZ,
+        lowProficiency BOOLEAN,
+        masterContactId VARCHAR(50),
+        mediaSubTypeId VARCHAR(50),
+        mediaSubTypeName VARCHAR(255),
+        mediaTypeId VARCHAR(50),
+        mediaTypeName VARCHAR(255),
+        pointOfContactId VARCHAR(50),
+        pointOfContactName VARCHAR(255),
+        postQueueSeconds BIGINT,
+        preQueueSeconds BIGINT,
+        primaryDispositionId VARCHAR(50),
+        refuseTime TIMESTAMPTZ,
+        releaseSeconds BIGINT,
+        routingAttribute VARCHAR(255),
+        routingTimeSecondary VARCHAR(255),
+        DispositionId VARCHAR(50),
+        serviceLevelFlag BOOLEAN,
+        skillId VARCHAR(50),
+        skillName VARCHAR(255),
+        teamId VARCHAR(50),
+        transferIndicatorId VARCHAR(50),
+        transferIndicatorName VARCHAR(255),
+        tags TEXT,
+        refuseReason TEXT,
+        teamName VARCHAR(255),
+        toAddress VARCHAR(255),
+        totalDurationSeconds BIGINT,
+        createdAt TIMESTAMPTZ DEFAULT NOW()
+      );
+    `;
+    await pool.query(createTableQuery);
+    console.log("Database initialized – 'contact_data' table is ready.");
+  } catch (error) {
+    console.error("Error initializing database:", error);
+    throw error;
+  }
+}
+
+// --- Function: getAccessToken ---
+// Retrieves an access token from the external API.
+// Logs the full response so you can verify that the token is generated.
+async function getAccessToken() {
+  try {
+    const response = await axios.post(ACCESS_TOKEN_URL);
+    console.log("Access token endpoint response:", response.data);
+    if (response.data) {
+      // Check for both "access token" and "access_token"
+      const token = response.data["access token"] || response.data.access_token;
+      if (token) {
+        console.log("Access token acquired:", token);
+        return token;
+      }
+    }
+    throw new Error("Access token missing from response.");
+  } catch (error) {
+    console.error("Error getting access token:", error);
+    throw error;
+  }
+}
+
+// --- Function: fetchAPIData ---
+// Fetches raw data from the external API for the past hour.
+async function fetchAPIData() {
+  try {
+    const token = await getAccessToken();
+    const headers = {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    // Define the time window (last 1 hour)
+    const endDate = new Date().toISOString();
+    const startDate = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+    const params = {
+      startdate: startDate,
+      enddate: endDate,
+      top: 10000,
+      skip: 0,
+    };
+
+    const response = await axios.get(API_URL, { headers, params });
+    const records = response.data?.completedContacts;
+    console.log(`Fetched ${records ? records.length : 0} records from API.`);
+    return records || [];
+  } catch (error) {
+    console.error("Error fetching API data:", error);
+    return [];
+  }
+}
+
+// --- Helper: convertToEST ---
+// Converts a given date value to Eastern Standard Time (EST).
+function convertToEST(dateValue) {
+  if (!dateValue) return null;
+  return moment.tz(dateValue, 'America/New_York').format();
+}
+
+// --- Function: insertData ---
+// Inserts the raw records into the PostgreSQL database after converting date fields to EST.
+async function insertData(records) {
+  if (!records || records.length === 0) {
+    console.log("No records to insert.");
+    return;
+  }
+  let insertedCount = 0;
+  for (const record of records) {
+    // List of date/time fields to convert to EST
+    const dateFields = [
+      'analyticsProcessedDate',
+      'callbackTime',
+      'contactStartDate',
+      'dateACWWarehoused',
+      'dateContactWarehoused',
+      'lastUpdateTime',
+      'refuseTime'
+    ];
+    dateFields.forEach(field => {
+      if (record[field]) {
+        record[field] = convertToEST(record[field]);
+      }
+    });
+    const query = `
+      INSERT INTO contact_data (
+        abandoned, abandonSeconds, acwSeconds, agentId, agentSeconds,
+        analyticsProcessedDate, callbackTime, conferenceSeconds, contactId,
+        campaignId, campaignName, contactStartDate, dateACWWarehoused,
+        dateContactWarehoused, dispositionNotes, endReason, firstName,
+        lastName, fromAddress, highProficiency, holdCount, holdSeconds,
+        inQueueSeconds, isAnalyticsProcessed, isLogged, isOutbound, isRefused,
+        isShortAbandon, isTakeover, lastUpdateTime, lowProficiency,
+        masterContactId, mediaSubTypeId, mediaSubTypeName, mediaTypeId,
+        mediaTypeName, pointOfContactId, pointOfContactName, postQueueSeconds,
+        preQueueSeconds, primaryDispositionId, refuseTime, releaseSeconds,
+        routingAttribute, routingTimeSecondary, DispositionId, serviceLevelFlag,
+        skillId, skillName, teamId, transferIndicatorId, transferIndicatorName,
+        tags, refuseReason, teamName, toAddress, totalDurationSeconds
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
+        $31, $32, $33, $34, $35, $36, $37, $38, $39, $40,
+        $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
+        $51, $52, $53, $54
+      )
+    `;
+    const values = [
+      record.abandoned,
+      record.abandonSeconds,
+      record.acwSeconds,
+      record.agentId,
+      record.agentSeconds,
+      record.analyticsProcessedDate,
+      record.callbackTime,
+      record.conferenceSeconds,
+      record.contactId,
+      record.campaignId,
+      record.campaignName,
+      record.contactStartDate,
+      record.dateACWWarehoused,
+      record.dateContactWarehoused,
+      record.dispositionNotes,
+      record.endReason,
+      record.firstName,
+      record.lastName,
+      record.fromAddress,
+      record.highProficiency,
+      record.holdCount,
+      record.holdSeconds,
+      record.inQueueSeconds,
+      record.isAnalyticsProcessed,
+      record.isLogged,
+      record.isOutbound,
+      record.isRefused,
+      record.isShortAbandon,
+      record.isTakeover,
+      record.lastUpdateTime,
+      record.lowProficiency,
+      record.masterContactId,
+      record.mediaSubTypeId,
+      record.mediaSubTypeName,
+      record.mediaTypeId,
+      record.mediaTypeName,
+      record.pointOfContactId,
+      record.pointOfContactName,
+      record.postQueueSeconds,
+      record.preQueueSeconds,
+      record.primaryDispositionId,
+      record.refuseTime,
+      record.releaseSeconds,
+      record.routingAttribute,
+      record.routingTimeSecondary,
+      record.DispositionId,
+      record.serviceLevelFlag,
+      record.skillId,
+      record.skillName,
+      record.teamId,
+      record.transferIndicatorId,
+      record.transferIndicatorName,
+      record.tags,
+      record.refuseReason,
+      record.teamName,
+      record.toAddress,
+      record.totalDurationSeconds
+    ];
+
+    try {
+      await pool.query(query, values);
+      insertedCount++;
+    } catch (error) {
+      console.error("Error inserting record:", error);
+    }
+  }
+  console.log(`Inserted ${insertedCount} records into the database.`);
+}
+
+async function fetchAndDump() {
+  console.log("Starting data ingestion process...");
+  const records = await fetchAPIData();
+  await insertData(records);
+}
+
+async function initialize() {
+  await initializeDatabase();
+}
+
+(async () => {
+  await initialize();
+  await fetchAndDump();
+})();
+
