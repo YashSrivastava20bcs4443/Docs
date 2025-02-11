@@ -1,4 +1,15 @@
+// dataIngestion.js
 
+
+
+// --- Create PostgreSQL Connection Pool ---
+const pool = new Pool({
+  user: DB_USER,
+  host: DB_HOST,
+  database: DB_NAME,
+  password: DB_PASSWORD,
+  port: DB_PORT,
+});
 
 // --- Function: initializeDatabase ---
 // Creates the "contact_data" table if it does not already exist.
@@ -99,30 +110,44 @@ async function getAccessToken() {
 }
 
 // --- Function: fetchAPIData ---
-// Fetches raw data from the external API for the past hour.
+// Fetches raw data from the external API for the past hour, with pagination.
 async function fetchAPIData() {
   try {
     const token = await getAccessToken();
     const headers = {
       "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json",
+      "Content-Type": "application/json"
     };
 
-    // Define the time window (last 1 hour)
     const endDate = new Date().toISOString();
     const startDate = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-    const params = {
-      startdate: startDate,
-      enddate: endDate,
-      top: 10000,
-      skip: 0,
-    };
+    let allRecords = [];
+    let skip = 0;
+    const top = 10000;
 
-    const response = await axios.get(API_URL, { headers, params });
-    const records = response.data?.completedContacts;
-    console.log(`Fetched ${records ? records.length : 0} records from API.`);
-    return records || [];
+    while (true) {
+      const params = {
+        startdate: startDate,
+        enddate: endDate,
+        top: top,
+        skip: skip
+      };
+
+      const response = await axios.get(API_URL, { headers, params });
+      const records = response.data?.completedContacts;
+      if (records && records.length > 0) {
+        allRecords = allRecords.concat(records);
+        skip += top;
+        if (records.length < top) {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+    console.log(`Total records fetched: ${allRecords.length}`);
+    return allRecords;
   } catch (error) {
     console.error("Error fetching API data:", error);
     return [];
@@ -177,72 +202,78 @@ async function insertData(records) {
         tags, refuseReason, teamName, toAddress, totalDurationSeconds
       )
       VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
-        $31, $32, $33, $34, $35, $36, $37, $38, $39, $40,
-        $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
-        $51, $52, $53, $54
+        $1, $2, $3, $4, $5, 
+        $6, $7, $8, $9, $10, 
+        $11, $12, $13, $14, $15, 
+        $16, $17, $18, $19, $20, 
+        $21, $22, $23, $24, $25, 
+        $26, $27, $28, $29, $30, 
+        $31, $32, $33, $34, $35, 
+        $36, $37, $38, $39, $40, 
+        $41, $42, $43, $44, $45, 
+        $46, $47, $48, $49, $50, 
+        $51, $52, $53, $54, $55, 
+        $56, $57
       )
     `;
     const values = [
-      record.abandoned,
-      record.abandonSeconds,
-      record.acwSeconds,
-      record.agentId,
-      record.agentSeconds,
-      record.analyticsProcessedDate,
-      record.callbackTime,
-      record.conferenceSeconds,
-      record.contactId,
-      record.campaignId,
-      record.campaignName,
-      record.contactStartDate,
-      record.dateACWWarehoused,
-      record.dateContactWarehoused,
-      record.dispositionNotes,
-      record.endReason,
-      record.firstName,
-      record.lastName,
-      record.fromAddress,
-      record.highProficiency,
-      record.holdCount,
-      record.holdSeconds,
-      record.inQueueSeconds,
-      record.isAnalyticsProcessed,
-      record.isLogged,
-      record.isOutbound,
-      record.isRefused,
-      record.isShortAbandon,
-      record.isTakeover,
-      record.lastUpdateTime,
-      record.lowProficiency,
-      record.masterContactId,
-      record.mediaSubTypeId,
-      record.mediaSubTypeName,
-      record.mediaTypeId,
-      record.mediaTypeName,
-      record.pointOfContactId,
-      record.pointOfContactName,
-      record.postQueueSeconds,
-      record.preQueueSeconds,
-      record.primaryDispositionId,
-      record.refuseTime,
-      record.releaseSeconds,
-      record.routingAttribute,
-      record.routingTimeSecondary,
-      record.DispositionId,
-      record.serviceLevelFlag,
-      record.skillId,
-      record.skillName,
-      record.teamId,
-      record.transferIndicatorId,
-      record.transferIndicatorName,
-      record.tags,
-      record.refuseReason,
-      record.teamName,
-      record.toAddress,
-      record.totalDurationSeconds
+      record.abandoned,               // 1
+      record.abandonSeconds,          // 2
+      record.acwSeconds,              // 3
+      record.agentId,                 // 4
+      record.agentSeconds,            // 5
+      record.analyticsProcessedDate,  // 6
+      record.callbackTime,            // 7
+      record.conferenceSeconds,       // 8
+      record.contactId,               // 9
+      record.campaignId,              // 10
+      record.campaignName,            // 11
+      record.contactStartDate,        // 12
+      record.dateACWWarehoused,       // 13
+      record.dateContactWarehoused,   // 14
+      record.dispositionNotes,        // 15
+      record.endReason,               // 16
+      record.firstName,               // 17
+      record.lastName,                // 18
+      record.fromAddress,             // 19
+      record.highProficiency,         // 20
+      record.holdCount,               // 21
+      record.holdSeconds,             // 22
+      record.inQueueSeconds,          // 23
+      record.isAnalyticsProcessed,    // 24
+      record.isLogged,                // 25
+      record.isOutbound,              // 26
+      record.isRefused,               // 27
+      record.isShortAbandon,          // 28
+      record.isTakeover,              // 29
+      record.lastUpdateTime,          // 30
+      record.lowProficiency,          // 31
+      record.masterContactId,         // 32
+      record.mediaSubTypeId,          // 33
+      record.mediaSubTypeName,        // 34
+      record.mediaTypeId,             // 35
+      record.mediaTypeName,           // 36
+      record.pointOfContactId,        // 37
+      record.pointOfContactName,      // 38
+      record.postQueueSeconds,        // 39
+      record.preQueueSeconds,         // 40
+      record.primaryDispositionId,    // 41
+      record.refuseTime,              // 42
+      record.releaseSeconds,          // 43
+      record.routingAttribute,        // 44
+      record.routingTimeSecondary,    // 45
+      record.DispositionId,           // 46
+      record.serviceLevelFlag,        // 47
+      record.skillId,                 // 48
+      record.skillName,               // 49
+      record.teamId,                  // 50
+      record.transferIndicatorId,     // 51
+      record.transferIndicatorName,   // 52
+      record.tags,                    // 53
+      record.refuseReason,            // 54
+      record.teamName,                // 55
+      record.toAddress,               // 56
+      record.totalDurationSeconds     // 57
     ];
 
     try {
@@ -280,5 +311,7 @@ async function initialize() {
     console.log("Data ingestion process complete.");
   } catch (error) {
     console.error("Error in main execution:", error);
+  } finally {
+    pool.end();
   }
 })();
