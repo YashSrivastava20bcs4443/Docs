@@ -1,234 +1,86 @@
 const axios = require('axios');
 const { Pool } = require('pg');
 const moment = require('moment-timezone');
-const fs = require('fs');
-const { Parser } = require('json2csv');
-require('dotenv').config();
 
-// --- Database Configuration ---
-const DB_USER = 'postgres';
-const DB_HOST = '10.7.32.134';
-const DB_NAME = 'postgres';
-const DB_PASSWORD = 'automation@123';
-const DB_PORT = 5432;
+// Database Configuration
+const pool = new Pool({
+  user: 'postgres',
+  host: '10.7.32.134',
+  database: 'postgres',
+  password: 'automation@123',
+  port: 5432,
+});
 
-// --- API Configuration ---
 const API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed";
 const ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken";
 
-// --- PostgreSQL Connection Pool ---
-const pool = new Pool({
-  user: DB_USER,
-  host: DB_HOST,
-  database: DB_NAME,
-  password: DB_PASSWORD,
-  port: DB_PORT,
-});
-
-// --- CSV File Path ---
-const CSV_FILE_PATH = './contact_data.csv';
-
-// --- Function: Get Access Token ---
 async function getAccessToken() {
   try {
     const response = await axios.post(ACCESS_TOKEN_URL);
-    const token = response.data["access token"] || response.data.access_token;
-    if (!token) throw new Error("Access token missing in response.");
-    
-    console.log("\n✅ Access Token generated successfully:", token);
-    return token;
+    console.log("Access token response:", response.data);
+    return response.data.access_token || response.data["access token"];
   } catch (error) {
-    console.error("❌ Error getting access token:", error);
+    console.error("Error getting access token:", error);
     throw error;
   }
 }
 
-// --- Function: Fetch Data from API ---
 async function fetchAPIData() {
   try {
     const token = await getAccessToken();
-    const headers = { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" };
-    
-    const endDate = new Date().toISOString();
-    const startDate = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // Last 1 hour
-
-    let allRecords = [];
-    let skip = 0;
-    const top = 10000;
-
-    while (true) {
-      const params = { startdate: startDate, enddate: endDate, top, skip };
-      const response = await axios.get(API_URL, { headers, params });
-      const records = response.data?.completedContacts || [];
-      
-      if (records.length > 0) {
-        allRecords = allRecords.concat(records);
-        skip += top;
-        if (records.length < top) break; // Stop pagination
-      } else {
-        break;
-      }
-    }
-
-    console.log(`\n✅ Total records fetched: ${allRecords.length}`);
-    
-    // Print sample data (first 5 records)
-    console.log("\n🔹 Sample Data Fetched:");
-    console.table(allRecords.slice(0, 5));
-
-    return allRecords;
+    const headers = { "Authorization": `Bearer ${token}` };
+    const response = await axios.get(API_URL, { headers, params: { top: 10 } });
+    return response.data?.completedContacts || [];
   } catch (error) {
-    console.error("❌ Error fetching API data:", error);
+    console.error("Error fetching API data:", error);
     return [];
   }
 }
 
-// --- Function: Save Data to CSV ---
-async function saveDataToCSV(records) {
-  if (records.length === 0) {
-    console.log("⚠ No records to save to CSV.");
+async function createTableIfNotExists(data) {
+  if (data.length === 0) {
+    console.log("No data to determine schema.");
     return;
   }
 
-  // Remove "tags" column
-  records.forEach(record => delete record.tags);
+  const sampleRecord = data[0];
+  let columns = Object.keys(sampleRecord).map(key => {
+    let type = typeof sampleRecord[key];
+    if (type === 'number') return `"${key}" BIGINT`;
+    if (type === 'boolean') return `"${key}" BOOLEAN`;
+    return `"${key}" TEXT`;
+  }).join(', ');
 
-  const fields = Object.keys(records[0]);
-  const json2csvParser = new Parser({ fields });
-  const csvData = json2csvParser.parse(records);
-
-  fs.writeFileSync(CSV_FILE_PATH, csvData);
-  console.log(`\n✅ Data saved to CSV: ${CSV_FILE_PATH}`);
+  const query = `CREATE TABLE IF NOT EXISTS contact_data (id SERIAL PRIMARY KEY, ${columns});`;
+  await pool.query(query);
+  console.log("Table created or already exists.");
 }
 
-// --- Function: Insert CSV Data into PostgreSQL ---
-async function insertCSVToDatabase() {
-  try {
-    const csvContent = fs.readFileSync(CSV_FILE_PATH, 'utf8');
-    const lines = csvContent.split('\n');
-    const headers = lines[0].split(',');
+async function insertData(data) {
+  if (data.length === 0) {
+    console.log("No records to insert.");
+    return;
+  }
 
-    const filteredHeaders = headers.filter(header => header.trim() !== 'tags');
-
-    let insertedCount = 0;
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',');
-      if (values.length !== headers.length) continue;
-
-      const filteredValues = values.filter((_, idx) => headers[idx].trim() !== 'tags');
-
-      const query = `
-        INSERT INTO contact_data (${filteredHeaders.join(', ')})
-        VALUES (${filteredHeaders.map((_, idx) => `$${idx + 1}`).join(', ')})
-      `;
-
-      await pool.query(query, filteredValues);
-      insertedCount++;
+  for (const record of data) {
+    const keys = Object.keys(record).map(key => `"${key}"`).join(', ');
+    const values = Object.values(record);
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+    
+    const query = `INSERT INTO contact_data (${keys}) VALUES (${placeholders});`;
+    try {
+      await pool.query(query, values);
+    } catch (error) {
+      console.error("Error inserting data:", error);
     }
-
-    console.log(`\n✅ Inserted ${insertedCount} records into the database.`);
-
-    fs.unlinkSync(CSV_FILE_PATH);
-    console.log(`\n🗑 CSV file deleted: ${CSV_FILE_PATH}`);
-
-  } catch (error) {
-    console.error("❌ Error inserting CSV data into database:", error);
   }
+  console.log(`Inserted ${data.length} records.`);
 }
 
-// --- Function: Fetch Data, Save CSV, Insert Data, Delete CSV ---
-async function fetchAndDumpToCSV() {
-  console.log("\n🚀 Starting data ingestion process...");
-  const records = await fetchAPIData();
-  await saveDataToCSV(records);
-  await insertCSVToDatabase();
+async function main() {
+  const data = await fetchAPIData();
+  await createTableIfNotExists(data);
+  await insertData(data);
 }
 
-// --- Function: Initialize Database ---
-async function initializeDatabase() {
-  try {
-    const createTableQuery = `
-      CREATE TABLE IF NOT EXISTS contact_data (
-        id SERIAL PRIMARY KEY,
-        abandoned BOOLEAN,
-        abandonSeconds BIGINT,
-        acwSeconds BIGINT,
-        agentId VARCHAR(50),
-        agentSeconds BIGINT,
-        analyticsProcessedDate TIMESTAMPTZ,
-        callbackTime TIMESTAMPTZ,
-        conferenceSeconds BIGINT,
-        contactId VARCHAR(50),
-        campaignId VARCHAR(50),
-        campaignName VARCHAR(255),
-        contactStartDate TIMESTAMPTZ,
-        dateACWWarehoused TIMESTAMPTZ,
-        dateContactWarehoused TIMESTAMPTZ,
-        dispositionNotes TEXT,
-        endReason VARCHAR(255),
-        firstName VARCHAR(100),
-        lastName VARCHAR(100),
-        fromAddress VARCHAR(255),
-        highProficiency BOOLEAN,
-        holdCount BIGINT,
-        holdSeconds BIGINT,
-        inQueueSeconds BIGINT,
-        isAnalyticsProcessed BOOLEAN,
-        isLogged BOOLEAN,
-        isOutbound BOOLEAN,
-        isRefused BOOLEAN,
-        isShortAbandon BOOLEAN,
-        isTakeover BOOLEAN,
-        lastUpdateTime TIMESTAMPTZ,
-        lowProficiency BOOLEAN,
-        masterContactId VARCHAR(50),
-        mediaSubTypeId VARCHAR(50),
-        mediaSubTypeName VARCHAR(255),
-        mediaTypeId VARCHAR(50),
-        mediaTypeName VARCHAR(255),
-        pointOfContactId VARCHAR(50),
-        pointOfContactName VARCHAR(255),
-        postQueueSeconds BIGINT,
-        preQueueSeconds BIGINT,
-        primaryDispositionId VARCHAR(50),
-        refuseTime TIMESTAMPTZ,
-        releaseSeconds BIGINT,
-        routingAttribute VARCHAR(255),
-        routingTimeSecondary VARCHAR(255),
-        DispositionId VARCHAR(50),
-        serviceLevelFlag BOOLEAN,
-        skillId VARCHAR(50),
-        skillName VARCHAR(255),
-        teamId VARCHAR(50),
-        transferIndicatorId VARCHAR(50),
-        transferIndicatorName VARCHAR(255),
-        refuseReason TEXT,
-        teamName VARCHAR(255),
-        toAddress VARCHAR(255),
-        totalDurationSeconds BIGINT,
-        createdAt TIMESTAMPTZ DEFAULT NOW()
-      );
-    `;
-    await pool.query(createTableQuery);
-    console.log("\n✅ Database initialized – 'contact_data' table is ready.");
-  } catch (error) {
-    console.error("❌ Error initializing database:", error);
-    throw error;
-  }
-}
-
-// --- Main Execution ---
-(async () => {
-  try {
-    console.log("\n🔹 Starting initialization...");
-    await initializeDatabase();
-    console.log("\n🔹 Initialization complete. Fetching and inserting data...");
-    await fetchAndDumpToCSV();
-    console.log("\n✅ Data ingestion process complete.");
-  } catch (error) {
-    console.error("❌ Error in main execution:", error);
-  } finally {
-    pool.end();
-  }
-})();
+main().catch(console.error);
