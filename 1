@@ -1,6 +1,8 @@
 
+
+// --- Function: initializeDatabase ---
 // Creates the "contact_data" table if it does not already exist.
-// All numeric fields are defined as BIGINT to allow for very large numbers.
+// All numeric fields are defined as BIGINT.
 async function initializeDatabase() {
   try {
     const createTableQuery = `
@@ -76,7 +78,7 @@ async function initializeDatabase() {
 
 // --- Function: getAccessToken ---
 // Retrieves an access token from the external API.
-// Logs the full response so you can verify that the token is generated.
+// Logs the full response for debugging.
 async function getAccessToken() {
   try {
     const response = await axios.post(ACCESS_TOKEN_URL);
@@ -253,18 +255,30 @@ async function insertData(records) {
   console.log(`Inserted ${insertedCount} records into the database.`);
 }
 
+// --- Function: fetchAndDump ---
+// Fetches data from the API and inserts it into the database.
 async function fetchAndDump() {
   console.log("Starting data ingestion process...");
   const records = await fetchAPIData();
   await insertData(records);
 }
 
+// --- Function: initialize ---
+// Ensures the table exists before running ingestion.
 async function initialize() {
   await initializeDatabase();
 }
 
+// --- Main Execution ---
+// Wrap the main execution in a try/catch block for error logging.
 (async () => {
-  await initialize();
-  await fetchAndDump();
+  try {
+    console.log("Starting initialization...");
+    await initialize();
+    console.log("Initialization complete. Fetching and inserting data...");
+    await fetchAndDump();
+    console.log("Data ingestion process complete.");
+  } catch (error) {
+    console.error("Error in main execution:", error);
+  }
 })();
-
