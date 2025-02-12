@@ -1,36 +1,30 @@
-def create_table_and_insert_data(db_conn, table_name, df):
-    cursor = db_conn.cursor()
+if __name__ == "__main__":
+    # Get access token
+    auth_token = get_access_token()
 
-    # Convert all column names into TEXT type
-    columns = df.columns
-    column_definitions = ", ".join([f'"{col}" TEXT' for col in columns])
+    # Define time range in UTC (last 1 hour)
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    # Create table if not exists
-    create_table_query = sql.SQL(
-        "CREATE TABLE IF NOT EXISTS {} ({});"
-    ).format(
-        sql.Identifier(table_name),
-        sql.SQL(column_definitions)
-    )
-    cursor.execute(create_table_query)
-    db_conn.commit()
-    print(f"Table '{table_name}' created (if it did not already exist).")
+    # Fetch and process data
+    data = fetch_data(start_date, end_date, auth_token)
 
-    # Clean DataFrame: Replace NaN or NaT with None
-    df = df.replace({pd.NA: None, "NaN": None, "nan": None}).astype(str)
+    if data:
+        csv_file_path = save_raw_data_to_csv(data)
 
-    # Insert Data (All as TEXT)
-    insert_query = sql.SQL(
-        "INSERT INTO {} ({}) VALUES ({})"
-    ).format(
-        sql.Identifier(table_name),
-        sql.SQL(", ").join(map(sql.Identifier, columns)),
-        sql.SQL(", ").join(sql.Placeholder() * len(columns))
-    )
+        # Connect to PostgreSQL
+        db_conn = psycopg2.connect(**DB_CONFIG)
 
-    for row in df.itertuples(index=False, name=None):
-        cursor.execute(insert_query, row)
+        # Load the CSV into a DataFrame
+        df = pd.read_csv(csv_file_path)
 
-    db_conn.commit()
-    cursor.close()
-    print(f"Data inserted into table '{table_name}' successfully!")
+        # Replace NaT, NaN, and "nan" with None
+        df.replace({pd.NA: None, "NaN": None, "nan": None}, inplace=True)
+
+        # Call the function with the cleaned DataFrame
+        create_table_and_insert_data(db_conn, "yash", df)
+
+        delete_csv(csv_file_path)  # Remove CSV after inserting data
+        db_conn.close()
+    else:
+        print("No data fetched for the given time range.")
