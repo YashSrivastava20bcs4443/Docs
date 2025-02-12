@@ -1,1 +1,197 @@
+import requests
+import pandas as pd
+import os
+import psycopg2
+from psycopg2 import sql
+from datetime import datetime, timedelta, timezone
+import pytz
 
+# ================================================
+# Configuration & Constants
+# ================================================
+
+# API endpoints
+API_URL = "https://api-c48.nice-incontact.com/incontactapi/services/v31.0/contacts/completed"
+ACCESS_TOKEN_URL = "http://ctiintegrationapi.operations.fareportal.com.local/api/Agent/accessToken"
+
+# PostgreSQL Database connection configuration
+DB_CONFIG = {
+    "dbname": "postgres",
+    "user": "postgres",
+    "password": "automation@123",
+    "host": "10.7.32.134",
+    "port": "5432"
+}
+
+# Timezone conversion: UTC to EST
+EST_TZ = pytz.timezone("US/Eastern")
+
+# List of datetime columns to be processed
+DATETIME_COLUMNS = [
+    "contactStartDate", 
+    "dateACWWarehoused", 
+    "dateContactWarehoused", 
+    "lastUpdateTime"
+]
+
+# Create a Temp directory in the same folder where this script is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMP_DIR = os.path.join(BASE_DIR, "Temp")
+os.makedirs(TEMP_DIR, exist_ok=True)
+
+# ================================================
+# Functions
+# ================================================
+
+def get_access_token():
+    """
+    Fetch the access token from the API.
+    """
+    response = requests.post(ACCESS_TOKEN_URL)
+    response_data = response.json()
+    if "access_token" in response_data:
+        print("Access Token generated successfully.")
+        return response_data["access_token"]
+    else:
+        raise Exception("Failed to generate access token")
+
+
+def fetch_data(start_date, end_date, auth_token):
+    """
+    Fetch data from the API within the given time range.
+    Pagination is handled using 'top' and 'skip' parameters.
+    """
+    headers = {"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
+    all_data = []
+    top = 10000
+    skip = 0
+
+    while True:
+        params = {"startDate": start_date, "endDate": end_date, "top": top, "skip": skip}
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            # Break if less than top records are returned (last page)
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+
+    print(f"Total records fetched: {len(all_data)}")
+    return all_data
+
+
+def save_raw_data_to_csv(data):
+    """
+    Clean the data:
+      - Convert datetime columns from UTC to EST.
+      - Remove the 'T' and 'Z' characters.
+      - Drop the 'tags' column if it exists.
+    Save the cleaned data as a CSV in the Temp directory.
+    """
+    df = pd.DataFrame(data)
+
+    # Process datetime columns: convert from UTC to EST and format accordingly
+    for col in DATETIME_COLUMNS:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)  # Parse as UTC datetime
+            df[col] = df[col].dt.tz_convert(EST_TZ)  # Convert to EST
+            df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")  # Format without 'T' and 'Z'
+
+    # Drop 'tags' column if present
+    if "tags" in df.columns:
+        df.drop(columns=["tags"], inplace=True)
+        print("Dropped 'tags' column from CSV.")
+
+    # Save the cleaned DataFrame as CSV in the Temp directory
+    csv_file_path = os.path.join(TEMP_DIR, "Raw_data.csv")
+    df.to_csv(csv_file_path, index=False)
+    print(f"CSV file cleaned and updated at '{csv_file_path}'")
+    return csv_file_path
+
+
+def create_table_and_insert_data(db_conn, table_name, csv_file_path):
+    """
+    Read the CSV file, create the table (if not exists) with all columns as TEXT,
+    and insert the CSV data into the table.
+    """
+    # Load CSV data into DataFrame
+    df = pd.read_csv(csv_file_path)
+    # Replace missing/NaN values with None (for SQL compatibility)
+    df = df.where(pd.notnull(df), None)
+
+    cursor = db_conn.cursor()
+
+    # Get column names and define all as TEXT
+    columns = df.columns
+    column_definitions = ", ".join([f'"{col}" TEXT' for col in columns])
+    create_table_query = f'CREATE TABLE IF NOT EXISTS "{table_name}" ({column_definitions});'
+    cursor.execute(create_table_query)
+    db_conn.commit()
+    print(f"Table '{table_name}' created (if it did not already exist).")
+
+    # Build INSERT query (all values as TEXT)
+    insert_query = sql.SQL(
+        "INSERT INTO {} ({}) VALUES ({})"
+    ).format(
+        sql.Identifier(table_name),
+        sql.SQL(", ").join(map(sql.Identifier, columns)),
+        sql.SQL(", ").join(sql.Placeholder() * len(columns))
+    )
+
+    # Insert each row from the DataFrame
+    for row in df.itertuples(index=False, name=None):
+        # Convert each value to a string if not None
+        row_converted = [str(val) if val is not None else None for val in row]
+        cursor.execute(insert_query, row_converted)
+
+    db_conn.commit()
+    cursor.close()
+    print(f"Data inserted into table '{table_name}' successfully!")
+
+
+def delete_csv(file_path):
+    """
+    Delete the specified CSV file.
+    """
+    os.remove(file_path)
+    print(f"CSV file '{file_path}' deleted successfully!")
+
+
+# ================================================
+# Main Execution
+# ================================================
+if __name__ == "__main__":
+    try:
+        # 1️⃣ Get Access Token
+        auth_token = get_access_token()
+
+        # Define time range (last 1 hour in UTC)
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(hours=1)
+        # Format dates as ISO 8601 strings with a trailing 'Z'
+        end_date_str = end_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+        start_date_str = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        # 2️⃣ Fetch data from API
+        data = fetch_data(start_date_str, end_date_str, auth_token)
+
+        if data:
+            # 3️⃣ Clean data and save CSV in Temp directory
+            csv_file_path = save_raw_data_to_csv(data)
+
+            # 4️⃣ Connect to PostgreSQL, create table (if needed) and insert data from CSV
+            db_conn = psycopg2.connect(**DB_CONFIG)
+            create_table_and_insert_data(db_conn, "yash", csv_file_path)
+
+            # 5️⃣ Delete the CSV file after successful insertion
+            delete_csv(csv_file_path)
+            db_conn.close()
+        else:
+            print("No data fetched for the given time range.")
+
+    except Exception as e:
+        print("Error:", e)
