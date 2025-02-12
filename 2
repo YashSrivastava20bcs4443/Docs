@@ -1,7 +1,36 @@
-insert_query = sql.SQL(
-    "INSERT INTO {} ({}) VALUES ({})"
-).format(
-    sql.Identifier(table_name),
-    sql.SQL(", ").join(map(sql.Identifier, columns)),
-    sql.SQL(", ").join(sql.Placeholder() * len(columns))
-)
+import psycopg2
+from psycopg2 import sql
+
+def create_table_and_insert_data(db_conn, table_name, df):
+    cursor = db_conn.cursor()
+
+    # Convert all column names into TEXT type
+    columns = df.columns
+    column_definitions = ", ".join([f'"{col}" TEXT' for col in columns])
+
+    # Create table if not exists
+    create_table_query = sql.SQL(
+        "CREATE TABLE IF NOT EXISTS {} ({});"
+    ).format(
+        sql.Identifier(table_name),
+        sql.SQL(column_definitions)
+    )
+    cursor.execute(create_table_query)
+    db_conn.commit()
+    print(f"Table '{table_name}' created (if it did not already exist).")
+
+    # Insert Data (All as TEXT)
+    insert_query = sql.SQL(
+        "INSERT INTO {} ({}) VALUES ({})"
+    ).format(
+        sql.Identifier(table_name),
+        sql.SQL(", ").join(map(sql.Identifier, columns)),
+        sql.SQL(", ").join(sql.Placeholder() * len(columns))
+    )
+
+    for row in df.astype(str).itertuples(index=False, name=None):
+        cursor.execute(insert_query, row)
+
+    db_conn.commit()
+    cursor.close()
+    print(f"Data inserted into table '{table_name}' successfully!")
