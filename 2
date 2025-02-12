@@ -1,1 +1,157 @@
 
+import requests
+import pandas as pd
+import os
+import psycopg2
+from psycopg2 import sql
+from datetime import datetime, timedelta, timezone
+import pytz
+
+# API URLs
+API_URL = ""
+ACCESS_TOKEN_URL = ""
+
+# Database connection
+DB_CONFIG = {
+    "dbname": "postgres",
+    "user": "postgres",
+    "password": "",
+    "host": "",
+    "port": "5432"
+}
+
+# Convert UTC to EST
+EST_TZ = pytz.timezone("US/Eastern")
+
+# Datetime columns in API response
+DATETIME_COLUMNS = ["contactStartDate", "dateACWWarehoused", "dateContactWarehoused", "lastUpdateTime"]
+
+# Create Temp directory in the current working directory
+TEMP_DIR = os.path.join(os.getcwd(), "Temp")
+os.makedirs(TEMP_DIR, exist_ok=True)
+
+
+def get_access_token():
+    """Fetch access token from API."""
+    response = requests.post(ACCESS_TOKEN_URL)
+    response_data = response.json()
+
+    if "access_token" in response_data:
+        print("Access Token generated successfully.")
+        return response_data["access_token"]
+    raise Exception("Failed to generate access token")
+
+
+def fetch_data(start_date, end_date, auth_token):
+    """Fetch data from API within the given time range."""
+    headers = {"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
+    all_data = []
+    top = 10000
+    skip = 0
+
+    while True:
+        params = {"startDate": start_date, "endDate": end_date, "top": top, "skip": skip}
+        response = requests.get(API_URL, headers=headers, params=params)
+        data = response.json()
+
+        if "completedContacts" in data and data["completedContacts"]:
+            all_data.extend(data["completedContacts"])
+            skip += top
+            if len(data["completedContacts"]) < top:
+                break
+        else:
+            break
+
+    print(f"Total records fetched: {len(all_data)}")
+    return all_data
+
+
+def save_raw_data_to_csv(data):
+    """Save raw data to CSV file after converting datetime columns to EST."""
+    df = pd.DataFrame(data)
+    csv_file_path = os.path.join(TEMP_DIR, "Raw_data.csv")
+
+    # Convert datetime columns from UTC to EST and remove 'T' and 'Z'
+    for col in DATETIME_COLUMNS:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)  # Convert to datetime
+            df[col] = df[col].dt.tz_convert(EST_TZ)  # Convert to EST
+            df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")  # Format without 'T' and 'Z'
+
+    # Drop 'tags' column if exists
+    if "tags" in df.columns:
+        df.drop(columns=["tags"], inplace=True)
+        print("Dropped 'tags' column from CSV.")
+
+    df.to_csv(csv_file_path, index=False)
+    print(f"CSV file cleaned and updated at '{csv_file_path}'")
+    return csv_file_path
+
+
+def create_table_and_insert_data(db_conn, table_name, csv_file_path):
+    """Create table if not exists and insert data from CSV."""
+    df = pd.read_csv(csv_file_path)
+
+    # Replace 'NaT' with NULL values
+    df.replace("NaT", None, inplace=True)
+
+    # Generate column definitions
+    columns = df.columns
+    column_definitions = []
+
+    for col in columns:
+        if col in DATETIME_COLUMNS:
+            column_definitions.append(f'"{col}" TIMESTAMPTZ')
+        else:
+            column_definitions.append(f'"{col}" TEXT')
+
+    create_table_query = f"""
+    CREATE TABLE IF NOT EXISTS "{table_name}" (
+        {", ".join(column_definitions)}
+    );
+    """
+
+    cursor = db_conn.cursor()
+    cursor.execute(create_table_query)
+    db_conn.commit()
+    print(f"Table '{table_name}' created (if it did not already exist).")
+
+    # Insert data
+    insert_query = f'INSERT INTO "{table_name}" ({", ".join([f\'"{col}"\' for col in columns])}) VALUES ({", ".join(["%s"] * len(columns))});'
+    
+    for row in df.itertuples(index=False, name=None):
+        cursor.execute(insert_query, row)
+
+    db_conn.commit()
+    cursor.close()
+    print(f"Data inserted into table '{table_name}' successfully!")
+
+
+def delete_csv(file_path):
+    """Delete the CSV file after insertion."""
+    os.remove(file_path)
+    print(f"CSV file '{file_path}' deleted successfully!")
+
+
+if __name__ == "__main__":
+    # Get access token
+    auth_token = get_access_token()
+
+    # Define time range in UTC (last 1 hour)
+    end_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    start_date = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    # Fetch and process data
+    data = fetch_data(start_date, end_date, auth_token)
+
+    if data:
+        csv_file_path = save_raw_data_to_csv(data)
+
+        # Connect to PostgreSQL
+        db_conn = psycopg2.connect(**DB_CONFIG)
+        create_table_and_insert_data(db_conn, "yash", csv_file_path)
+
+        delete_csv(csv_file_path)  # Remove CSV after inserting data
+        db_conn.close()
+    else:
+        print("No data fetched for the given time range.")
