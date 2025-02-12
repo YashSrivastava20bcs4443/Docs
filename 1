@@ -1,1 +1,92 @@
 
+
+Phase 1: Data Fetching & Storage (Python)
+
+1. Environment Setup
+
+PostgreSQL is already set up on the Windows Server.
+
+Python environment configured for API integration and database operations.
+
+
+
+2. Database Design
+
+Create contact_data table in PostgreSQL to store API data.
+
+
+
+3. API Integration
+
+Authenticate and fetch raw data from the external API using an access token.
+
+Schedule automated data fetching using cron (hourly updates).
+
+
+
+4. Data Transformation & Storage
+
+Clean and transform raw API data.
+
+Insert structured data into the PostgreSQL database.
+
+
+
+5. Final Validation & Scheduling
+
+Today, we will perform the final validation of the stored data in the database.
+
+Once validated, we will schedule the script via a pipeline from a different server to push data into the database on an hourly basis.
+
+
+
+6. Testing
+
+Validate API responses and data storage.
+
+Handle edge cases (API failures, invalid data, network issues).
+
+
+
+Phase 2: Data Retrieval & Visualization (JavaScript, React, etc.)
+
+1. Backend API Development (Node.js & Express.js)
+
+Develop RESTful API endpoints to fetch data from PostgreSQL.
+
+Implement filters & pagination (by agentId, campaignId, date, etc.).
+
+
+
+2. Frontend Development (React or preferred framework)
+
+Build an interactive UI with dashboards, tables, charts, and filters.
+
+
+
+3. Data Integration
+
+Connect the frontend to the backend API using axios/fetch.
+
+Dynamically fetch & display data based on user interactions.
+
+
+
+4. Testing & Optimization
+
+Ensure API scalability and performance.
+
+Test frontend for responsiveness and usability.
+
+
+
+5. Deployment
+
+Deploy backend (Node.js/Express) and frontend on the Windows Server.
+
+Secure the website with HTTPS.
+
+
+
+
+
