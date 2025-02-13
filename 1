@@ -1,22 +1,25 @@
 import csv
 import json
-import os
 
 def csv_to_json(csv_file_path, json_file_path):
-    """Converts a CSV file to a structured JSON format."""
-    
-    data = []  # List to store structured data
-    
-    with open(csv_file_path, mode='r', encoding='utf-8') as csv_file:
-        csv_reader = csv.DictReader(csv_file)  # Read CSV as dictionary
-        
-        for row in csv_reader:
-            data.append(row)  # Append each row as a dictionary
-    
-    with open(json_file_path, mode='w', encoding='utf-8') as json_file:
-        json.dump(data, json_file, indent=4)  # Save structured JSON with indentation
+    """Converts a CSV file to a structured JSON format, handling encoding issues."""
 
-    print(f"JSON file saved at: {json_file_path}")
+    data = []  # List to store structured data
+
+    try:
+        with open(csv_file_path, mode='r', encoding='utf-8-sig') as csv_file:
+            csv_reader = csv.DictReader(csv_file)  # Read CSV as dictionary
+
+            for row in csv_reader:
+                data.append(row)  # Append each row as a dictionary
+
+        with open(json_file_path, mode='w', encoding='utf-8') as json_file:
+            json.dump(data, json_file, indent=4)  # Save structured JSON with indentation
+
+        print(f"JSON file saved at: {json_file_path}")
+
+    except UnicodeDecodeError:
+        print("Encoding issue detected! Try opening the CSV with a different encoding.")
 
 # Example Usage
 csv_file = "input.csv"  # Replace with your CSV file path
