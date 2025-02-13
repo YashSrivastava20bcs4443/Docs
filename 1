@@ -1,32 +1,28 @@
+WITH processed_data AS (
+    SELECT 
+        "contactStartDate",
+        "lastUpdateTime",
+        "toAddress",
+        "abandoned",
+        "preQueueSeconds",
+        
+        -- Safely cast text values to FLOAT, then to INTEGER
+        COALESCE(NULLIF("preQueueSeconds", '')::FLOAT::INTEGER, 0) AS ivr_duration
+        
+    FROM contact_data
+    WHERE "contactStartDate" IS NOT NULL
+)
 SELECT 
-    "toAddress" AS "Number (toAddress)",  
+    DATE_TRUNC('hour', "contactStartDate") AS time_interval,  
+    COUNT(*) AS offered_calls,  
+    SUM(CASE WHEN abandoned = 'true' THEN 1 ELSE 0 END) AS ivr_abandon,
+    
+    -- IVR abandonment breakdown by duration buckets
+    SUM(CASE WHEN ivr_duration BETWEEN 0 AND 30 THEN 1 ELSE 0 END) AS "0-30 Seconds",
+    SUM(CASE WHEN ivr_duration BETWEEN 31 AND 60 THEN 1 ELSE 0 END) AS "30-60 Seconds",
+    SUM(CASE WHEN ivr_duration BETWEEN 61 AND 120 THEN 1 ELSE 0 END) AS "60-120 Seconds",
+    SUM(CASE WHEN ivr_duration > 120 THEN 1 ELSE 0 END) AS ">120 Seconds"
 
-    COUNT(*) AS offered_calls,
-
-    SUM(CASE 
-            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = FALSE 
-                 AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
-            THEN NULLIF("agentSeconds", '')::FLOAT::INTEGER ELSE 0 
-        END) AS answered,
-
-    SUM(CASE 
-            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
-                 AND (NULLIF("inQueueSeconds", '') IS NULL OR NULLIF("inQueueSeconds", '') = '' OR NULLIF("inQueueSeconds", '')::FLOAT::INTEGER = 0) 
-            THEN 1 ELSE 0 
-        END) AS ivr_abandon,
-
-    SUM(CASE 
-            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
-                 AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
-            THEN NULLIF("inQueueSeconds", '')::FLOAT::INTEGER ELSE 0 
-        END) AS queue_abandon,
-
-    SUM(CASE 
-            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
-                 AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script') 
-            THEN 1 ELSE 0 
-        END) AS polite_disconnect
-
-FROM contact_data
-GROUP BY "toAddress"
-ORDER BY offered_calls DESC;
+FROM processed_data
+GROUP BY time_interval
+ORDER BY time_interval;
