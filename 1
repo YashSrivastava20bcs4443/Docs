@@ -1,19 +1,18 @@
 WITH processed_data AS (
     SELECT 
-        "contactStartDate",
-        "lastUpdateTime",
+        -- Convert text date to timestamp for accurate calculations
+        TO_TIMESTAMP("contactStartDate", 'YYYY-MM-DD HH24:MI:SS') AS contact_start_time,
         "toAddress",
         "abandoned",
-        "preQueueSeconds",
         
-        -- Safely cast text values to FLOAT, then to INTEGER
+        -- Convert text-based preQueueSeconds safely to INTEGER
         COALESCE(NULLIF("preQueueSeconds", '')::FLOAT::INTEGER, 0) AS ivr_duration
         
     FROM contact_data
     WHERE "contactStartDate" IS NOT NULL
 )
 SELECT 
-    DATE_TRUNC('hour', "contactStartDate") AS time_interval,  
+    DATE_TRUNC('hour', contact_start_time) AS time_interval,  
     COUNT(*) AS offered_calls,  
     SUM(CASE WHEN abandoned = 'true' THEN 1 ELSE 0 END) AS ivr_abandon,
     
