@@ -1,38 +1,10 @@
-import csv
-import json
-import chardet
-
-def detect_encoding(file_path):
-    """Detects the encoding of a given file."""
-    with open(file_path, 'rb') as f:
-        result = chardet.detect(f.read())  # Read a sample of the file
-        return result['encoding']
-
-def csv_to_json(csv_file_path, json_file_path):
-    """Converts a CSV file to JSON with automatic encoding detection."""
-
-    detected_encoding = detect_encoding(csv_file_path)
-    print(f"Detected Encoding: {detected_encoding}")
-
-    data = []  # List to store structured data
-
-    try:
-        with open(csv_file_path, mode='r', encoding=detected_encoding) as csv_file:
-            csv_reader = csv.DictReader(csv_file)  # Read CSV as dictionary
-
-            for row in csv_reader:
-                data.append(row)  # Append each row as a dictionary
-
-        with open(json_file_path, mode='w', encoding='utf-8') as json_file:
-            json.dump(data, json_file, indent=4)  # Save structured JSON with indentation
-
-        print(f"JSON file saved at: {json_file_path}")
-
-    except UnicodeDecodeError as e:
-        print(f"Encoding issue detected: {e}")
-
-# Example Usage
-csv_file = "input.csv"  # Replace with your CSV file path
-json_file = "output.json"
-
-csv_to_json(csv_file, json_file)
+SELECT 
+    to_addr AS "Number (toAddress)",
+    COUNT(*) AS offered_calls,
+    SUM(CASE WHEN abandoned = 'false' AND agentSeconds > 0 THEN 1 ELSE 0 END) AS answered,
+    SUM(CASE WHEN abandoned = 'true' AND inQueueSeconds = 0 THEN 1 ELSE 0 END) AS ivr_abandon,
+    SUM(CASE WHEN abandoned = 'true' AND inQueueSeconds > 0 THEN 1 ELSE 0 END) AS queue_abandon,
+    SUM(CASE WHEN abandoned = 'true' AND endReason IN ('Contact Hung Up', 'Contact Hang Up via Script') THEN 1 ELSE 0 END) AS polite_disconnect
+FROM raw
+GROUP BY to_addr
+ORDER BY offered_calls DESC;
