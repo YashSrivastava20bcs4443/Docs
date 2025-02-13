@@ -1,10 +1,32 @@
 SELECT 
-    to_addr AS "Number (toAddress)",
+    toAddress AS "Number (toAddress)",
+    
     COUNT(*) AS offered_calls,
-    SUM(CASE WHEN abandoned = 'false' AND agentSeconds > 0 THEN 1 ELSE 0 END) AS answered,
-    SUM(CASE WHEN abandoned = 'true' AND inQueueSeconds = 0 THEN 1 ELSE 0 END) AS ivr_abandon,
-    SUM(CASE WHEN abandoned = 'true' AND inQueueSeconds > 0 THEN 1 ELSE 0 END) AS queue_abandon,
-    SUM(CASE WHEN abandoned = 'true' AND endReason IN ('Contact Hung Up', 'Contact Hang Up via Script') THEN 1 ELSE 0 END) AS polite_disconnect
-FROM raw
-GROUP BY to_addr
+
+    SUM(CASE 
+            WHEN CAST(abandoned AS BOOLEAN) = FALSE 
+                 AND CAST(agentSeconds AS INTEGER) > 0 
+            THEN 1 ELSE 0 
+        END) AS answered,
+
+    SUM(CASE 
+            WHEN CAST(abandoned AS BOOLEAN) = TRUE 
+                 AND CAST(inQueueSeconds AS INTEGER) = 0 
+            THEN 1 ELSE 0 
+        END) AS ivr_abandon,
+
+    SUM(CASE 
+            WHEN CAST(abandoned AS BOOLEAN) = TRUE 
+                 AND CAST(inQueueSeconds AS INTEGER) > 0 
+            THEN 1 ELSE 0 
+        END) AS queue_abandon,
+
+    SUM(CASE 
+            WHEN CAST(abandoned AS BOOLEAN) = TRUE 
+                 AND endReason IN ('Contact Hung Up', 'Contact Hang Up via Script') 
+            THEN 1 ELSE 0 
+        END) AS polite_disconnect
+
+FROM contact_data
+GROUP BY toAddress
 ORDER BY offered_calls DESC;
