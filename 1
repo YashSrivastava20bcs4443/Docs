@@ -1,28 +1,28 @@
 SELECT 
-    "toAddress" AS "Number (toAddress)",  -- Fix: Use double quotes for case-sensitive columns
-    
+    "toAddress" AS "Number (toAddress)",  
+
     COUNT(*) AS offered_calls,
 
     SUM(CASE 
-            WHEN CAST("abandoned" AS BOOLEAN) = FALSE 
-                 AND CAST("agentSeconds" AS INTEGER) > 0 
+            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = FALSE 
+                 AND CAST(NULLIF("agentSeconds", '') AS INTEGER) > 0 
             THEN 1 ELSE 0 
         END) AS answered,
 
     SUM(CASE 
-            WHEN CAST("abandoned" AS BOOLEAN) = TRUE 
-                 AND CAST("inQueueSeconds" AS INTEGER) = 0 
+            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
+                 AND COALESCE(NULLIF("inQueueSeconds", ''), '0')::INTEGER = 0 
             THEN 1 ELSE 0 
         END) AS ivr_abandon,
 
     SUM(CASE 
-            WHEN CAST("abandoned" AS BOOLEAN) = TRUE 
-                 AND CAST("inQueueSeconds" AS INTEGER) > 0 
+            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
+                 AND COALESCE(NULLIF("inQueueSeconds", ''), '0')::INTEGER > 0 
             THEN 1 ELSE 0 
         END) AS queue_abandon,
 
     SUM(CASE 
-            WHEN CAST("abandoned" AS BOOLEAN) = TRUE 
+            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
                  AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script') 
             THEN 1 ELSE 0 
         END) AS polite_disconnect
