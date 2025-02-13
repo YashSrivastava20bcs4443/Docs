@@ -1,70 +1,25 @@
+import csv
+import json
+import os
 
-1. StackStorm
+def csv_to_json(csv_file_path, json_file_path):
+    """Converts a CSV file to a structured JSON format."""
+    
+    data = []  # List to store structured data
+    
+    with open(csv_file_path, mode='r', encoding='utf-8') as csv_file:
+        csv_reader = csv.DictReader(csv_file)  # Read CSV as dictionary
+        
+        for row in csv_reader:
+            data.append(row)  # Append each row as a dictionary
+    
+    with open(json_file_path, mode='w', encoding='utf-8') as json_file:
+        json.dump(data, json_file, indent=4)  # Save structured JSON with indentation
 
-How It Helps:
+    print(f"JSON file saved at: {json_file_path}")
 
-AI-driven event automation and correlation.
+# Example Usage
+csv_file = "input.csv"  # Replace with your CSV file path
+json_file = "output.json"
 
-Can integrate with multiple monitoring tools (Elasticsearch, Kibana, SolarWinds, etc.).
-
-Uses rules, workflows, and machine learning for event correlation.
-
-
-Best For: Automated event correlation with AI-driven remediation.
-
-
-2. NERD (Network Event Recognition and Detection)
-
-How It Helps:
-
-AI/ML-based correlation of security and infrastructure events.
-
-Detects patterns and anomalies from logs and monitoring tools.
-
-Works well with Elasticsearch and Kibana.
-
-
-Best For: AI-based anomaly detection and event correlation.
-
-
-3. Apache Metron (Now Part of OpenSearch Security Analytics)
-
-How It Helps:
-
-AI-powered security and event correlation.
-
-Can ingest data from multiple monitoring tools.
-
-Uses machine learning for anomaly detection and event correlation.
-
-
-Best For: Security-related event correlation in IT infrastructure.
-
-
-4. RCAEngine (Root Cause Analysis Engine)
-
-How It Helps:
-
-AI-based root cause analysis for correlated events.
-
-Reduces alert noise by identifying true problems.
-
-Works well with network and infrastructure monitoring.
-
-
-Best For: AI-powered event correlation with root cause analysis.
-
-
-5. FLAI (Federated Learning AI for Event Correlation)
-
-How It Helps:
-
-AI-driven event correlation based on federated learning.
-
-Helps in correlating alerts from multiple monitoring systems.
-
-Integrates with ElasticSearch and Kibana.
-
-
-Best For: AI-driven learning-based event correlation.
-
+csv_to_json(csv_file, json_file)
