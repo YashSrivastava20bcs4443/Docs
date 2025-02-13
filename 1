@@ -1,13 +1,23 @@
 import csv
 import json
+import chardet
+
+def detect_encoding(file_path):
+    """Detects the encoding of a given file."""
+    with open(file_path, 'rb') as f:
+        result = chardet.detect(f.read())  # Read a sample of the file
+        return result['encoding']
 
 def csv_to_json(csv_file_path, json_file_path):
-    """Converts a CSV file to a structured JSON format, handling encoding issues."""
+    """Converts a CSV file to JSON with automatic encoding detection."""
+
+    detected_encoding = detect_encoding(csv_file_path)
+    print(f"Detected Encoding: {detected_encoding}")
 
     data = []  # List to store structured data
 
     try:
-        with open(csv_file_path, mode='r', encoding='utf-8-sig') as csv_file:
+        with open(csv_file_path, mode='r', encoding=detected_encoding) as csv_file:
             csv_reader = csv.DictReader(csv_file)  # Read CSV as dictionary
 
             for row in csv_reader:
@@ -18,8 +28,8 @@ def csv_to_json(csv_file_path, json_file_path):
 
         print(f"JSON file saved at: {json_file_path}")
 
-    except UnicodeDecodeError:
-        print("Encoding issue detected! Try opening the CSV with a different encoding.")
+    except UnicodeDecodeError as e:
+        print(f"Encoding issue detected: {e}")
 
 # Example Usage
 csv_file = "input.csv"  # Replace with your CSV file path
