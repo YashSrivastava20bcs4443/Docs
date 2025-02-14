@@ -1,27 +1,105 @@
-WITH processed_data AS (
-    SELECT 
-        -- Convert text date to timestamp for accurate calculations
-        TO_TIMESTAMP("contactStartDate", 'YYYY-MM-DD HH24:MI:SS') AS contact_start_time,
-        "toAddress",
-        "abandoned",
-        
-        -- Convert text-based preQueueSeconds safely to INTEGER
-        COALESCE(NULLIF("preQueueSeconds", '')::FLOAT::INTEGER, 0) AS ivr_duration
-        
-    FROM contact_data
-    WHERE "contactStartDate" IS NOT NULL
-)
-SELECT 
-    DATE_TRUNC('hour', contact_start_time) AS time_interval,  
-    COUNT(*) AS offered_calls,  
-    SUM(CASE WHEN abandoned = 'true' THEN 1 ELSE 0 END) AS ivr_abandon,
-    
-    -- IVR abandonment breakdown by duration buckets
-    SUM(CASE WHEN ivr_duration BETWEEN 0 AND 30 THEN 1 ELSE 0 END) AS "0-30 Seconds",
-    SUM(CASE WHEN ivr_duration BETWEEN 31 AND 60 THEN 1 ELSE 0 END) AS "30-60 Seconds",
-    SUM(CASE WHEN ivr_duration BETWEEN 61 AND 120 THEN 1 ELSE 0 END) AS "60-120 Seconds",
-    SUM(CASE WHEN ivr_duration > 120 THEN 1 ELSE 0 END) AS ">120 Seconds"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - TFN & IVR Insights</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">TFN Dashboard</div>
+    <nav>
+      <ul>
+        <li><a href="#">Dashboard</a></li>
+        <li><a href="#">IVR Bucket</a></li>
+        <li><a href="#">TFN-Wise</a></li>
+      </ul>
+    </nav>
+  </header>
 
-FROM processed_data
-GROUP BY time_interval
-ORDER BY time_interval;
+  <!-- Main Container -->
+  <div class="container">
+    <!-- Filter Panel -->
+    <section class="filter-panel">
+      <form id="filter-form">
+        <div>
+          <label for="start-date">Start Date:</label>
+          <input type="date" id="start-date" name="start-date">
+        </div>
+        <div>
+          <label for="end-date">End Date:</label>
+          <input type="date" id="end-date" name="end-date">
+        </div>
+        <div>
+          <label for="portal">Portal:</label>
+          <select id="portal" name="portal">
+            <option value="">Select</option>
+            <option value="CheapOair">CheapOair</option>
+            <option value="OneTravel">OneTravel</option>
+            <option value="SupportTFN">SupportTFN</option>
+          </select>
+        </div>
+        <div>
+          <label for="tfn-type">TFN Type:</label>
+          <select id="tfn-type" name="tfn-type">
+            <option value="">Select</option>
+            <option value="Marketing">Marketing</option>
+            <option value="NonMarketing">Non-Marketing</option>
+          </select>
+        </div>
+        <div>
+          <button type="submit">Apply Filter</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Summary Cards -->
+    <section class="summary-cards">
+      <div id="ivr-offered" class="card">
+        <h3>IVR Offered</h3>
+        <p>0</p>
+      </div>
+      <div id="ivr-abandoned" class="card">
+        <h3>IVR Abandoned</h3>
+        <p>0</p>
+      </div>
+      <div id="queue-abandoned" class="card">
+        <h3>Queue Abandoned</h3>
+        <p>0</p>
+      </div>
+      <div id="answered-calls" class="card">
+        <h3>Answered Calls</h3>
+        <p>0</p>
+      </div>
+    </section>
+
+    <!-- Chart Section -->
+    <section class="chart-container">
+      <div id="ivr-chart" class="chart-placeholder">Loading Chart...</div>
+    </section>
+
+    <!-- Data Table -->
+    <section>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>TFN</th>
+            <th>Description</th>
+            <th>IVR Offered</th>
+            <th>IVR Abandoned</th>
+            <th>Queue Abandoned</th>
+            <th>Answered Calls</th>
+          </tr>
+        </thead>
+        <tbody id="data-table-body">
+          <!-- Data will be dynamically inserted here -->
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <script src="./scripts.js"></script>
+</body>
+</html>
