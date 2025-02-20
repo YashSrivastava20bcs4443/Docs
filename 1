@@ -3,106 +3,74 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard UI Design Demo</title>
+    <title>Details Page</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <!-- Header and Navigation -->
     <header>
-        <div class="logo">My Dashboard</div>
+        <div class="logo">Details Page</div>
         <nav>
             <ul>
-                <li><a href="#">Dashboard</a></li>
-                <li><a href="#">IVR Bucket</a></li>
-                <li><a href="#">TFN-Wise</a></li>
+                <li><a href="index.html">Back to Dashboard</a></li>
             </ul>
         </nav>
     </header>
 
     <div class="container">
-        <!-- Filter Panel -->
-        <section class="filter-panel">
-            <div class="filter">
-                <div>
-                    <label for="start-date">Start Date:</label>
-                    <input type="date" id="start-date" name="start-date">
-                </div>
-                <div>
-                    <label for="end-date">End Date: </label>
-                    <input type="date" id="end-date" name="end-date">
-                </div>
-                <div>
-                    <label for="start-time">Start Time: </label>
-                    <input type="time" id="start-time" name="start-time">
-                </div>
-                <div>
-                    <label for="end-time">End time:</label>
-                    <input type="time" id="end-time" name="end-time">
-                </div>
-                <div>
-                    <button onclick="applyFilter()">Apply Filter</button>
-                </div>
-            </div>
-        </section>
+        <h1 id="metric-title">Details</h1>
 
-        <!-- Summary Cards -->
-        <section class="summary-cards">
-            <div class="card" onclick="openDetailsPage('IVR Offered')">
-                <h3>IVR Offered</h3>
-                <p id="ivroffered">0</p>
-            </div>
-            <div class="card" onclick="openDetailsPage('IVR Abandoned')">
-                <h3>IVR Abandoned</h3>
-                <p id="ivrAbandoned">0</p>
-            </div>
-            <div class="card" onclick="openDetailsPage('Queue Abandoned')">
-                <h3>Queue Abandoned</h3>
-                <p id="queueAbandoned">0</p>
-            </div>
-            <div class="card" onclick="openDetailsPage('Closed by IVR')">
-                <h3>Closed by IVR</h3>
-                <p id="closedByIvr">0</p>
-            </div>
-            <div class="card" onclick="openDetailsPage('Answered Calls')">
-                <h3>Answered Calls</h3>
-                <p id="answeredCalls">0</p>
-            </div>
-        </section>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>TFN</th>
+                    <th>Description</th>
+                    <th>IVR Offered</th>
+                    <th>IVR Abandoned</th>
+                    <th>Queue Abandoned</th>
+                    <th>Closed by IVR</th>
+                    <th>Answered Calls</th>
+                </tr>
+            </thead>
+            <tbody id="details-table-body">
+                <!-- Data rows will be appended dynamically -->
+            </tbody>
+        </table>
     </div>
 
     <script>
-        function openDetailsPage(metric) {
-            window.location.href = `details.html?metric=${encodeURIComponent(metric)}`;
-        }
+        const urlParams = new URLSearchParams(window.location.search);
+        const metric = urlParams.get('metric');
+        document.getElementById('metric-title').textContent = `${metric} Details`;
 
-        async function applyFilter() {
-            const startDate = document.getElementById('start-date').value;
-            const endDate = document.getElementById('end-date').value;
-            const startTime = document.getElementById('start-time').value;
-            const endTime = document.getElementById('end-time').value;
-
-            if (!startDate || !endDate) {
-                alert('Start Date and End Date are mandatory!');
-                return;
-            }
-
-            const queryParams = new URLSearchParams({ startDate, endDate, startTime, endTime });
-
+        async function fetchDetails() {
             try {
-                const response = await fetch(`http://localhost:3000/api/stats?${queryParams}`);
+                const response = await fetch(`http://localhost:3000/api/details?metric=${metric}`);
                 const data = await response.json();
 
-                document.getElementById('ivroffered').textContent = data.ivr_offered || 0;
-                document.getElementById('ivrAbandoned').textContent = data.ivr_abandoned || 0;
-                document.getElementById('queueAbandoned').textContent = data.queue_abandoned || 0;
-                document.getElementById('closedByIvr').textContent = data.closed_by_ivr || 0;
-                document.getElementById('answeredCalls').textContent = data.answered_calls || 0;
+                const tableBody = document.getElementById('details-table-body');
+                tableBody.innerHTML = '';
+
+                data.forEach(row => {
+                    tableBody.innerHTML += `
+                        <tr>
+                            <td>${row.tfn}</td>
+                            <td>${row.description}</td>
+                            <td>${row.ivr_offered}</td>
+                            <td>${row.ivr_abandoned}</td>
+                            <td>${row.queue_abandoned}</td>
+                            <td>${row.closed_by_ivr}</td>
+                            <td>${row.answered_calls}</td>
+                        </tr>
+                    `;
+                });
 
             } catch (error) {
-                console.error('Error fetching stats:', error);
+                console.error('Error fetching details:', error);
             }
         }
+
+        fetchDetails();
     </script>
 
 </body>
