@@ -1,107 +1,50 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard UI Design Demo</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <!-- Header and Navigation -->
-    <header>
-        <div class="logo">My Dashboard</div>
-        <nav>
-            <ul>
-                <li><a href="#">Dashboard</a></li>
-                <li><a href="#">IVR Bucket</a></li>
-                <li><a href="#">TFN-Wise</a></li>
-            </ul>
-        </nav>
-    </header>
+const express = require('express');
+const { Pool } = require('pg');
+const cors = require('cors');
 
-    <div class="container">
-        <!-- Filter Panel -->
-        <section class="filter-panel">
-            <div class="filter">
-                <div>
-                    <label for="start-date">Start Date:</label>
-                    <input type="date" id="start-date" name="start-date">
-                </div>
-                <div>
-                    <label for="end-date">End Date:</label>
-                    <input type="date" id="end-date" name="end-date">
-                </div>
-                <div>
-                    <label for="portal">Portal:</label>
-                    <select id="portal" name="portal">
-                        <option value="">Select</option>
-                        <option value="CDA">CheapOair</option>
-                        <option value="OT">OneTravel</option>
-                        <option value="CDA SP">CheapOairSP</option>
-                        <option value="COA CA">CheapOairCA</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="tfn-type">TFN Type:</label>
-                    <select id="tfn-type" name="tfn-type">
-                        <option value="">Select</option>
-                        <option value="Mkt">Marketing</option>
-                        <option value="NM">NonMarketing</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-                <div>
-                    <button onclick="applyFilter()">Apply Filter</button>
-                </div>
-            </div>
-        </section>
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-        <!-- Summary Cards -->
-        <section class="summary-cards">
-            <div class="card">
-                <h3>IVR Offered</h3>
-                <p id="ivr-offered">0</p>
-            </div>
-            <div class="card">
-                <h3>IVR Abandoned</h3>
-                <p id="ivr-abandoned">0</p>
-            </div>
-            <div class="card">
-                <h3>Queue Abandoned</h3>
-                <p id="queue-abandoned">0</p>
-            </div>
-            <div class="card">
-                <h3>Closed by IVR</h3>
-                <p id="closed-by-ivr">0</p>
-            </div>
-            <div class="card">
-                <h3>Answered Calls</h3>
-                <p id="answered-calls">0</p>
-            </div>
-        </section>
+const pool = new Pool({
+    host: '10.7.32.134',
+    user: 'postgres',
+    password: 'automation@123',
+    database: 'postgres',
+    port: 5432,
+});
 
-        <!-- Data Table -->
-        <section>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>TFN</th>
-                        <th>Description</th>
-                        <th>IVR Offered</th>
-                        <th>IVR Abandoned</th>
-                        <th>Queue Abandoned</th>
-                        <th>Closed by IVR</th>
-                        <th>Answered Calls</th>
-                    </tr>
-                </thead>
-                <tbody id="data-table-body">
-                    <!-- Dynamic rows will be appended here -->
-                </tbody>
-            </table>
-        </section>
-    </div>
+// API Endpoint
+app.get('/api/stats', async (req, res) => {
+    const { startDate, endDate, portal, tfn } = req.query;
 
-    <script src="script.js"></script>
-</body>
-</html>
+    try {
+        const query = `
+            SELECT 
+                "TFN",
+                "Description",
+                COUNT(*) FILTER (WHERE "isoutbound" = 'False' AND "mediaTypeId" = '4') AS "ivr_offered",
+                COUNT(*) FILTER (WHERE "isoutbound" = 'False' AND "abandoned" = 'True') AS "ivr_abandoned",
+                COUNT(*) FILTER (WHERE "isoutbound" = 'False' AND "agentSeconds"::numeric = 0) AS "queue_abandoned",
+                COUNT(*) FILTER (WHERE "isoutbound" = 'False' AND "preQueueSeconds"::numeric > 0) AS "closed_by_ivr",
+                COUNT(*) FILTER (WHERE "isoutbound" = 'False' AND "agentSeconds"::numeric > 0) AS "answered_calls"
+            FROM contact_mapped_data
+            WHERE to_date("contactStartDate", 'YYYY-MM-DD') BETWEEN $1 AND $2
+            ${portal ? `AND "Portal" = $3` : ''}
+            ${tfn ? `AND "TFN Type" = $4` : ''}
+            GROUP BY "TFN", "Description"
+        `;
+
+        const params = [startDate, endDate];
+        if (portal) params.push(portal);
+        if (tfn) params.push(tfn);
+
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.listen(3000, () => console.log('Server running on port 3000'));
