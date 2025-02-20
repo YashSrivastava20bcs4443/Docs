@@ -1,78 +1,98 @@
-<!DOCTYPE html>
-<html lang="en">
+const express = require('express');
+const fs = require('fs');
+const csvjson = require('csvjson');
+const { Pool } = require('pg');
+const cors = require('cors');
 
-<head>
-    <meta charset="UTF-8">
-    <title>Details Page</title>
-    <link rel="stylesheet" href="style.css">
-</head>
+const app = express();
+const port = 3000;
 
-<body>
-    <header>
-        <div class="logo">Details Page</div>
-        <nav>
-            <ul>
-                <li><a href="index.html">Back to Dashboard</a></li>
-            </ul>
-        </nav>
-    </header>
+app.use(cors());
+app.use(express.json());
 
-    <div class="container">
-        <h1 id="metric-title">Details</h1>
+// Database connection pool
+const pool = new Pool({
+    host: '10.7.32.134',
+    user: 'postgres',
+    password: 'automation@123',
+    database: 'postgres',
+    port: 5432
+});
 
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>TFN</th>
-                    <th>Description</th>
-                    <th>IVR Offered</th>
-                    <th>IVR Abandoned</th>
-                    <th>Queue Abandoned</th>
-                    <th>Closed by IVR</th>
-                    <th>Answered Calls</th>
-                </tr>
-            </thead>
-            <tbody id="details-table-body">
-                <!-- Data rows will be appended dynamically -->
-            </tbody>
-        </table>
-    </div>
+// API to get summary stats
+app.get('/api/stats', async (req, res) => {
+    try {
+        const { startDate, endDate, portal, tfn } = req.query;
 
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const metric = urlParams.get('metric');
-        document.getElementById('metric-title').textContent = `${metric} Details`;
+        const query = `
+            SELECT
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isoutbound" = 'False' AND "mediaTypeId" = '4') AS ivr_offered,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isoutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 0 AND "endReason" = 'Contact Hung Up') AS ivr_abandoned,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'True' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 0) AS queue_abandoned,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isoutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 0) AS closed_by_ivr,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isoutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'True' AND "preQueueSeconds"::numeric < 10) AS abandoned_in_10_sec,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isoutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'True' AND "preQueueSeconds"::numeric > 10) AS abandoned_in_over_10_sec,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isoutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'False' AND "agentSeconds"::numeric > 0) AS answered_calls
+            FROM contact_mapped_data
+            WHERE to_date("contactStartDate", 'YYYY-MM-DD') BETWEEN $1 AND $2
+            AND ($3::text IS NULL OR "Portal" = $3)
+            AND ($4::text IS NULL OR "TFN Type" = $4);
+        `;
 
-        async function fetchDetails() {
-            try {
-                const response = await fetch(`http://localhost:3000/api/details?metric=${metric}`);
-                const data = await response.json();
+        const result = await pool.query(query, [startDate, endDate, portal, tfn]);
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Error fetching stats:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-                const tableBody = document.getElementById('details-table-body');
-                tableBody.innerHTML = '';
+// API to get details for the selected metric
+app.get('/api/details', async (req, res) => {
+    const { metric, startDate, endDate } = req.query;
 
-                data.forEach(row => {
-                    tableBody.innerHTML += `
-                        <tr>
-                            <td>${row.tfn}</td>
-                            <td>${row.description}</td>
-                            <td>${row.ivr_offered}</td>
-                            <td>${row.ivr_abandoned}</td>
-                            <td>${row.queue_abandoned}</td>
-                            <td>${row.closed_by_ivr}</td>
-                            <td>${row.answered_calls}</td>
-                        </tr>
-                    `;
-                });
+    // Mapping metric to relevant database columns
+    let column = '';
+    switch (metric) {
+        case 'IVR Offered':
+            column = '"agentSeconds"';
+            break;
+        case 'IVR Abandoned':
+            column = '"abandoned"';
+            break;
+        case 'Queue Abandoned':
+            column = '"inQueueSeconds"';
+            break;
+        case 'Closed by IVR':
+            column = '"preQueueSeconds"';
+            break;
+        case 'Answered Calls':
+            column = '"agentSeconds"';
+            break;
+        default:
+            return res.status(400).json({ error: 'Invalid metric' });
+    }
 
-            } catch (error) {
-                console.error('Error fetching details:', error);
-            }
-        }
+    try {
+        const query = `
+            SELECT 
+                "toAddress" AS tfn,
+                "Description",
+                COUNT(*) AS count
+            FROM contact_mapped_data
+            WHERE ${column} IS NOT NULL
+            AND to_date("contactStartDate", 'YYYY-MM-DD') BETWEEN $1 AND $2
+            GROUP BY "toAddress", "Description";
+        `;
 
-        fetchDetails();
-    </script>
+        const result = await pool.query(query, [startDate, endDate]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching details:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-</body>
-
-</html>
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+});
