@@ -1,17 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard UI Design Demo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header and Navigation -->
+  <header>
+    <div class="logo">My Dashboard</div>
+    <nav>
+      <ul>
+        <li><a href="#">Dashboard</a></li>
+        <li><a href="#">IVR Bucket</a></li>
+        <li><a href="#">TFN-Wise</a></li>
+      </ul>
+    </nav>
+  </header>
 
-Progress Update:
+  <div class="container">
+    <!-- Filter Panel -->
+    <section class="filter-panel">
+      <div class="filter">
+        <div>
+          <label for="start-date">Start Date:</label>
+          <input type="date" id="start-date" name="start-date">
+        </div>
+        <div>
+          <label for="end-date">End Date:</label>
+          <input type="date" id="end-date" name="end-date">
+        </div>
+        <div>
+          <label for="start-time">Start Time:</label>
+          <input type="time" id="start-time" name="start-time">
+        </div>
+        <div>
+          <label for="end-time">End Time:</label>
+          <input type="time" id="end-time" name="end-time">
+        </div>
+        <div>
+          <label for="portal">Portal:</label>
+          <select id="portal" name="portal">
+            <option value="">Select</option>
+            <option value="CheapOair">CheapOair</option>
+            <option value="OneTravel">One Travel</option>
+            <option value="Support TFN">Support TFN</option>
+            <option value="CheapOairSP">CheapOair-SP</option>
+            <option value="CheapOairCA">CheapOair.ca</option>
+            <option value="Farebuzz">Farebuzz</option>
+          </select>
+        </div>
+        <div>
+          <label for="tfn-type">TFN Type:</label>
+          <select id="tfn-type" name="tfn-type">
+            <option value="">Select</option>
+            <option value="Marketing">Marketing</option>
+            <option value="NonMarketing">Non-Marketing</option>
+            <option value="Support TFN">Support TFN</option>
+          </select>
+        </div>
+        <div>
+          <label for="timezone">Timezone:</label>
+          <select id="timezone" name="timezone">
+            <option value="">Select</option>
+            <option value="IST">IST</option>
+            <option value="UTC">UTC</option>
+            <option value="EST">EST</option>
+          </select>
+        </div>
+        <div>
+          <button onclick="applyFilter()">Apply Filter</button>
+        </div>
+      </div>
+    </section>
 
-Successfully implemented filter options, allowing us to view the counts for IVR offers, abandoned calls, queue abandoned, and answered calls based on selected filters.
+    <!-- Summary Cards -->
+    <section class="summary-cards">
+      <div class="card">
+        <h3>IVR Offered</h3>
+        <p id="ivroffered">1,234</p>
+      </div>
+      <div class="card">
+        <h3>IVR Abandoned</h3>
+        <p id="ivrAbandoned">567</p>
+      </div>
+      <div class="card">
+        <h3>Queue Abandoned</h3>
+        <p id="queueAbandoned">89</p>
+      </div>
+      <div class="card">
+        <h3>Closed by IVR</h3>
+        <p id="closedByIvr">456</p>
+      </div>
+      <div class="card">
+        <h3>Abandoned in 10 Sec</h3>
+        <p id="abandonedUnder10">123</p>
+      </div>
+      <div class="card">
+        <h3>Abandoned in &gt;10 Sec</h3>
+        <p id="abandonedOver10">44</p>
+      </div>
+      <div class="card">
+        <h3>Answered Calls</h3>
+        <p id="answeredCalls">789</p>
+      </div>
+    </section>
 
-The backend is fully ready with predefined descriptions, TFNs, and portals for specific numbers.
+    <!-- Chart Section -->
+    <section class="chart-container">
+      <div class="chart-placeholder">
+        Chart Placeholder
+      </div>
+    </section>
 
-Currently working on:
+    <!-- Data Table -->
+    <section>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>TFN</th>
+            <th>Description</th>
+            <th>IVR Offered</th>
+            <th>IVR Abandoned</th>
+            <th>Answered Calls</th>
+            <th>Queue Abandoned</th>
+            <th>Closed by IVR</th>
+          </tr>
+        </thead>
+        <tbody id="data-table-body">
+          <!-- Data rows will be dynamically inserted here -->
+        </tbody>
+      </table>
+    </section>
+  </div>
 
-Scheduling the pipeline for seamless data ingestion.
-
-Frontend development to visualize the data effectively in a table view.
-
-
-
-Let me know if you’d like to adjust the tone or add more details!
-
+  <script src="script.js"></script>
+</body>
+</html>
