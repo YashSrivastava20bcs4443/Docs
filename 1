@@ -1,1 +1,134 @@
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard UI Design Demo</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+</head>
+<body>
+<!-- Header and Navigation-->
+<header>
+<div class="logo">My Dashboard</div>
+<nav>
+<ul>
+<li><a href="index.html">Dashboard</a></li>
+<li><a href="ivr_bucket.html">IVR Bucket</a></li>
+<li><a href="tfn_wise.html">TFN-Wise</a></li>
+</ul>
+</nav>
+</header>
+<div class="container">
+<!-- Filter Panel -->
+<section class="filter-panel">
+<div class="filter">
+<div>
+<label for="start-date">Start Date:</label>
+<input type="date" id="start-date" name="start-date">
+</div>
+<div>
+<label for="end-date">End Date: </label>
+<input type="date" id="end-date" name="end-date">
+</div>
+<div>
+<label for="start-time">Start Time: </label>
+<input type="time" id="start-time" name="start-time">
+</div>
+<div>
+<label for="end-time">End Time:</label>
+<input type="time" id="end-time" name="end-time">
+</div>
+<div>
+<label for="portal">Portal:</label>
+<select id="portal" name="portal">
+<option value="">Select</option>
+<option value="CDA">CheapOair</option>
+<option value="OT">OneTravel</option>
+<option value="CDA SP">CheapOairSP</option>
+<option value="COA CA">CheapOairCA</option>
+<option value="Other">Other</option>
+</select>
+</div>
+<div>
+<label for="tfn-type">TFN Type:</label>
+<select id="tfn-type" name="tfn-type">
+<option value="">Select</option>
+<option value="Mkt">Marketing</option>
+<option value="NM">NonMarketing</option>
+<option value="Other">Other</option>
+</select>
+</div>
+<div>
+<button onclick="applyFilter()">Apply Filter</button>
+</div>
+</div>
+</section>
+<!-- Summary Cards -->
+<section class="summary-cards">
+<div class="card" onclick="openDetailPage('ivr_offered')">
+<h3>IVR Offered</h3>
+<p id="ivroffered">1,234</p>
+</div>
+<div class="card" onclick="openDetailPage('ivr_abandoned')">
+<h3>IVR Abandoned</h3>
+<p id="ivrAbandoned">567</p>
+</div>
+<div class="card" onclick="openDetailPage('queue_abandoned')">
+<h3>Queue Abandoned</h3>
+<p id="queueAbandoned">89</p>
+</div>
+<div class="card" onclick="openDetailPage('closed_by_ivr')">
+<h3>Closed by IVR</h3>
+<p id="closedByIvr">456</p>
+</div>
+<div class="card" onclick="openDetailPage('abandoned_under_10')">
+<h3>Abandoned in 10 Sec</h3>
+<p id="abandonedUnder10">123</p>
+</div>
+<div class="card" onclick="openDetailPage('abandoned_over_10')">
+<h3>Abandoned in &gt;10 Sec</h3>
+<p id="abandonedOver10">44</p>
+</div>
+<div class="card" onclick="openDetailPage('answered_calls')">
+<h3>Answered calls</h3>
+<p id="answeredCalls">789</p>
+</div>
+</section>
+<!-- Chart Section -->
+<section class="chart-container">
+<canvas id="summaryChart"></canvas>
+<canvas id="pieChart"></canvas>
+<canvas id="inQueueBarChart"></canvas>
+<canvas id="queueMetricsComparisonChart"></canvas>
+<canvas id="topAgentsChart"></canvas>
+<canvas id="callDispositionPieChart"></canvas>
+<canvas id="ivrBucketChart"></canvas>
+<canvas id="callsOverTimeChart"></canvas>
+<canvas id="callsByCampaignChart"></canvas>
+<canvas id="averageHandleTimeChart"></canvas>
+<canvas id="callTransfersChart"></canvas>
+</section>
+<!-- Data Table -->
+<section>
+<table class="data-table">
+<thead>
+<tr>
+<th>TFN</th>
+<th>Description</th>
+<th>IVR Offered</th>
+<th>IVR Abandoned</th>
+<th>Queue Abandoned</th>
+<th>Closed by IVR</th>
+<th>Answered Calls</th>
+</tr>
+</thead>
+<tbody id="data-table-body">
+<!-- Dynamic rows will be appended here -->
+</tbody>
+</table>
+</section>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
