@@ -1,1 +1,356 @@
+const { error, Console } = require('console');
+const express = require('express');
+const { Pool } = require('pg');
+const cors = require('cors');
+const app = express();
+app.use(cors());
+app.use(express.json());
+const pool = new Pool({
+    host: '10.7.32.134',
+    user: 'postgres',
+    password: 'automation@123',
+    database: 'postgres',
+    port: 5432
+});
 
+app.get('/api/stats', async (req, res) => {
+    try {
+        const { startDate, endDate, portal, tfn } = req.query;
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: 'Start Date and End Date are required' });
+        }
+        let query = `
+            SELECT
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4') AS ivr_offered,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'True' AND "preQueueSeconds"::numeric > 0) AS ivr_abandoned,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 AND "abandoned" = 'True') AS queue_abandoned,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 0) AS closed_by_ivr,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'True' AND "preQueueSeconds"::numeric < 10) AS abandoned_in_10_sec,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'True' AND "preQueueSeconds"::numeric > 10) AS abandoned_in_over_10_sec,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'False' AND "agentSeconds"::numeric > 0) AS answered_calls
+            FROM contact_mapped_data
+            WHERE to_date("contactStartDate", 'YYYY-MM-DD') BETWEEN $1 AND $2
+        `;
+
+        const queryParams = [startDate, endDate];
+
+        if (portal) {
+            query += ' AND "Portal" = $3';
+            queryParams.push(portal);
+        }
+
+        if (tfn) {
+            query += ' AND "TFN Type" = $4';
+            queryParams.push(tfn);
+        }
+
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Error fetching stats:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.get('/api/detail', async (req, res) => {
+    try {
+        const { category, startDate, endDate, portal, tfn } = req.query;
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: 'Start Date and End Date are required' });
+        }
+        let query = `
+            SELECT "toAddress" AS "TFN", "Description", COUNT(*) AS count
+            FROM contact_mapped_data
+            WHERE to_date("contactStartDate", 'YYYY-MM-DD') BETWEEN $1 AND $2
+        `;
+
+        const queryParams = [startDate, endDate];
+
+        if (portal) {
+            query += ' AND "Portal" = $3';
+            queryParams.push(portal);
+        }
+
+        if (tfn) {
+            query += ' AND "TFN Type" = $4';
+            queryParams.push(tfn);
+        }
+
+        switch(category) {
+            case 'ivr_offered':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\'';
+                break;
+            case 'ivr_abandoned':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric > 0';
+                break;
+            case 'queue_abandoned':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 AND "abandoned" = \'True\'';
+                break;
+            case 'closed_by_ivr':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = \'False\' AND "preQueueSeconds"::numeric > 0';
+                break;
+            case 'abandoned_under_10':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric < 10';
+                break;
+            case 'abandoned_over_10':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric > 10';
+                break;
+            case 'answered_calls':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "abandoned" = \'False\' AND "agentSeconds"::numeric > 0';
+                break;
+            default:
+                return res.status(400).json({ error: 'Invalid category' });
+        }
+
+        query += ' GROUP BY "toAddress", "Description"';
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching detail data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.get('/api/tfn-wise', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: 'Start Date and End Date are required' });
+        }
+        const query = `
+            SELECT 
+                "toAddress" AS "Number (toAddress)",  
+                COUNT(*) AS offered_calls,
+                SUM(CASE 
+                        WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = FALSE 
+                             AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                        THEN NULLIF("agentSeconds", '')::FLOAT::INTEGER ELSE 0 
+                    END) AS answered,
+                SUM(CASE 
+                        WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
+                             AND (NULLIF("inQueueSeconds", '') IS NULL OR NULLIF("inQueueSeconds", '') = '' OR NULLIF("inQueueSeconds", '')::FLOAT::INTEGER = 0) 
+                        THEN 1 ELSE 0 
+                    END) AS ivr_abandon,
+                SUM(CASE 
+                        WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
+                             AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                        THEN NULLIF("inQueueSeconds", '')::FLOAT::INTEGER ELSE 0 
+                    END) AS queue_abandon,
+                SUM(CASE 
+                        WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
+                             AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script') 
+                        THEN 1 ELSE 0 
+                    END) AS polite_disconnect
+            FROM contact_data
+            WHERE to_date("contactStartDate", 'YYYY-MM-DD') BETWEEN $1 AND $2
+            GROUP BY "toAddress"
+            ORDER BY offered_calls DESC;
+        `;
+        const queryParams = [startDate, endDate];
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching TFN-Wise data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.get('/api/ivr-bucket', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: 'Start Date and End Date are required' });
+        }
+        const query = `
+            WITH processed_data AS (
+                SELECT 
+                    TO_TIMESTAMP("contactStartDate", 'YYYY-MM-DD HH24:MI:SS') AS contact_start_time,
+                    "toAddress",
+                    "abandoned",
+                    COALESCE(NULLIF("preQueueSeconds", '')::FLOAT::INTEGER, 0) AS ivr_duration
+                FROM contact_data
+                WHERE "contactStartDate" IS NOT NULL
+            )
+            SELECT 
+                DATE_TRUNC('hour', contact_start_time) AS time_interval,  
+                COUNT(*) AS offered_calls,  
+                SUM(CASE WHEN abandoned = 'true' THEN 1 ELSE 0 END) AS ivr_abandon,
+                SUM(CASE WHEN ivr_duration BETWEEN 0 AND 30 THEN 1 ELSE 0 END) AS "0-30 Seconds",
+                SUM(CASE WHEN ivr_duration BETWEEN 31 AND 60 THEN 1 ELSE 0 END) AS "30-60 Seconds",
+                SUM(CASE WHEN ivr_duration BETWEEN 61 AND 120 THEN 1 ELSE 0 END) AS "60-120 Seconds",
+                SUM(CASE WHEN ivr_duration > 120 THEN 1 ELSE 0 END) AS ">120 Seconds"
+            FROM processed_data
+            WHERE to_date(contact_start_time::TEXT, 'YYYY-MM-DD') BETWEEN $1 AND $2
+            GROUP BY time_interval
+            ORDER BY time_interval;
+        `;
+        const queryParams = [startDate, endDate];
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching IVR Bucket data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+const PORT = 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
+async function applyFilter() {
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+    const portal = document.getElementById('portal').value;
+    const tfn = document.getElementById('tfn-type').value;
+    const queryParams = new URLSearchParams({
+        startDate,
+        endDate,
+        portal,
+        tfn
+    });
+
+    if (!startDate || !endDate) {
+        alert('Start Date and End Date are required');
+        return;
+    }
+
+    try {
+        const response = await fetch(`http://localhost:3000/api/stats?${queryParams}`);
+        if (!response.ok) {
+            throw new Error('Network response is not ok');
+        }
+        const data = await response.json();
+        document.getElementById('ivroffered').textContent = data.ivr_offered || 0;
+        document.getElementById('ivrAbandoned').textContent = data.ivr_abandoned || 0;
+        document.getElementById('queueAbandoned').textContent = data.queue_abandoned || 0;
+        document.getElementById('closedByIvr').textContent = data.closed_by_ivr || 0;
+        document.getElementById('abandonedUnder10').textContent = data.abandoned_in_10_sec || 0;
+        document.getElementById('abandonedOver10').textContent = data.abandoned_in_over_10_sec || 0;
+        document.getElementById('answeredCalls').textContent = data.answered_calls || 0;
+        updateChart(data);
+        updatePieChart(data);
+        updateDataTable(data);
+    } catch (error) {
+        console.error('Error Fetching stats:', error);
+    }
+}
+
+function openDetailPage(category) {
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+    const portal = document.getElementById('portal').value;
+    const tfn = document.getElementById('tfn-type').value;
+    if (!startDate || !endDate) {
+        alert('Start Date and End Date are required');
+        return;
+    }
+    const url = `detail.html?category=${category}&startDate=${startDate}&endDate=${endDate}&portal=${portal}&tfn=${tfn}`;
+    window.open(url, '_blank');
+}
+
+function updateChart(data) {
+    const ctx = document.getElementById('summaryChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in >10 Sec', 'Answered Calls'],
+            datasets: [{
+                label: 'Call Statistics',
+                data: [data.ivr_offered, data.ivr_abandoned, data.queue_abandoned, data.closed_by_ivr, data.abandoned_in_10_sec, data.abandoned_in_over_10_sec, data.answered_calls],
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    enabled: true
+                },
+                datalabels: {
+                    anchor: 'end',
+                    align: 'top',
+                    formatter: Math.round,
+                    font: {
+                        weight: 'bold'
+                    }
+                }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+}
+
+function updatePieChart(data) {
+    const ctx = document.getElementById('pieChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in >10 Sec', 'Answered Calls'],
+            datasets: [{
+                label: 'Call Statistics',
+                data: [data.ivr_offered, data.ivr_abandoned, data.queue_abandoned, data.closed_by_ivr, data.abandoned_in_10_sec, data.abandoned_in_over_10_sec, data.answered_calls],
+                backgroundColor: ['rgba(75, 192, 192, 0.2)', 'rgba(255, 99, 132, 0.2)', 'rgba(255, 206, 86, 0.2)', 'rgba(54, 162, 235, 0.2)', 'rgba(153, 102, 255, 0.2)', 'rgba(201, 203, 207, 0.2)', 'rgba(255, 159, 64, 0.2)'],
+                borderColor: ['rgba(75, 192, 192, 1)', 'rgba(255, 99, 132, 1)', 'rgba(255, 206, 86, 1)', 'rgba(54, 162, 235, 1)', 'rgba(153, 102, 255, 1)', 'rgba(201, 203, 207, 1)', 'rgba(255, 159, 64, 1)'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'right'
+                },
+                tooltip: {
+                    enabled: true
+                },
+                datalabels: {
+                    formatter: (value, ctx) => {
+                        let sum = 0;
+                        let dataArr = ctx.chart.data.datasets[0].data;
+                        dataArr.map(data => {
+                            sum += data;
+                        });
+                        let percentage = (value * 100 / sum).toFixed(2) + "%";
+                        return percentage;
+                    },
+                    color: '#fff',
+                }
+            }
+        },
+        plugins: [ChartDataLabels]
+    });
+}
+
+function updateDataTable(data) {
+    const tableBody = document.getElementById('data-table-body');
+    tableBody.innerHTML = `
+        <tr>
+            <td>6467384820</td>
+            <td>Default Desktop Home Page Flight</td>
+            <td>${data.ivr_offered}</td>
+            <td>${data.ivr_abandoned}</td>
+            <td>${data.queue_abandoned}</td>
+            <td>${data.closed_by_ivr}</td>
+            <td>${data.answered_calls}</td>
+        </tr>
+        <tr>
+            <td>6467384933</td>
+            <td>Booking Conf. Page & Email</td>
+            <td>${data.ivr_offered}</td>
+            <td>${data.ivr_abandoned}</td>
+            <td>${data.queue_abandoned}</td>
+            <td>${data.closed_by_ivr}</td>
+            <td>${data.answered_calls}</td>
+        </tr>
+    `;
+}
