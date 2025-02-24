@@ -6,31 +6,47 @@ SELECT
 
     -- Calls that were answered (not abandoned & agentSeconds > 0)
     COUNT(*) FILTER (WHERE 
-        COALESCE(NULLIF("abandoned", ''), 'False') = 'False' 
-        AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        "masterContactId" = "contactId" 
+        AND "isOutbound" = 'False' 
+        AND "mediaTypeId" = '4' 
+        AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False' 
+        AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$' 
         AND NULLIF("agentSeconds", '')::FLOAT > 0
     ) AS answered_calls,
 
-    -- Calls abandoned in IVR (abandoned=True and inQueueSeconds is NULL/empty/0)
+    -- Calls abandoned in IVR (abandoned=True and preQueueSeconds = 0)
     COUNT(*) FILTER (WHERE 
-        COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
-        AND (NULLIF("inQueueSeconds", '') IS NULL 
-             OR NULLIF("inQueueSeconds", '') = '' 
-             OR NULLIF("inQueueSeconds", '')::FLOAT = 0)
+        "masterContactId" = "contactId" 
+        AND "isOutbound" = 'False' 
+        AND "mediaTypeId" = '4' 
+        AND COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
+        AND NULLIF("preQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("preQueueSeconds", '')::FLOAT = 0
     ) AS ivr_abandon,
 
-    -- Calls abandoned in queue (abandoned=True and inQueueSeconds > 0)
+    -- Calls abandoned in Queue (abandoned=True and preQueueSeconds > 0)
     COUNT(*) FILTER (WHERE 
-        COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
-        AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
-        AND NULLIF("inQueueSeconds", '')::FLOAT > 0
+        "masterContactId" = "contactId" 
+        AND "isOutbound" = 'False' 
+        AND "mediaTypeId" = '4' 
+        AND COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
+        AND NULLIF("preQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("preQueueSeconds", '')::FLOAT > 0
     ) AS queue_abandon,
 
-    -- Calls that were politely disconnected
+    -- Calls closed by IVR (agentSeconds = 0, inQueueSeconds = 0, preQueueSeconds > 0)
     COUNT(*) FILTER (WHERE 
-        COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
-        AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script')
-    ) AS polite_disconnect
+        "masterContactId" = "contactId" 
+        AND "isOutbound" = 'False' 
+        AND "mediaTypeId" = '4' 
+        AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False' 
+        AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("agentSeconds", '')::FLOAT = 0
+        AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("inQueueSeconds", '')::FLOAT = 0
+        AND NULLIF("preQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("preQueueSeconds", '')::FLOAT > 0
+    ) AS closed_by_ivr
 
 FROM contact_data
 GROUP BY "toAddress"
