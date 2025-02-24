@@ -1,15 +1,34 @@
-Conditions Applied in the Query
 
-1. IVR Offered Calls: Total calls counted.
-
-
-2. Answered Calls: Calls where "abandoned" = False and "agentSeconds" > 0.
-
-
-3. IVR Abandoned Calls: Calls where "abandoned" = True and "preQueueSeconds" = 0.
-
-
-4. Queue Abandoned Calls: Calls where "abandoned" = True and "preQueueSeconds" > 0.
-
-
-5. Closed by IVR: Calls where "agentSeconds" = 0, "inQueueSeconds" = 0, and "preQueueSeconds" > 0.
+✅ IVR Offered:
+•	masterContactId = contactId
+•	isOutbound = 'False'
+•	mediaTypeId = '4'
+✅ IVR Abandoned:
+•	masterContactId = contactId
+•	isOutbound = 'False'
+•	mediaTypeId = '4'
+•	agentSeconds::numeric = 0
+•	inQueueSeconds::numeric = 0
+•	abandoned = 'True'
+•	preQueueSeconds::numeric > 0
+✅ Queue Abandoned:
+•	masterContactId = contactId
+•	isOutbound = 'False'
+•	mediaTypeId = '4'
+•	agentSeconds::numeric = 0
+•	inQueueSeconds::numeric > 0
+•	abandoned = 'True'
+✅ Closed by IVR:
+•	masterContactId = contactId
+•	isOutbound = 'False'
+•	mediaTypeId = '4'
+•	agentSeconds::numeric = 0
+•	inQueueSeconds::numeric = 0
+•	abandoned = 'False'
+•	preQueueSeconds::numeric > 0
+✅ Answered Calls:
+•	masterContactId = contactId
+•	isOutbound = 'False'
+•	mediaTypeId = '4'
+•	abandoned = 'False'
+•	agentSeconds::numeric > 0
