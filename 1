@@ -1,56 +1,37 @@
-app.get('/api/tfn-wise', async (req, res) => {
-    try {
-        const { startDate, endDate } = req.query;
-        let query = `
-            SELECT 
-                "toAddress" AS "Number (toAddress)",  
+SELECT 
+    "toAddress" AS "Number (toAddress)",  
 
-                -- Total calls offered
-                COUNT(*) AS offered_calls,
+    -- Total calls offered
+    COUNT(*) AS offered_calls,
 
-                -- Calls that were answered (not abandoned & agentSeconds > 0)
-                COUNT(*) FILTER (WHERE 
-                    COALESCE(NULLIF("abandoned", ''), 'False') = 'False' 
-                    AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
-                    AND NULLIF("agentSeconds", '')::FLOAT > 0
-                ) AS answered_calls,
+    -- Calls that were answered (not abandoned & agentSeconds > 0)
+    COUNT(*) FILTER (WHERE 
+        COALESCE(NULLIF("abandoned", ''), 'False') = 'False' 
+        AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("agentSeconds", '')::FLOAT > 0
+    ) AS answered_calls,
 
-                -- Calls abandoned in IVR (abandoned=True and inQueueSeconds is NULL/empty/0)
-                COUNT(*) FILTER (WHERE 
-                    COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
-                    AND (NULLIF("inQueueSeconds", '') IS NULL 
-                         OR NULLIF("inQueueSeconds", '') = '' 
-                         OR NULLIF("inQueueSeconds", '')::FLOAT = 0)
-                ) AS ivr_abandon,
+    -- Calls abandoned in IVR (abandoned=True and inQueueSeconds is NULL/empty/0)
+    COUNT(*) FILTER (WHERE 
+        COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
+        AND (NULLIF("inQueueSeconds", '') IS NULL 
+             OR NULLIF("inQueueSeconds", '') = '' 
+             OR NULLIF("inQueueSeconds", '')::FLOAT = 0)
+    ) AS ivr_abandon,
 
-                -- Calls abandoned in queue (abandoned=True and inQueueSeconds > 0)
-                COUNT(*) FILTER (WHERE 
-                    COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
-                    AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
-                    AND NULLIF("inQueueSeconds", '')::FLOAT > 0
-                ) AS queue_abandon,
+    -- Calls abandoned in queue (abandoned=True and inQueueSeconds > 0)
+    COUNT(*) FILTER (WHERE 
+        COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
+        AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("inQueueSeconds", '')::FLOAT > 0
+    ) AS queue_abandon,
 
-                -- Calls that were politely disconnected
-                COUNT(*) FILTER (WHERE 
-                    COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
-                    AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script')
-                ) AS polite_disconnect
+    -- Calls that were politely disconnected
+    COUNT(*) FILTER (WHERE 
+        COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
+        AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script')
+    ) AS polite_disconnect
 
-            FROM contact_data
-        `;
-
-        const queryParams = [];
-
-        if (startDate && endDate) {
-            query += ' WHERE to_date("contactStartDate", \'YYYY-MM-DD\') BETWEEN $1 AND $2';
-            queryParams.push(startDate, endDate);
-        }
-
-        query += ' GROUP BY "toAddress" ORDER BY offered_calls DESC';
-        const result = await pool.query(query, queryParams);
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Error fetching TFN-Wise data:', err);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-});
+FROM contact_data
+GROUP BY "toAddress"
+ORDER BY offered_calls DESC;
