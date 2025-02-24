@@ -1,34 +1,67 @@
+SELECT 
+    "toAddress" AS "TFN",  
 
-✅ IVR Offered:
-•	masterContactId = contactId
-•	isOutbound = 'False'
-•	mediaTypeId = '4'
-✅ IVR Abandoned:
-•	masterContactId = contactId
-•	isOutbound = 'False'
-•	mediaTypeId = '4'
-•	agentSeconds::numeric = 0
-•	inQueueSeconds::numeric = 0
-•	abandoned = 'True'
-•	preQueueSeconds::numeric > 0
-✅ Queue Abandoned:
-•	masterContactId = contactId
-•	isOutbound = 'False'
-•	mediaTypeId = '4'
-•	agentSeconds::numeric = 0
-•	inQueueSeconds::numeric > 0
-•	abandoned = 'True'
-✅ Closed by IVR:
-•	masterContactId = contactId
-•	isOutbound = 'False'
-•	mediaTypeId = '4'
-•	agentSeconds::numeric = 0
-•	inQueueSeconds::numeric = 0
-•	abandoned = 'False'
-•	preQueueSeconds::numeric > 0
-✅ Answered Calls:
-•	masterContactId = contactId
-•	isOutbound = 'False'
-•	mediaTypeId = '4'
-•	abandoned = 'False'
-•	agentSeconds::numeric > 0
+    -- IVR Offered Calls
+    COUNT(*) FILTER (WHERE 
+        "masterContactId" = "contactId" 
+        AND "isOutbound" = 'False' 
+        AND "mediaTypeId" = '4'
+    ) AS ivr_offered,
+
+    -- IVR Abandoned Calls
+    COUNT(*) FILTER (WHERE 
+        "masterContactId" = "contactId" 
+        AND "isOutbound" = 'False' 
+        AND "mediaTypeId" = '4' 
+        AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$' 
+        AND NULLIF("agentSeconds", '')::FLOAT = 0
+        AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("inQueueSeconds", '')::FLOAT = 0
+        AND NULLIF("preQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("preQueueSeconds", '')::FLOAT > 1
+        AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
+        AND "endReason" = 'Contact Hung Up'
+    ) AS ivr_abandon,
+
+    -- Queue Abandoned Calls
+    COUNT(*) FILTER (WHERE 
+        "masterContactId" = "contactId" 
+        AND "isOutbound" = 'True' 
+        AND "mediaTypeId" = '4' 
+        AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("agentSeconds", '')::FLOAT = 0
+        AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("inQueueSeconds", '')::FLOAT > 0
+        AND NULLIF("preQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("preQueueSeconds", '')::FLOAT > 0
+        AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
+    ) AS queue_abandon,
+
+    -- Closed by IVR Calls
+    COUNT(*) FILTER (WHERE 
+        "masterContactId" = "contactId" 
+        AND "isOutbound" = 'False' 
+        AND "mediaTypeId" = '4' 
+        AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("agentSeconds", '')::FLOAT = 0
+        AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("inQueueSeconds", '')::FLOAT = 0
+        AND NULLIF("preQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("preQueueSeconds", '')::FLOAT > 1
+        AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
+        AND "endReason" = 'Contact Hang Up via Script'
+    ) AS closed_by_ivr,
+
+    -- Answered Calls
+    COUNT(*) FILTER (WHERE 
+        "masterContactId" = "contactId" 
+        AND "isOutbound" = 'False' 
+        AND "mediaTypeId" = '4' 
+        AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False' 
+        AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+        AND NULLIF("agentSeconds", '')::FLOAT > 0
+    ) AS answered_calls
+
+FROM contact_data
+GROUP BY "toAddress"
+ORDER BY ivr_offered DESC;
