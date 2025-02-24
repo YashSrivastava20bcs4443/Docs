@@ -1,14 +1,14 @@
 SELECT 
-    "toAddress" AS "TFN",  
+    "toAddress" AS "Number (toAddress)",  
 
-    -- IVR Offered Calls
+    -- IVR Offered
     COUNT(*) FILTER (WHERE 
         "masterContactId" = "contactId" 
         AND "isOutbound" = 'False' 
         AND "mediaTypeId" = '4'
-    ) AS ivr_offered,
+    ) AS offered_calls,
 
-    -- IVR Abandoned Calls
+    -- IVR Abandoned
     COUNT(*) FILTER (WHERE 
         "masterContactId" = "contactId" 
         AND "isOutbound" = 'False' 
@@ -23,7 +23,7 @@ SELECT
         AND "endReason" = 'Contact Hung Up'
     ) AS ivr_abandon,
 
-    -- Queue Abandoned Calls
+    -- Queue Abandoned
     COUNT(*) FILTER (WHERE 
         "masterContactId" = "contactId" 
         AND "isOutbound" = 'True' 
@@ -37,7 +37,7 @@ SELECT
         AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
     ) AS queue_abandon,
 
-    -- Closed by IVR Calls
+    -- Closed by IVR
     COUNT(*) FILTER (WHERE 
         "masterContactId" = "contactId" 
         AND "isOutbound" = 'False' 
@@ -64,4 +64,4 @@ SELECT
 
 FROM contact_data
 GROUP BY "toAddress"
-ORDER BY ivr_offered DESC;
+ORDER BY offered_calls DESC;
