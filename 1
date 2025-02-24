@@ -20,7 +20,7 @@ app.get('/api/tfn-wise', async (req, res) => {
                              AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script') 
                         THEN 1 ELSE 0 
                     END) AS polite_disconnect,
-                COUNT(*) FILTER (WHERE NULLIF("agentSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$' AND NULLIF("agentSeconds", '')::FLOAT::INTEGER > 0) AS answered_calls
+                COUNT(*) FILTER (WHERE NULLIF("agentSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$' AND NULLIF("agentSeconds", '')::FLOAT::INTEGER > 0) AS answered
             FROM contact_data
         `;
 
