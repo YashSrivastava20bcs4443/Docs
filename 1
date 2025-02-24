@@ -4,23 +4,38 @@ app.get('/api/tfn-wise', async (req, res) => {
         let query = `
             SELECT 
                 "toAddress" AS "Number (toAddress)",  
+
+                -- Total calls offered
                 COUNT(*) AS offered_calls,
-                SUM(CASE 
-                        WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
-                             AND (NULLIF("inQueueSeconds", '') IS NULL OR NULLIF("inQueueSeconds", '') = '' OR NULLIF("inQueueSeconds", '')::FLOAT::INTEGER = 0) 
-                        THEN 1 ELSE 0 
-                    END) AS ivr_abandon,
-                SUM(CASE 
-                        WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
-                             AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
-                        THEN NULLIF("inQueueSeconds", '')::FLOAT::INTEGER ELSE 0 
-                    END) AS queue_abandon,
-                SUM(CASE 
-                        WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
-                             AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script') 
-                        THEN 1 ELSE 0 
-                    END) AS polite_disconnect,
-                COUNT(*) FILTER (WHERE NULLIF("agentSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$' AND NULLIF("agentSeconds", '')::FLOAT::INTEGER > 0) AS answered
+
+                -- Calls that were answered (not abandoned & agentSeconds > 0)
+                COUNT(*) FILTER (WHERE 
+                    COALESCE(NULLIF("abandoned", ''), 'False') = 'False' 
+                    AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                    AND NULLIF("agentSeconds", '')::FLOAT > 0
+                ) AS answered_calls,
+
+                -- Calls abandoned in IVR (abandoned=True and inQueueSeconds is NULL/empty/0)
+                COUNT(*) FILTER (WHERE 
+                    COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
+                    AND (NULLIF("inQueueSeconds", '') IS NULL 
+                         OR NULLIF("inQueueSeconds", '') = '' 
+                         OR NULLIF("inQueueSeconds", '')::FLOAT = 0)
+                ) AS ivr_abandon,
+
+                -- Calls abandoned in queue (abandoned=True and inQueueSeconds > 0)
+                COUNT(*) FILTER (WHERE 
+                    COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
+                    AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                    AND NULLIF("inQueueSeconds", '')::FLOAT > 0
+                ) AS queue_abandon,
+
+                -- Calls that were politely disconnected
+                COUNT(*) FILTER (WHERE 
+                    COALESCE(NULLIF("abandoned", ''), 'False') = 'True' 
+                    AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script')
+                ) AS polite_disconnect
+
             FROM contact_data
         `;
 
