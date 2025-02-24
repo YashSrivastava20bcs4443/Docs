@@ -1,28 +1,41 @@
-SELECT 
-    "toAddress" AS "Number (toAddress)",  
+app.get('/api/tfn-wise', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        let query = `
+            SELECT 
+                "toAddress" AS "Number (toAddress)",  
+                COUNT(*) AS offered_calls,
+                SUM(CASE 
+                        WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
+                             AND (NULLIF("inQueueSeconds", '') IS NULL OR NULLIF("inQueueSeconds", '') = '' OR NULLIF("inQueueSeconds", '')::FLOAT::INTEGER = 0) 
+                        THEN 1 ELSE 0 
+                    END) AS ivr_abandon,
+                SUM(CASE 
+                        WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
+                             AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                        THEN NULLIF("inQueueSeconds", '')::FLOAT::INTEGER ELSE 0 
+                    END) AS queue_abandon,
+                SUM(CASE 
+                        WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
+                             AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script') 
+                        THEN 1 ELSE 0 
+                    END) AS polite_disconnect,
+                COUNT(*) FILTER (WHERE NULLIF("agentSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$' AND NULLIF("agentSeconds", '')::FLOAT::INTEGER > 0) AS answered_calls
+            FROM contact_data
+        `;
 
-    COUNT(*) AS offered_calls,
+        const queryParams = [];
 
-    SUM(CASE 
-            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
-                 AND (NULLIF("inQueueSeconds", '') IS NULL OR NULLIF("inQueueSeconds", '') = '' OR NULLIF("inQueueSeconds", '')::FLOAT::INTEGER = 0) 
-            THEN 1 ELSE 0 
-        END) AS ivr_abandon,
+        if (startDate && endDate) {
+            query += ' WHERE to_date("contactStartDate", \'YYYY-MM-DD\') BETWEEN $1 AND $2';
+            queryParams.push(startDate, endDate);
+        }
 
-    SUM(CASE 
-            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
-                 AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
-            THEN NULLIF("inQueueSeconds", '')::FLOAT::INTEGER ELSE 0 
-        END) AS queue_abandon,
-
-    SUM(CASE 
-            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
-                 AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script') 
-            THEN 1 ELSE 0 
-        END) AS polite_disconnect,
-
-    COUNT(*) FILTER (WHERE NULLIF("agentSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$' AND NULLIF("agentSeconds", '')::FLOAT::INTEGER > 0) AS answered_calls
-
-FROM contact_data
-GROUP BY "toAddress"
-ORDER BY offered_calls DESC;
+        query += ' GROUP BY "toAddress" ORDER BY offered_calls DESC';
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching TFN-Wise data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
