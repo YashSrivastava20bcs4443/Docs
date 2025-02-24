@@ -1,30 +1,32 @@
-StackStorm has predefined rules and workflows, but they are not tailored for specific environments. It is an event-driven automation tool where you can write custom rules to correlate alerts from monitoring tools like SolarWinds, SCOM, Kibana, Elastic, etc.
+We Can Write RCA Rules for StackStorm
 
-Does StackStorm have predefined RCA rules?
+We can create custom RCA rules for StackStorm that will correlate alerts and identify the root cause. To do this effectively, we need some details about our infrastructure.
 
-❌ No, it does not provide predefined RCA rules.
-✅ However, it does offer predefined packs and integrations that help in setting up RCA.
+We Need the Following Details:
 
-Predefined Features Useful for RCA:
+1. Which monitoring tools are being used?
 
-1. Monitoring Integrations:
-StackStorm provides integrations with SolarWinds, Nagios, ElasticSearch, Kibana, etc., allowing alerts to be brought into StackStorm.
-
-
-2. Event Correlation Engine:
-StackStorm's rules engine has the capability to correlate multiple alerts, but you need to write the correlation rules yourself.
-
-
-3. Predefined Packs:
-Automation packs for Slack, PagerDuty, Nagios, AWS, Azure, etc., are available.
-You can install them using the st2 pack install command.
+(e.g., SolarWinds, SCOM, Kibana, ElasticSearch, AppInsight, etc.)
 
 
 
-Do I need to write RCA rules myself?
+2. Which common alerts should be correlated in RCA?
 
-Yes, because RCA logic is infrastructure-specific. StackStorm provides a framework with predefined integrations and workflows, but you need to define RCA logic based on your alerts and infrastructure.
-
-If you are looking for a fully predefined RCA engine, you can explore AI-based event correlation tools like Moogsoft or BigPanda, but they are not free.
+(e.g., High CPU, Memory Spike, API Failures, Network Latency, Database Crash, etc.)
 
 
+
+3. How should root cause mapping be done?
+
+(e.g., "If 5 servers report high CPU usage along with API failures, the root cause might be CPU overload.")
+
+
+
+4. Do we need automation or just an RCA report?
+
+(e.g., "If disk space is full, automatically perform cleanup" or just send a Slack notification.)
+
+
+
+
+If we share our monitoring setup and RCA requirements, we can create StackStorm rules that we can directly deploy for root cause analysis. 🚀
