@@ -1,32 +1,28 @@
-We Can Write RCA Rules for StackStorm
+SELECT 
+    "toAddress" AS "Number (toAddress)",  
 
-We can create custom RCA rules for StackStorm that will correlate alerts and identify the root cause. To do this effectively, we need some details about our infrastructure.
+    COUNT(*) AS offered_calls,
 
-We Need the Following Details:
+    SUM(CASE 
+            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
+                 AND (NULLIF("inQueueSeconds", '') IS NULL OR NULLIF("inQueueSeconds", '') = '' OR NULLIF("inQueueSeconds", '')::FLOAT::INTEGER = 0) 
+            THEN 1 ELSE 0 
+        END) AS ivr_abandon,
 
-1. Which monitoring tools are being used?
+    SUM(CASE 
+            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
+                 AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$'  
+            THEN NULLIF("inQueueSeconds", '')::FLOAT::INTEGER ELSE 0 
+        END) AS queue_abandon,
 
-(e.g., SolarWinds, SCOM, Kibana, ElasticSearch, AppInsight, etc.)
+    SUM(CASE 
+            WHEN CAST(NULLIF("abandoned", '') AS BOOLEAN) = TRUE 
+                 AND "endReason" IN ('Contact Hung Up', 'Contact Hang Up via Script') 
+            THEN 1 ELSE 0 
+        END) AS polite_disconnect,
 
+    COUNT(*) FILTER (WHERE NULLIF("agentSeconds", '') ~ '^[0-9]+(\.[0-9]+)?$' AND NULLIF("agentSeconds", '')::FLOAT::INTEGER > 0) AS answered_calls
 
-
-2. Which common alerts should be correlated in RCA?
-
-(e.g., High CPU, Memory Spike, API Failures, Network Latency, Database Crash, etc.)
-
-
-
-3. How should root cause mapping be done?
-
-(e.g., "If 5 servers report high CPU usage along with API failures, the root cause might be CPU overload.")
-
-
-
-4. Do we need automation or just an RCA report?
-
-(e.g., "If disk space is full, automatically perform cleanup" or just send a Slack notification.)
-
-
-
-
-If we share our monitoring setup and RCA requirements, we can create StackStorm rules that we can directly deploy for root cause analysis. 🚀
+FROM contact_data
+GROUP BY "toAddress"
+ORDER BY offered_calls DESC;
