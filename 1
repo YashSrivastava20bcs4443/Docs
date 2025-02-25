@@ -19,14 +19,6 @@
 <section class="filter-panel">
 <div class="filter">
 <div>
-<label for="start-date">Start Date:</label>
-<input type="date" id="start-date" name="start-date">
-</div>
-<div>
-<label for="end-date">End Date: </label>
-<input type="date" id="end-date" name="end-date">
-</div>
-<div>
 <label for="portal">Portal:</label>
 <select id="portal" name="portal">
 <option value="">Select</option>
@@ -63,6 +55,8 @@
 <th>Queue Abandoned</th>
 <th>Closed by IVR</th>
 <th>Answered Calls</th>
+<th>Portal</th>
+<th>TFN Type</th>
 </tr>
 </thead>
 <tbody id="data-table-body">
@@ -105,6 +99,8 @@ async function fetchDetailData() {
                 <td>${row.queue_abandoned}</td>
                 <td>${row.closed_by_ivr}</td>
                 <td>${row.answered_calls}</td>
+                <td>${row.Portal}</td>
+                <td>${row["TFN Type"]}</td>
             `;
             tableBody.appendChild(tr);
         });
@@ -114,7 +110,7 @@ async function fetchDetailData() {
 }
 
 function downloadCSV() {
-    const rows = [['TFN', 'Description', 'IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Answered Calls']];
+    const rows = [['TFN', 'Description', 'IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Answered Calls', 'Portal', 'TFN Type']];
     document.querySelectorAll('.data-table tbody tr').forEach(tr => {
         const row = [];
         tr.querySelectorAll('td').forEach(td => {
