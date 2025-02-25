@@ -1,138 +1,67 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Detail Page</title>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-<header>
-<div class="logo">Detail Page</div>
-<nav>
-<ul>
-<li><a href="index.html">Dashboard</a></li>
-</ul>
-</nav>
-</header>
-<div class="container">
-<!-- Filter Panel -->
-<section class="filter-panel">
-<div class="filter">
-<div>
-<label for="portal">Portal:</label>
-<select id="portal" name="portal">
-<option value="">Select</option>
-<option value="CDA">CheapOair</option>
-<option value="OT">OneTravel</option>
-<option value="CDA SP">CheapOairSP</option>
-<option value="COA CA">CheapOairCA</option>
-<option value="Other">Other</option>
-</select>
-</div>
-<div>
-<label for="tfn-type">TFN Type:</label>
-<select id="tfn-type" name="tfn-type">
-<option value="">Select</option>
-<option value="Mkt">Marketing</option>
-<option value="NM">NonMarketing</option>
-<option value="Other">Other</option>
-</select>
-</div>
-<div>
-<button onclick="applyFilter()">Apply Filter</button>
-</div>
-</div>
-</section>
-<!-- Data Table -->
-<section>
-<table class="data-table">
-<thead>
-<tr>
-<th>TFN</th>
-<th>Description</th>
-<th>IVR Offered</th>
-<th>IVR Abandoned</th>
-<th>Queue Abandoned</th>
-<th>Closed by IVR</th>
-<th>Answered Calls</th>
-<th>Portal</th>
-<th>TFN Type</th>
-</tr>
-</thead>
-<tbody id="data-table-body">
-<!-- Dynamic rows will be appended here -->
-</tbody>
-</table>
-<button onclick="downloadCSV()">Download Data</button>
-</section>
-</div>
-<script>
-async function fetchDetailData() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const category = urlParams.get('category');
-    const startDate = urlParams.get('startDate');
-    const endDate = urlParams.get('endDate');
-    const portal = urlParams.get('portal');
-    const tfn = urlParams.get('tfn');
-    const queryParams = new URLSearchParams({
-        category,
-        startDate,
-        endDate,
-        portal,
-        tfn
-    });
+app.get('/api/detail', async (req, res) => {
     try {
-        const response = await fetch(`http://localhost:3000/api/detail?${queryParams}`);
-        if (!response.ok) {
-            throw new Error('Network response is not ok');
+        const { category, startDate, endDate, portal, tfn } = req.query;
+        let query = `
+            SELECT "toAddress" AS "TFN", "Description", 
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4') AS ivr_offered,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'True' AND "preQueueSeconds"::numeric > 0) AS ivr_abandoned,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 AND "abandoned" = 'True') AS queue_abandoned,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 0) AS closed_by_ivr,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'False' AND "agentSeconds"::numeric > 0) AS answered_calls,
+            "Portal", "TFN Type"
+            FROM contact_mapped_data
+        `;
+
+        const queryParams = [];
+
+        if (startDate && endDate) {
+            query += ' WHERE to_date("contactStartDate", \'YYYY-MM-DD\') BETWEEN $1 AND $2';
+            queryParams.push(startDate, endDate);
         }
-        const data = await response.json();
-        const tableBody = document.getElementById('data-table-body');
-        tableBody.innerHTML = ''; // Clear existing rows
-        data.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.TFN}</td>
-                <td>${row.Description}</td>
-                <td>${row.ivr_offered}</td>
-                <td>${row.ivr_abandoned}</td>
-                <td>${row.queue_abandoned}</td>
-                <td>${row.closed_by_ivr}</td>
-                <td>${row.answered_calls}</td>
-                <td>${row.Portal}</td>
-                <td>${row["TFN Type"]}</td>
-            `;
-            tableBody.appendChild(tr);
-        });
-    } catch (error) {
-        console.error('Error fetching detail data:', error);
+
+        if (portal) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "Portal" = $3';
+            queryParams.push(portal);
+        }
+
+        if (tfn) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "TFN Type" = $4';
+            queryParams.push(tfn);
+        }
+
+        switch(category) {
+            case 'ivr_offered':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\'';
+                break;
+            case 'ivr_abandoned':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric > 0';
+                break;
+            case 'queue_abandoned':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 AND "abandoned" = \'True\'';
+                break;
+            case 'closed_by_ivr':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = \'False\' AND "preQueueSeconds"::numeric > 0';
+                break;
+            case 'abandoned_under_10':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric < 10';
+                break;
+            case 'abandoned_over_10':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric > 10';
+                break;
+            case 'answered_calls':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "abandoned" = \'False\' AND "agentSeconds"::numeric > 0';
+                break;
+            default:
+                return res.status(400).json({ error: 'Invalid category' });
+        }
+
+        query += ' GROUP BY "toAddress", "Description", "Portal", "TFN Type"';
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching detail data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
-}
-
-function downloadCSV() {
-    const rows = [['TFN', 'Description', 'IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Answered Calls', 'Portal', 'TFN Type']];
-    document.querySelectorAll('.data-table tbody tr').forEach(tr => {
-        const row = [];
-        tr.querySelectorAll('td').forEach(td => {
-            row.push(td.textContent);
-        });
-        rows.push(row);
-    });
-    let csvContent = "data:text/csv;charset=utf-8," 
-    + rows.map(e => e.join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "detail_data.csv");
-    document.body.appendChild(link);
-    link.click();
-}
-
-function applyFilter() {
-    fetchDetailData();
-}
-
-window.onload = fetchDetailData;
-</script>
-</body>
-</html>
+});
