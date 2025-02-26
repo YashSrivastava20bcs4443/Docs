@@ -1,1 +1,12 @@
+import os
+import sys
+import subprocess
 
+# Get Python installation path
+python_path = sys.executable
+scripts_path = os.path.join(os.path.dirname(python_path), "Scripts")
+
+# Add paths to system environment variables
+subprocess.run(f'setx PATH "%PATH%;{python_path};{scripts_path}"', shell=True)
+
+print("Python has been added to the environment variables. Restart your terminal to apply changes.")
