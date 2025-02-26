@@ -1,56 +1,221 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Charts & Graphs</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
-</head>
-<body>
-    <header>
-        <div class="logo">Charts & Graphs</div>
-        <nav>
-            <ul>
-                <li><a href="index.html">Dashboard</a></li>
-                <li><a href="detail.html">Detail</a></li>
-                <li><a href="ivr_bucket.html">IVR Bucket</a></li>
-                <li><a href="tfn_wise.html">TFN Wise</a></li>
-                <li><a href="charts.html">Charts & Graphs</a></li>
-            </ul>
-        </nav>
-    </header>
-    <div class="container">
-        <!-- Chart Section -->
-        <section class="chart-container">
-            <h3>Queue Status Distribution</h3>
-            <canvas id="queueStatusDistribution"></canvas>
 
-            <h3>Average Queue Time Per Campaign</h3>
-            <canvas id="averageQueueTimePerCampaign"></canvas>
 
-            <h3>Top 5 Agents By Call Volume</h3>
-            <canvas id="top5AgentsByCallVolume"></canvas>
+// New endpoint for Queue Status Distribution
+app.get('/api/queueStatusDistribution', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "contactId", 
+                "preQueueSeconds"::numeric, 
+                "inQueueSeconds"::numeric, 
+                "postQueueSeconds"::numeric 
+            FROM contact_mapped_data
+        `);
+        const data = result.rows.reduce((acc, row) => {
+            acc.labels.push(row.contactId);
+            acc.preQueueSeconds.push(row.preQueueSeconds);
+            acc.inQueueSeconds.push(row.inQueueSeconds);
+            acc.postQueueSeconds.push(row.postQueueSeconds);
+            return acc;
+        }, { labels: [], preQueueSeconds: [], inQueueSeconds: [], postQueueSeconds: [] });
 
-            <h3>Agent Average Handle Time</h3>
-            <canvas id="agentAverageHandleTime"></canvas>
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching queue status distribution data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-            <h3>Calls By End Reason</h3>
-            <canvas id="callsByEndReason"></canvas>
+// New endpoint for Average Queue Time Per Campaign
+app.get('/api/averageQueueTimePerCampaign', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "campaignName", 
+                AVG("preQueueSeconds"::numeric) AS avgPreQueue,
+                AVG("inQueueSeconds"::numeric) AS avgInQueue,
+                AVG("postQueueSeconds"::numeric) AS avgPostQueue
+            FROM contact_mapped_data
+            GROUP BY "campaignName"
+        `);
+        const data = result.rows.reduce((acc, row) => {
+            acc.labels.push(row.campaignName);
+            acc.avgPreQueue.push(row.avgprequeue);
+            acc.avgInQueue.push(row.avginqueue);
+            acc.avgPostQueue.push(row.avgpostqueue);
+            return acc;
+        }, { labels: [], avgPreQueue: [], avgInQueue: [], avgPostQueue: [] });
 
-            <h3>Short Abandon Vs Completed Calls</h3>
-            <canvas id="shortAbandonVsCompletedCalls"></canvas>
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching average queue time per campaign data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-            <h3>Calls Per Campaign</h3>
-            <canvas id="callsPerCampaign"></canvas>
+// New endpoint for Top 5 Agents by Call Volume
+app.get('/api/top5AgentsByCallVolume', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "agentId", 
+                COUNT("contactId") AS callVolume
+            FROM contact_mapped_data
+            GROUP BY "agentId"
+            ORDER BY callVolume DESC
+            LIMIT 5
+        `);
+        const data = { labels: [], callVolume: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.agentId);
+            data.callVolume.push(row.callVolume);
+        });
 
-            <h3>Transfer Type Breakdown</h3>
-            <canvas id="transferTypeBreakdown"></canvas>
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching top 5 agents by call volume data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-            <h3>Calls Routed By Skill</h3>
-            <canvas id="callsRoutedBySkill"></canvas>
-        </section>
-    </div>
-    <script src="charts.js"></script>
-</body>
-</html>
+// New endpoint for Agent Average Handle Time
+app.get('/api/agentAverageHandleTime', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "agentId", 
+                AVG("agentSeconds"::numeric) AS avgHandleTime
+            FROM contact_mapped_data
+            GROUP BY "agentId"
+        `);
+        const data = { labels: [], avgHandleTime: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.agentId);
+            data.avgHandleTime.push(row.avgHandleTime);
+        });
+
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching agent average handle time data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// New endpoint for Calls by End Reason
+app.get('/api/callsByEndReason', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "endReason", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "endReason"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.endReason);
+            data.callCount.push(row.callCount);
+        });
+
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching calls by end reason data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// New endpoint for Short Abandon vs Completed Calls
+app.get('/api/shortAbandonVsCompletedCalls', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "isShortAbandon", 
+                COUNT("contactId") AS callCount,
+                "endReason"
+            FROM contact_mapped_data
+            GROUP BY "isShortAbandon", "endReason"
+        `);
+        const data = result.rows.reduce((acc, row) => {
+            if (row.isShortAbandon === 'True') {
+                acc.shortAbandon[row.endReason] = row.callCount;
+            } else {
+                acc.completed[row.endReason] = row.callCount;
+            }
+            return acc;
+        }, { shortAbandon: {}, completed: {} });
+
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching short abandon vs completed calls data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// New endpoint for Calls Per Campaign
+app.get('/api/callsPerCampaign', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "campaignName", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "campaignName"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.campaignName);
+            data.callCount.push(row.callCount);
+        });
+
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching calls per campaign data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// New endpoint for Transfer Type Breakdown
+app.get('/api/transferTypeBreakdown', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "transferIndicatorName", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "transferIndicatorName"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.transferIndicatorName);
+            data.callCount.push(row.callCount);
+        });
+
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching transfer type breakdown data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// New endpoint for Calls Routed by Skill
+app.get('/api/callsRoutedBySkill', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "skillName", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "skillName"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.skillName);
+            data.callCount.push(row.callCount);
+        });
+
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching calls routed by skill data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
