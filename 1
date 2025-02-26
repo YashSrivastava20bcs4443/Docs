@@ -1,480 +1,220 @@
-// Fetch data and render charts
-async function fetchData(endpoint) {
-    const response = await fetch(`http://localhost:3000/api/${endpoint}`);
-    return response.json();
-}
 
-function renderQueueStatusDistribution(data) {
-    const ctx = document.getElementById('queueStatusDistribution').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: 'Pre Queue',
-                data: data.preQueueSeconds,
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }, {
-                label: 'In Queue',
-                data: data.inQueueSeconds,
-                backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
-            }, {
-                label: 'Post Queue',
-                data: data.postQueueSeconds,
-                backgroundColor: 'rgba(153, 102, 255, 0.2)',
-                borderColor: 'rgba(153, 102, 255, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 16 / 9,
-            scales: {
-                x: {
-                    stacked: true
-                },
-                y: {
-                    stacked: true,
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                tooltip: {
-                    enabled: true
-                },
-                datalabels: {
-                    anchor: 'end',
-                    align: 'top',
-                    formatter: Math.round,
-                    font: {
-                        weight: 'bold'
-                    }
-                }
+// New endpoint for Queue Status Distribution
+app.get('/api/queueStatusDistribution', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "contactId", 
+                "preQueueSeconds"::numeric, 
+                "inQueueSeconds"::numeric, 
+                "postQueueSeconds"::numeric 
+            FROM contact_mapped_data
+        `);
+        const data = result.rows.reduce((acc, row) => {
+            acc.labels.push(row.contactId);
+            acc.preQueueSeconds.push(row.preQueueSeconds);
+            acc.inQueueSeconds.push(row.inQueueSeconds);
+            acc.postQueueSeconds.push(row.postQueueSeconds);
+            return acc;
+        }, { labels: [], preQueueSeconds: [], inQueueSeconds: [], postQueueSeconds: [] });
+
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching queue status distribution data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// New endpoint for Average Queue Time Per Campaign
+app.get('/api/averageQueueTimePerCampaign', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "campaignName", 
+                AVG("preQueueSeconds"::numeric) AS avgPreQueue,
+                AVG("inQueueSeconds"::numeric) AS avgInQueue,
+                AVG("postQueueSeconds"::numeric) AS avgPostQueue
+            FROM contact_mapped_data
+            GROUP BY "campaignName"
+        `);
+        const data = result.rows.reduce((acc, row) => {
+            acc.labels.push(row.campaignName);
+            acc.avgPreQueue.push(row.avgprequeue);
+            acc.avgInQueue.push(row.avginqueue);
+            acc.avgPostQueue.push(row.avgpostqueue);
+            return acc;
+        }, { labels: [], avgPreQueue: [], avgInQueue: [], avgPostQueue: [] });
+
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching average queue time per campaign data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// New endpoint for Top 5 Agents by Call Volume
+app.get('/api/top5AgentsByCallVolume', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "agentId", 
+                COUNT("contactId") AS callVolume
+            FROM contact_mapped_data
+            GROUP BY "agentId"
+            ORDER BY callVolume DESC
+            LIMIT 5
+        `);
+        const data = { labels: [], callVolume: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.agentId);
+            data.callVolume.push(row.callVolume);
+        });
+
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching top 5 agents by call volume data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// New endpoint for Agent Average Handle Time
+app.get('/api/agentAverageHandleTime', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "agentId", 
+                AVG("agentSeconds"::numeric) AS avgHandleTime
+            FROM contact_mapped_data
+            GROUP BY "agentId"
+        `);
+        const data = { labels: [], avgHandleTime: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.agentId);
+            data.avgHandleTime.push(row.avgHandleTime);
+        });
+
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching agent average handle time data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// New endpoint for Calls by End Reason
+app.get('/api/callsByEndReason', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "endReason", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "endReason"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.endReason);
+            data.callCount.push(row.callCount);
+        });
+
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching calls by end reason data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// New endpoint for Short Abandon vs Completed Calls
+app.get('/api/shortAbandonVsCompletedCalls', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "isShortAbandon", 
+                COUNT("contactId") AS callCount,
+                "endReason"
+            FROM contact_mapped_data
+            GROUP BY "isShortAbandon", "endReason"
+        `);
+        const data = result.rows.reduce((acc, row) => {
+            if (row.isShortAbandon === 'True') {
+                acc.shortAbandon[row.endReason] = row.callCount;
+            } else {
+                acc.completed[row.endReason] = row.callCount;
             }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
+            return acc;
+        }, { shortAbandon: {}, completed: {} });
 
-function renderAverageQueueTimePerCampaign(data) {
-    const ctx = document.getElementById('averageQueueTimePerCampaign').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: 'Avg Pre Queue',
-                data: data.avgPreQueue,
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }, {
-                label: 'Avg In Queue',
-                data: data.avgInQueue,
-                backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
-            }, {
-                label: 'Avg Post Queue',
-                data: data.avgPostQueue,
-                backgroundColor: 'rgba(153, 102, 255, 0.2)',
-                borderColor: 'rgba(153, 102, 255, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 16 / 9,
-            scales: {
-                x: {
-                    stacked: true
-                },
-                y: {
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                tooltip: {
-                    enabled: true
-                },
-                datalabels: {
-                    anchor: 'end',
-                    align: 'top',
-                    formatter: Math.round,
-                    font: {
-                        weight: 'bold'
-                    }
-                }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching short abandon vs completed calls data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-function renderTop5AgentsByCallVolume(data) {
-    const ctx = document.getElementById('top5AgentsByCallVolume').getContext('2d');
-    new Chart(ctx, {
-        type: 'horizontalBar',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: 'Call Volume',
-                data: data.callVolume,
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 16 / 9,
-            scales: {
-                x: {
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                tooltip: {
-                    enabled: true
-                },
-                datalabels: {
-                    anchor: 'end',
-                    align: 'top',
-                    formatter: Math.round,
-                    font: {
-                        weight: 'bold'
-                    }
-                }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
+// New endpoint for Calls Per Campaign
+app.get('/api/callsPerCampaign', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "campaignName", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "campaignName"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.campaignName);
+            data.callCount.push(row.callCount);
+        });
 
-function renderAgentAverageHandleTime(data) {
-    const ctx = document.getElementById('agentAverageHandleTime').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: 'Avg Handle Time',
-                data: data.avgHandleTime,
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 16 / 9,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                tooltip: {
-                    enabled: true
-                },
-                datalabels: {
-                    anchor: 'end',
-                    align: 'top',
-                    formatter: Math.round,
-                    font: {
-                        weight: 'bold'
-                    }
-                }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching calls per campaign data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-function renderCallsByEndReason(data) {
-    const ctx = document.getElementById('callsByEndReason').getContext('2d');
-    new Chart(ctx, {
-        type: 'pie',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: 'Call Count',
-                data: data.callCount,
-                backgroundColor: ['rgba(75, 192, 192, 0.2)', 'rgba(54, 162, 235, 0.2)', 'rgba(153, 102, 255, 0.2)', 'rgba(255, 159, 64, 0.2)', 'rgba(255, 99, 132, 0.2)'],
-                borderColor: ['rgba(75, 192, 192, 1)', 'rgba(54, 162, 235, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)'],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 16 / 9,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                tooltip: {
-                    enabled: true
-                },
-                datalabels: {
-                    formatter: (value, ctx) => {
-                        let sum = 0;
-                        let dataArr = ctx.chart.data.datasets[0].data;
-                        dataArr.map(data => {
-                            sum += data;
-                        });
-                        let percentage = (value * 100 / sum).toFixed(2) + "%";
-                        return percentage;
-                    },
-                    color: '#fff',
-                }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
+// New endpoint for Transfer Type Breakdown
+app.get('/api/transferTypeBreakdown', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "transferIndicatorName", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "transferIndicatorName"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.transferIndicatorName);
+            data.callCount.push(row.callCount);
+        });
 
-function renderShortAbandonVsCompletedCalls(data) {
-    const ctx = document.getElementById('shortAbandonVsCompletedCalls').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: Object.keys(data.shortAbandon).concat(Object.keys(data.completed)),
-            datasets: [{
-                label: 'Short Abandon',
-                data: Object.values(data.shortAbandon),
-                backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                borderColor: 'rgba(255, 99, 132, 1)',
-                borderWidth: 1
-            }, {
-                label: 'Completed',
-                data: Object.values(data.completed),
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 16 / 9,
-            scales: {
-                x: {
-                    stacked: true
-                },
-                y: {
-                    stacked: true,
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                tooltip: {
-                    enabled: true
-                },
-                datalabels: {
-                    anchor: 'end',
-                    align: 'top',
-                    formatter: Math.round,
-                    font: {
-                        weight: 'bold'
-                    }
-                }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching transfer type breakdown data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-function renderCallsPerCampaign(data) {
-    const ctx = document.getElementById('callsPerCampaign').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: 'Call Count',
-                data: data.callCount,
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 16 / 9,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                tooltip: {
-                    enabled: true
-                },
-                datalabels: {
-                    anchor: 'end',
-                    align: 'top',
-                    formatter: Math.round,
-                    font: {
-                        weight: 'bold'
-                    }
-                }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
+// New endpoint for Calls Routed by Skill
+app.get('/api/callsRoutedBySkill', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "skillName", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "skillName"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.skillName);
+            data.callCount.push(row.callCount);
+        });
 
-function renderTransferTypeBreakdown(data) {
-    const ctx = document.getElementById('transferTypeBreakdown').getContext('2d');
-    new Chart(ctx, {
-        type: 'pie',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: 'Call Count',
-                data: data.callCount,
-                backgroundColor: ['rgba(75, 192, 192, 0.2)', 'rgba(54, 162, 235, 0.2)', 'rgba(153, 102, 255, 0.2)', 'rgba(255, 159, 64, 0.2)', 'rgba(255, 99, 132, 0.2)'],
-                borderColor: ['rgba(75, 192, 192, 1)', 'rgba(54, 162, 235, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)'],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 16 / 9,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                tooltip: {
-                    enabled: true
-                },
-                datalabels: {
-                    formatter: (value, ctx) => {
-                        let sum = 0;
-                        let dataArr = ctx.chart.data.datasets[0].data;
-                        dataArr.map(data => {
-                            sum += data;
-                        });
-                        let percentage = (value * 100 / sum).toFixed(2) + "%";
-                        return percentage;
-                    },
-                    color: '#fff',
-                }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
-
-function renderCallsRoutedBySkill(data) {
-    const ctx = document.getElementById('callsRoutedBySkill').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                label: 'Call Count',
-                data: data.callCount,
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 16 / 9,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                tooltip: {
-                    enabled: true
-                },
-                datalabels: {
-                    anchor: 'end',
-                    align: 'top',
-                    formatter: Math.round,
-                    font: {
-                        weight: 'bold'
-                    }
-                }
-            }
-        },
-        plugins: [ChartDataLabels]
-    });
-}
-
-async function renderCharts() {
-    const queueStatusDistributionData = await fetchData('queueStatusDistribution');
-    renderQueueStatusDistribution(queueStatusDistributionData);
-
-    const averageQueueTimePerCampaignData = await fetchData('averageQueueTimePerCampaign');
-    renderAverageQueueTimePerCampaign(averageQueueTimePerCampaignData);
-
-    const top5AgentsByCallVolumeData = await fetchData('top5AgentsByCallVolume');
-    renderTop5AgentsByCallVolume(top5AgentsByCallVolumeData);
-
-    const agentAverageHandleTimeData = await fetchData('agentAverageHandleTime');
-    renderAgentAverageHandleTime(agentAverageHandleTimeData);
-
-    const callsByEndReasonData = await fetchData('callsByEndReason');
-    renderCallsByEndReason(callsByEndReasonData);
-
-    const shortAbandonVsCompletedCallsData = await fetchData('shortAbandonVsCompletedCalls');
-    renderShortAbandonVsCompletedCalls(shortAbandonVsCompletedCallsData);
-
-    const callsPerCampaignData = await fetchData('callsPerCampaign');
-    renderCallsPerCampaign(callsPerCampaignData);
-
-    const transferTypeBreakdownData = await fetchData('transferTypeBreakdown');
-    renderTransferTypeBreakdown(transferTypeBreakdownData);
-
-    const callsRoutedBySkillData = await fetchData('callsRoutedBySkill');
-    renderCallsRoutedBySkill(callsRoutedBySkillData);
-}
-
-window.onload = renderCharts;
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching calls routed by skill data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
