@@ -1,1 +1,80 @@
+function updateChart(data) {
+    const chartData = [
+        {
+            x: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in >10 Sec', 'Answered Calls'],
+            y: [data.ivr_offered, data.ivr_abandoned, data.queue_abandoned, data.closed_by_ivr, data.abandoned_in_10_sec, data.abandoned_in_over_10_sec, data.answered_calls],
+            type: 'bar',
+            marker: {
+                color: 'rgba(75, 192, 192, 0.2)',
+                line: {
+                    color: 'rgba(75, 192, 192, 1)',
+                    width: 1
+                }
+            }
+        }
+    ];
 
+    const layout = {
+        title: 'Call Statistics',
+        yaxis: {
+            title: 'Count',
+            zeroline: false
+        },
+        xaxis: {
+            title: 'Categories'
+        },
+        barmode: 'stack',
+        margin: {
+            l: 40,
+            r: 30,
+            t: 50,
+            b: 50
+        },
+        showlegend: false
+    };
+
+    Plotly.newPlot('summaryChart', chartData, layout);
+}
+
+function updatePieChart(data) {
+    const pieData = [
+        {
+            labels: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in >10 Sec', 'Answered Calls'],
+            values: [data.ivr_offered, data.ivr_abandoned, data.queue_abandoned, data.closed_by_ivr, data.abandoned_in_10_sec, data.abandoned_in_over_10_sec, data.answered_calls],
+            type: 'pie',
+            marker: {
+                colors: ['rgba(75, 192, 192, 0.2)', 'rgba(255, 99, 132, 0.2)', 'rgba(255, 206, 86, 0.2)', 'rgba(54, 162, 235, 0.2)', 'rgba(153, 102, 255, 0.2)', 'rgba(201, 203, 207, 0.2)', 'rgba(255, 159, 64, 0.2)'],
+                line: {
+                    color: ['rgba(75, 192, 192, 1)', 'rgba(255, 99, 132, 1)', 'rgba(255, 206, 86, 1)', 'rgba(54, 162, 235, 1)', 'rgba(153, 102, 255, 1)', 'rgba(201, 203, 207, 1)', 'rgba(255, 159, 64, 1)'],
+                    width: 1
+                }
+            }
+        }
+    ];
+
+    const layout = {
+        title: 'Call Statistics',
+        showlegend: true,
+        legend: {
+            x: 1,
+            y: 0.5,
+            traceorder: 'normal',
+            font: {
+                family: 'sans-serif',
+                size: 12,
+                color: '#000'
+            },
+            bgcolor: '#E2E2E2',
+            bordercolor: '#FFFFFF',
+            borderwidth: 2
+        },
+        margin: {
+            l: 40,
+            r: 30,
+            t: 50,
+            b: 50
+        }
+    };
+
+    Plotly.newPlot('pieChart', pieData, layout);
+}
