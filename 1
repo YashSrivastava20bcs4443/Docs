@@ -1,225 +1,240 @@
-async function fetchData(endpoint) {
-    const response = await fetch(`http://localhost:3000/api/${endpoint}`);
-    const data = await response.json();
-    console.log(`Data fetched from ${endpoint}:`, data); 
-    return data;
-}
+const express = require('express');
+const { Pool } = require('pg');
+const cors = require('cors');
+const app = express();
 
-function renderQueueStatusDistribution(data) {
-    const trace1 = {
-        x: data.labels,
-        y: data.preQueueSeconds,
-        name: 'Pre Queue',
-        type: 'bar'
-    };
+app.use(cors());
+app.use(express.json());
 
-    const trace2 = {
-        x: data.labels,
-        y: data.inQueueSeconds,
-        name: 'In Queue',
-        type: 'bar'
-    };
+const pool = new Pool({
+    host: '10.7.32.134',
+    user: 'postgres',
+    password: 'automation@123',
+    database: 'postgres',
+    port: 5432
+});
 
-    const trace3 = {
-        x: data.labels,
-        y: data.postQueueSeconds,
-        name: 'Post Queue',
-        type: 'bar'
-    };
+// Endpoint for Queue Status Distribution
+app.get('/api/queueStatusDistribution', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "contactId", 
+                COALESCE(NULLIF("preQueueSeconds", ''), '0')::numeric AS preQueueSeconds, 
+                COALESCE(NULLIF("inQueueSeconds", ''), '0')::numeric AS inQueueSeconds, 
+                COALESCE(NULLIF("postQueueSeconds", ''), '0')::numeric AS postQueueSeconds
+            FROM contact_mapped_data
+        `);
+        const data = result.rows.reduce((acc, row) => {
+            acc.labels.push(row.contactId);
+            acc.preQueueSeconds.push(row.preQueueSeconds);
+            acc.inQueueSeconds.push(row.inQueueSeconds);
+            acc.postQueueSeconds.push(row.postQueueSeconds);
+            return acc;
+        }, { labels: [], preQueueSeconds: [], inQueueSeconds: [], postQueueSeconds: [] });
 
-    const layout = {
-        barmode: 'stack',
-        title: 'Queue Status Distribution',
-        xaxis: { title: 'Contact ID' },
-        yaxis: { title: 'Seconds' }
-    };
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching queue status distribution data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-    const dataPlot = [trace1, trace2, trace3];
+// Endpoint for Average Queue Time Per Campaign
+app.get('/api/averageQueueTimePerCampaign', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "campaignName", 
+                AVG(COALESCE(NULLIF("preQueueSeconds", ''), '0')::numeric) AS avgPreQueue,
+                AVG(COALESCE(NULLIF("inQueueSeconds", ''), '0')::numeric) AS avgInQueue,
+                AVG(COALESCE(NULLIF("postQueueSeconds", ''), '0')::numeric) AS avgPostQueue
+            FROM contact_mapped_data
+            GROUP BY "campaignName"
+        `);
+        const data = result.rows.reduce((acc, row) => {
+            acc.labels.push(row.campaignName);
+            acc.avgPreQueue.push(row.avgPreQueue);
+            acc.avgInQueue.push(row.avgInQueue);
+            acc.avgPostQueue.push(row.avgPostQueue);
+            return acc;
+        }, { labels: [], avgPreQueue: [], avgInQueue: [], avgPostQueue: [] });
 
-    Plotly.newPlot('queueStatusDistribution', dataPlot, layout);
-}
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching average queue time per campaign data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-function renderAverageQueueTimePerCampaign(data) {
-    const trace1 = {
-        x: data.labels,
-        y: data.avgPreQueue,
-        name: 'Avg Pre Queue',
-        type: 'bar'
-    };
+// Endpoint for Top 5 Agents by Call Volume
+app.get('/api/top5AgentsByCallVolume', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "agentId", 
+                COUNT("contactId") AS callVolume
+            FROM contact_mapped_data
+            GROUP BY "agentId"
+            ORDER BY callVolume DESC
+            LIMIT 5
+        `);
+        const data = { labels: [], callVolume: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.agentId);
+            data.callVolume.push(row.callVolume);
+        });
 
-    const trace2 = {
-        x: data.labels,
-        y: data.avgInQueue,
-        name: 'Avg In Queue',
-        type: 'bar'
-    };
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching top 5 agents by call volume data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-    const trace3 = {
-        x: data.labels,
-        y: data.avgPostQueue,
-        name: 'Avg Post Queue',
-        type: 'bar'
-    };
+// Endpoint for Agent Average Handle Time
+app.get('/api/agentAverageHandleTime', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "agentId", 
+                AVG(COALESCE(NULLIF("agentSeconds", ''), '0')::numeric) AS avgHandleTime
+            FROM contact_mapped_data
+            GROUP BY "agentId"
+        `);
+        const data = { labels: [], avgHandleTime: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.agentId);
+            data.avgHandleTime.push(row.avgHandleTime);
+        });
 
-    const layout = {
-        barmode: 'stack',
-        title: 'Average Queue Time Per Campaign',
-        xaxis: { title: 'Campaign' },
-        yaxis: { title: 'Seconds' }
-    };
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching agent average handle time data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-    const dataPlot = [trace1, trace2, trace3];
+// Endpoint for Calls by End Reason
+app.get('/api/callsByEndReason', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "endReason", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "endReason"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.endReason);
+            data.callCount.push(row.callCount);
+        });
 
-    Plotly.newPlot('averageQueueTimePerCampaign', dataPlot, layout);
-}
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching calls by end reason data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-function renderTop5AgentsByCallVolume(data) {
-    const trace = {
-        x: data.callVolume,
-        y: data.labels,
-        type: 'bar',
-        orientation: 'h'
-    };
+// Endpoint for Short Abandon vs Completed Calls
+app.get('/api/shortAbandonVsCompletedCalls', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "isShortAbandon", 
+                COUNT("contactId") AS callCount,
+                "endReason"
+            FROM contact_mapped_data
+            GROUP BY "isShortAbandon", "endReason"
+        `);
+        const data = result.rows.reduce((acc, row) => {
+            if (row.isShortAbandon === 'True') {
+                acc.shortAbandon[row.endReason] = handleUndefined(row.callCount);
+            } else {
+                acc.completed[row.endReason] = handleUndefined(row.callCount);
+            }
+            return acc;
+        }, { shortAbandon: {}, completed: {} });
 
-    const layout = {
-        title: 'Top 5 Agents By Call Volume',
-        xaxis: { title: 'Call Volume' },
-        yaxis: { title: 'Agent ID' }
-    };
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching short abandon vs completed calls data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-    Plotly.newPlot('top5AgentsByCallVolume', [trace], layout);
-}
+// Endpoint for Calls Per Campaign
+app.get('/api/callsPerCampaign', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "campaignName", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "campaignName"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.campaignName);
+            data.callCount.push(row.callCount);
+        });
 
-function renderAgentAverageHandleTime(data) {
-    const trace = {
-        x: data.labels,
-        y: data.avgHandleTime,
-        type: 'bar'
-    };
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching calls per campaign data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-    const layout = {
-        title: 'Agent Average Handle Time',
-        xaxis: { title: 'Agent ID' },
-        yaxis: { title: 'Average Handle Time (Seconds)' }
-    };
+// Endpoint for Transfer Type Breakdown
+app.get('/api/transferTypeBreakdown', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "transferIndicatorName", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "transferIndicatorName"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.transferIndicatorName);
+            data.callCount.push(row.callCount);
+        });
 
-    Plotly.newPlot('agentAverageHandleTime', [trace], layout);
-}
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching transfer type breakdown data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-function renderCallsByEndReason(data) {
-    const trace = {
-        labels: data.labels,
-        values: data.callCount,
-        type: 'pie'
-    };
+// Endpoint for Calls Routed by Skill
+app.get('/api/callsRoutedBySkill', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                "skillName", 
+                COUNT("contactId") AS callCount
+            FROM contact_mapped_data
+            GROUP BY "skillName"
+        `);
+        const data = { labels: [], callCount: [] };
+        result.rows.forEach(row => {
+            data.labels.push(row.skillName);
+            data.callCount.push(row.callCount);
+        });
 
-    const layout = {
-        title: 'Calls By End Reason'
-    };
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching calls routed by skill data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
-    Plotly.newPlot('callsByEndReason', [trace], layout);
-}
-
-function renderShortAbandonVsCompletedCalls(data) {
-    const trace1 = {
-        x: Object.keys(data.shortAbandon),
-        y: Object.values(data.shortAbandon),
-        name: 'Short Abandon',
-        type: 'bar'
-    };
-
-    const trace2 = {
-        x: Object.keys(data.completed),
-        y: Object.values(data.completed),
-        name: 'Completed',
-        type: 'bar'
-    };
-
-    const layout = {
-        barmode: 'stack',
-        title: 'Short Abandon Vs Completed Calls',
-        xaxis: { title: 'End Reason' },
-        yaxis: { title: 'Call Count' }
-    };
-
-    const dataPlot = [trace1, trace2];
-
-    Plotly.newPlot('shortAbandonVsCompletedCalls', dataPlot, layout);
-}
-
-function renderCallsPerCampaign(data) {
-    const trace = {
-        x: data.labels,
-        y: data.callCount,
-        type: 'bar'
-    };
-
-    const layout = {
-        title: 'Calls Per Campaign',
-        xaxis: { title: 'Campaign' },
-        yaxis: { title: 'Call Count' }
-    };
-
-    Plotly.newPlot('callsPerCampaign', [trace], layout);
-}
-
-function renderTransferTypeBreakdown(data) {
-    const trace = {
-        labels: data.labels,
-        values: data.callCount,
-        type: 'pie'
-    };
-
-    const layout = {
-        title: 'Transfer Type Breakdown'
-    };
-
-    Plotly.newPlot('transferTypeBreakdown', [trace], layout);
-}
-
-function renderCallsRoutedBySkill(data) {
-    const trace = {
-        x: data.labels,
-        y: data.callCount,
-        type: 'bar'
-    };
-
-    const layout = {
-        title: 'Calls Routed By Skill',
-        xaxis: { title: 'Skill' },
-        yaxis: { title: 'Call Count' }
-    };
-
-    Plotly.newPlot('callsRoutedBySkill', [trace], layout);
-}
-
-async function renderCharts() {
-    const queueStatusDistributionData = await fetchData('queueStatusDistribution');
-    renderQueueStatusDistribution(queueStatusDistributionData);
-
-    const averageQueueTimePerCampaignData = await fetchData('averageQueueTimePerCampaign');
-    renderAverageQueueTimePerCampaign(averageQueueTimePerCampaignData);
-
-    const top5AgentsByCallVolumeData = await fetchData('top5AgentsByCallVolume');
-    renderTop5AgentsByCallVolume(top5AgentsByCallVolumeData);
-
-    const agentAverageHandleTimeData = await fetchData('agentAverageHandleTime');
-    renderAgentAverageHandleTime(agentAverageHandleTimeData);
-
-    const callsByEndReasonData = await fetchData('callsByEndReason');
-    renderCallsByEndReason(callsByEndReasonData);
-
-    const shortAbandonVsCompletedCallsData = await fetchData('shortAbandonVsCompletedCalls');
-    renderShortAbandonVsCompletedCalls(shortAbandonVsCompletedCallsData);
-
-    const callsPerCampaignData = await fetchData('callsPerCampaign');
-    renderCallsPerCampaign(callsPerCampaignData);
-
-    const transferTypeBreakdownData = await fetchData('transferTypeBreakdown');
-    renderTransferTypeBreakdown(transferTypeBreakdownData);
-
-    const callsRoutedBySkillData = await fetchData('callsRoutedBySkill');
-    renderCallsRoutedBySkill(callsRoutedBySkillData);
-}
-
-window.onload = renderCharts;
+const PORT = 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
