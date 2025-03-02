@@ -1,1 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Center Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body onload="setDefaultDates()">
+    <!-- Header and Navigation-->
+    <header>
+        <div class="logo"><i class="fas fa-headset"></i> Contact Center Dashboard</div>
+        <nav>
+            <ul>
+                <li><a href="index.html"><i class="fas fa-th-large"></i> Dashboard</a></li>
+                <li><a href="ivr_bucket.html"><i class="fas fa-phone-square-alt"></i> IVR Bucket</a></li>
+                <li><a href="tfn_wise.html"><i class="fas fa-list-alt"></i> TFN-Wise</a></li>
+                <li><a href="charts.html"><i class="fas fa-chart-bar"></i> Charts & Graphs</a></li>
+            </ul>
+        </nav>
+        <div class="profile">
+            <img src="profile.jpg" alt="User Profile" class="profile-img">
+            <span class="username">Admin</span>
+            <div class="dropdown">
+                <button class="dropbtn"><i class="fas fa-cog"></i> Settings</button>
+                <div class="dropdown-content">
+                    <a href="#"><i class="fas fa-user"></i> Profile</a>
+                    <a href="#"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                </div>
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="loading-overlay" style="display: none;">
+            <div class="loading-spinner"></div>
+        </div>
+        
+        <!-- Search Bar -->
+        <section class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search data..." onkeyup="searchTable()">
+        </section>
+        
+        <!-- Filter Panel -->
+        <section class="filter-panel">
+            <div class="filter">
+                <div class="filter-item">
+                    <label for="start-date"><i class="fas fa-calendar-alt"></i> Start Date:</label>
+                    <input type="date" id="start-date" name="start-date">
+                </div>
+                <div class="filter-item">
+                    <label for="end-date"><i class="fas fa-calendar-alt"></i> End Date:</label>
+                    <input type="date" id="end-date" name="end-date">
+                </div>
+                <div class="filter-item">
+                    <label for="start-time"><i class="fas fa-clock"></i> Start Time:</label>
+                    <input type="time" id="start-time" name="start-time">
+                </div>
+                <div class="filter-item">
+                    <label for="end-time"><i class="fas fa-clock"></i> End Time:</label>
+                    <input type="time" id="end-time" name="end-time">
+                </div>
+                <div class="filter-item">
+                    <label for="portal"><i class="fas fa-globe"></i> Portal:</label>
+                    <select id="portal" name="portal">
+                        <option value="">Select</option>
+                        <option value="CDA">CheapOair</option>
+                        <option value="OT">OneTravel</option>
+                        <option value="CDA SP">CheapOairSP</option>
+                        <option value="COA CA">CheapOairCA</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label for="tfn-type"><i class="fas fa-phone-alt"></i> TFN Type:</label>
+                    <select id="tfn-type" name="tfn-type">
+                        <option value="">Select</option>
+                        <option value="Mkt">Marketing</option>
+                        <option value="NM">NonMarketing</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <button class="btn" onclick="applyFilter()"><i class="fas fa-filter"></i> Apply Filter</button>
+                </div>
+            </div>
+        </section>
+        <!-- Summary Cards -->
+        <section class="summary-cards">
+            <div class="card" onclick="openDetailPage('ivr_offered')">
+                <h3>IVR Offered</h3>
+                <div class="card-content">
+                    <span class="card-icon ivr-offered-icon"><i class="fas fa-phone-volume"></i></span>
+                    <p id="ivroffered">0</p>
+                    <span class="tooltip">Total calls offered by IVR</span>
+                </div>
+            </div>
+            <div class="card" onclick="openDetailPage('ivr_abandoned')">
+                <h3>IVR Abandoned</h3>
+                <div class="card-content">
+                    <span class="card-icon ivr-abandoned-icon"><i class="fas fa-user-slash"></i></span>
+                    <p id="ivrAbandoned">0</p>
+                    <span class="tooltip">Total calls abandoned in IVR</span>
+                </div>
+            </div>
+            <div class="card" onclick="openDetailPage('queue_abandoned')">
+                <h3>Queue Abandoned</h3>
+                <div class="card-content">
+                    <span class="card-icon queue-abandoned-icon"><i class="fas fa-times-circle"></i></span>
+                    <p id="queueAbandoned">0</p>
+                    <span class="tooltip">Total calls abandoned in queue</span>
+                </div>
+            </div>
+            <div class="card" onclick="openDetailPage('closed_by_ivr')">
+                <h3>Closed by IVR</h3>
+                <div class="card-content">
+                    <span class="card-icon closed-by-ivr-icon"><i class="fas fa-lock"></i></span>
+                    <p id="closedByIvr">0</p>
+                    <span class="tooltip">Total calls closed by IVR</span>
+                </div>
+            </div>
+            <div class="card" onclick="openDetailPage('abandoned_under_10')">
+                <h3>Abandoned in 10 Sec</h3>
+                <div class="card-content">
+                    <span class="card-icon abandoned-under-10-icon"><i class="fas fa-stopwatch"></i></span>
+                    <p id="abandonedUnder10">0</p>
+                    <span class="tooltip">Calls abandoned within 10 seconds</span>
+                </div>
+            </div>
+            <div class="card" onclick="openDetailPage('abandoned_over_10')">
+                <h3>Abandoned in &gt;10 Sec</h3>
+                <div class="card-content">
+                    <span class="card-icon abandoned-over-10-icon"><i class="fas fa-hourglass-end"></i></span>
+                    <p id="abandonedOver10">0</p>
+                    <span class="tooltip">Calls abandoned after 10 seconds</span>
+                </div>
+            </div>
+            <div class="card" onclick="openDetailPage('answered_calls')">
+                <h3>Answered calls</h3>
+                <div class="card-content">
+                    <span class="card-icon answered-calls-icon"><i class="fas fa-phone-alt"></i></span>
+                    <p id="answeredCalls">0</p>
+                    <span class="tooltip">Total answered calls</span>
+                </div>
+            </div>
+        </section>
+        <!-- Chart Section -->
+        <section class="chart-container side-by-side-charts">
+            <div id="summaryChart" class="chart"></div>
+            <div id="pieChart" class="chart"></div>
+        </section>
+    </div>
+    <footer>
+        <div class="footer-content">
+            <p>&copy; 2025 Contact Center Dashboard. All rights reserved.</p>
+            <ul>
+                <li><a href="#"><i class="fas fa-envelope"></i> Contact</a></li>
+                <li><a href="#"><i class="fas fa-shield-alt"></i> Privacy Policy</a></li>
+                <li><a href="#"><i class="fas fa-file-contract"></i> Terms of Service</a></li>
+            </ul>
+        </div>
+    </footer>
+    <script src="script.js"></script>
+    <script>
+        function setDefaultDates() {
+            const today = new Date();
+            const day = String(today.getDate()).padStart(2, '0');
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const year = today.getFullYear();
+            const formattedDate = `${year}-${month}-${day}`;
 
+            document.getElementById('start-date').value = formattedDate;
+            document.getElementById('end-date').value = formattedDate;
+        }
+    </script>
+</body>
+</html>
