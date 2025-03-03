@@ -48,15 +48,19 @@ resource "azurerm_virtual_machine" "vm" {
     admin_password = each.value.admin_password
   }
 
-  os_profile_linux_config {
-    count                 = each.value.os_type == "linux" ? 1 : 0
-    disable_password_authentication = false
+  dynamic "os_profile_linux_config" {
+    for_each = each.value.os_type == "linux" ? [1] : []
+    content {
+      disable_password_authentication = false
+    }
   }
 
-  os_profile_windows_config {
-    count                = each.value.os_type == "windows" ? 1 : 0
-    provision_vm_agent   = true
-    enable_automatic_upgrades = true
+  dynamic "os_profile_windows_config" {
+    for_each = each.value.os_type == "windows" ? [1] : []
+    content {
+      provision_vm_agent        = true
+      enable_automatic_upgrades = true
+    }
   }
 }
 
@@ -69,38 +73,4 @@ locals {
       }
     ]
   ])
-}
-
-
-variable "resource_group_name" {
-  type        = string
-  description = "Name of the resource group"
-}
-
-variable "location" {
-  type        = string
-  description = "Azure region for the VMs"
-}
-
-variable "subnet_id" {
-  type        = string
-  description = "ID of the subnet for VM NICs"
-}
-
-variable "vm_configs" {
-  type = list(object({
-    vm_name        = string
-    os_type        = string
-    vm_size        = string
-    nic_count      = number
-    admin_username = string
-    admin_password = string
-    image_reference = object({
-      publisher = string
-      offer     = string
-      sku       = string
-      version   = string
-    })
-  }))
-  description = "Configuration for VMs to be created"
 }
