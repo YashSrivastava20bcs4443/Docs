@@ -1,24 +1,74 @@
-resource "azurerm_network_security_group" "nsg" {
-  name                = var.nsg_name
+resource "azurerm_public_ip" "pip" {
+  for_each            = { for vm in var.vm_configs : vm.vm_name => vm }
+  name                = "${each.value.vm_name}-pip"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface" "nic" {
+  for_each            = { for idx, nic in local.nic_configs : "${nic.vm_name}-${idx}" => nic }
+  name                = "${each.value.vm_name}-nic-${each.value.nic_index}"
   location            = var.location
   resource_group_name = var.resource_group_name
 
-  security_rule {
-    name                       = "Allow-SSH-RDP"
-    priority                   = 100
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_ranges    = ["22", "3389"]
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
+  ip_configuration {
+    name                          = "ipconfig-${each.value.nic_index}"
+    subnet_id                     = var.subnet_id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = each.value.nic_index == 0 ? azurerm_public_ip.pip[each.value.vm_name].id : null
   }
 }
 
-resource "azurerm_subnet_network_security_group_association" "nsg_assoc" {
-  subnet_id                 = var.subnet_id
-  network_security_group_id = azurerm_network_security_group.nsg.id
+resource "azurerm_virtual_machine" "vm" {
+  for_each              = { for vm in var.vm_configs : vm.vm_name => vm }
+  name                  = each.value.vm_name
+  location              = var.location
+  resource_group_name   = var.resource_group_name
+  vm_size               = each.value.vm_size
+  network_interface_ids = [for nic in azurerm_network_interface.nic : nic.id if split("-", nic.name)[0] == each.value.vm_name]
+
+  storage_image_reference {
+    publisher = each.value.image_reference.publisher
+    offer     = each.value.image_reference.offer
+    sku       = each.value.image_reference.sku
+    version   = each.value.image_reference.version
+  }
+
+  storage_os_disk {
+    name              = "${each.value.vm_name}-osdisk"
+    caching           = "ReadWrite"
+    create_option     = "FromImage"
+    managed_disk_type = "Standard_LRS"
+  }
+
+  os_profile {
+    computer_name  = each.value.vm_name
+    admin_username = each.value.admin_username
+    admin_password = each.value.admin_password
+  }
+
+  os_profile_linux_config {
+    count                 = each.value.os_type == "linux" ? 1 : 0
+    disable_password_authentication = false
+  }
+
+  os_profile_windows_config {
+    count                = each.value.os_type == "windows" ? 1 : 0
+    provision_vm_agent   = true
+    enable_automatic_upgrades = true
+  }
+}
+
+locals {
+  nic_configs = flatten([
+    for vm in var.vm_configs : [
+      for i in range(vm.nic_count) : {
+        vm_name   = vm.vm_name
+        nic_index = i
+      }
+    ]
+  ])
 }
 
 
@@ -29,15 +79,28 @@ variable "resource_group_name" {
 
 variable "location" {
   type        = string
-  description = "Azure region for the NSG"
-}
-
-variable "nsg_name" {
-  type        = string
-  description = "Name of the network security group"
+  description = "Azure region for the VMs"
 }
 
 variable "subnet_id" {
   type        = string
-  description = "ID of the subnet to associate with NSG"
+  description = "ID of the subnet for VM NICs"
+}
+
+variable "vm_configs" {
+  type = list(object({
+    vm_name        = string
+    os_type        = string
+    vm_size        = string
+    nic_count      = number
+    admin_username = string
+    admin_password = string
+    image_reference = object({
+      publisher = string
+      offer     = string
+      sku       = string
+      version   = string
+    })
+  }))
+  description = "Configuration for VMs to be created"
 }
