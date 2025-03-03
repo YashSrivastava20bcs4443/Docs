@@ -1,66 +1,52 @@
-resource_group_name = "rg-vm-demo"
-location            = "eastus"
-vnet_name           = "vnet-demo"
-vnet_address_space  = ["10.0.0.0/16"]
-subnet_name         = "subnet-demo"
-subnet_prefix       = ["10.0.1.0/24"]
-nsg_name            = "nsg-demo"
+variable "resource_group_name" {
+  type        = string
+  description = "Name of the resource group"
+}
 
-vm_configs = [
-  {
-    vm_name        = "ubuntu18-vm"
-    os_type        = "linux"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 1
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "Canonical"
-      offer     = "UbuntuServer"
-      sku       = "18.04-LTS"
-      version   = "latest"
-    }
-  },
-  {
-    vm_name        = "ubuntu20-vm"
-    os_type        = "linux"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 1
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "Canonical"
-      offer     = "0001-com-ubuntu-server-focal"
-      sku       = "20_04-lts"
-      version   = "latest"
-    }
-  },
-  {
-    vm_name        = "win2019-vm"
-    os_type        = "windows"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 1
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "MicrosoftWindowsServer"
-      offer     = "WindowsServer"
-      sku       = "2019-Datacenter"
-      version   = "latest"
-    }
-  },
-  {
-    vm_name        = "win2022-2nic"
-    os_type        = "windows"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 2
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "MicrosoftWindowsServer"
-      offer     = "WindowsServer"
-      sku       = "2022-Datacenter"
-      version   = "latest"
-    }
-  }
-]
+variable "location" {
+  type        = string
+  description = "Azure region for the resources"
+}
+
+variable "vnet_name" {
+  type        = string
+  description = "Name of the virtual network"
+}
+
+variable "vnet_address_space" {
+  type        = list(string)
+  description = "Address space for the virtual network"
+}
+
+variable "subnet_name" {
+  type        = string
+  description = "Name of the subnet"
+}
+
+variable "subnet_prefix" {
+  type        = list(string)
+  description = "Address prefix for the subnet"
+}
+
+variable "nsg_name" {
+  type        = string
+  description = "Name of the network security group"
+}
+
+variable "vm_configs" {
+  type = list(object({
+    vm_name        = string
+    os_type        = string
+    vm_size        = string
+    nic_count      = number
+    admin_username = string
+    admin_password = string
+    image_reference = object({
+      publisher = string
+      offer     = string
+      sku       = string
+      version   = string
+    })
+  }))
+  description = "Configuration for VMs to be created"
+}
