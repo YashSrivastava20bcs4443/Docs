@@ -1,17 +1,45 @@
-terraform-azure-vm/
-├── main.tf
-├── variables.tf
-├── terraform.tfvars
-├── modules/
-│   ├── resource_group/
-│   │   ├── main.tf
-│   │   └── variables.tf
-│   ├── vnet/
-│   │   ├── main.tf
-│   │   └── variables.tf
-│   ├── nsg/
-│   │   ├── main.tf
-│   │   └── variables.tf
-│   └── vm/
-│       ├── main.tf
-│       └── variables.tf
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "rg-tfstate"
+    storage_account_name = "tfstateaccount"
+    container_name       = "tfstate"
+    key                  = "terraform.tfstate"
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+module "resource_group" {
+  source              = "./modules/resource_group"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+}
+
+module "vnet" {
+  source              = "./modules/vnet"
+  resource_group_name = module.resource_group.resource_group_name
+  location            = module.resource_group.location
+  vnet_name           = var.vnet_name
+  vnet_address_space  = var.vnet_address_space
+  subnet_name         = var.subnet_name
+  subnet_prefix       = var.subnet_prefix
+}
+
+module "nsg" {
+  source              = "./modules/nsg"
+  resource_group_name = module.resource_group.resource_group_name
+  location            = module.resource_group.location
+  nsg_name            = var.nsg_name
+  subnet_id           = module.vnet.subnet_id
+}
+
+module "vm" {
+  source              = "./modules/vm"
+  resource_group_name = module.resource_group.resource_group_name
+  location            = module.resource_group.location
+  subnet_id           = module.vnet.subnet_id
+  vm_configs          = var.vm_configs
+  depends_on          = [module.nsg]
+}
