@@ -1,66 +1,12 @@
-resource_group_name = "rg-vm-demo"
-location            = "eastus"
-vnet_name           = "vnet-demo"
-vnet_address_space  = ["10.0.0.0/16"]
-subnet_name         = "subnet-demo"
-subnet_prefix       = ["10.0.1.0/24"]
-nsg_name            = "nsg-demo"
+resource "azurerm_resource_group" "rg" {
+  name     = var.resource_group_name
+  location = var.location
+}
 
-vm_configs = [
-  {
-    vm_name        = "ubuntu18-vm"
-    os_type        = "linux"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 1
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "Canonical"
-      offer     = "UbuntuServer"
-      sku       = "18.04-LTS"
-      version   = "latest"
-    }
-  },
-  {
-    vm_name        = "ubuntu20-vm"
-    os_type        = "linux"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 1
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "Canonical"
-      offer     = "0001-com-ubuntu-server-focal"
-      sku       = "20_04-lts"
-      version   = "latest"
-    }
-  },
-  {
-    vm_name        = "win2019-vm"
-    os_type        = "windows"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 1
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "MicrosoftWindowsServer"
-      offer     = "WindowsServer"
-      sku       = "2019-Datacenter"
-      version   = "latest"
-    }
-  },
-  {
-    vm_name        = "win2022-2nic"
-    os_type        = "windows"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 2
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "MicrosoftWindowsServer"
-      offer     = "WindowsServer"
-      sku       = "2022-Datacenter"
-      version   = "latest"
-    }
-  }
-]
+output "resource_group_name" {
+  value = azurerm_resource_group.rg.name
+}
+
+output "location" {
+  value = azurerm_resource_group.rg.location
+}
