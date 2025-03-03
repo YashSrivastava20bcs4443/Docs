@@ -1,76 +1,66 @@
-resource "azurerm_public_ip" "pip" {
-  for_each            = { for vm in var.vm_configs : vm.vm_name => vm }
-  name                = "${each.value.vm_name}-pip"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  allocation_method   = "Static"
-}
+resource_group_name = "rg-vm-demo"
+location            = "eastus"
+vnet_name           = "vnet-demo"
+vnet_address_space  = ["10.0.0.0/16"]
+subnet_name         = "subnet-demo"
+subnet_prefix       = ["10.0.1.0/24"]
+nsg_name            = "nsg-demo"
 
-resource "azurerm_network_interface" "nic" {
-  for_each            = { for idx, nic in local.nic_configs : "${nic.vm_name}-${idx}" => nic }
-  name                = "${each.value.vm_name}-nic-${each.value.nic_index}"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-
-  ip_configuration {
-    name                          = "ipconfig-${each.value.nic_index}"
-    subnet_id                     = var.subnet_id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = each.value.nic_index == 0 ? azurerm_public_ip.pip[each.value.vm_name].id : null
-  }
-}
-
-resource "azurerm_virtual_machine" "vm" {
-  for_each              = { for vm in var.vm_configs : vm.vm_name => vm }
-  name                  = each.value.vm_name
-  location              = var.location
-  resource_group_name   = var.resource_group_name
-  vm_size               = each.value.vm_size
-  network_interface_ids = [for nic in azurerm_network_interface.nic : nic.id if split("-", nic.name)[0] == each.value.vm_name]
-
-  storage_image_reference {
-    publisher = each.value.image_reference.publisher
-    offer     = each.value.image_reference.offer
-    sku       = each.value.image_reference.sku
-    version   = each.value.image_reference.version
-  }
-
-  storage_os_disk {
-    name              = "${each.value.vm_name}-osdisk"
-    caching           = "ReadWrite"
-    create_option     = "FromImage"
-    managed_disk_type = "Standard_LRS"
-  }
-
-  os_profile {
-    computer_name  = each.value.vm_name
-    admin_username = each.value.admin_username
-    admin_password = each.value.admin_password
-  }
-
-  dynamic "os_profile_linux_config" {
-    for_each = each.value.os_type == "linux" ? [1] : []
-    content {
-      disable_password_authentication = false
+vm_configs = [
+  {
+    vm_name        = "ubuntu18-vm"
+    os_type        = "linux"
+    vm_size        = "Standard_D2s_v3"
+    nic_count      = 1
+    admin_username = "adminuser"
+    admin_password = "P@ssw0rd1234!"
+    image_reference = {
+      publisher = "Canonical"
+      offer     = "UbuntuServer"
+      sku       = "18.04-LTS"
+      version   = "latest"
+    }
+  },
+  {
+    vm_name        = "ubuntu20-vm"
+    os_type        = "linux"
+    vm_size        = "Standard_D2s_v3"
+    nic_count      = 1
+    admin_username = "adminuser"
+    admin_password = "P@ssw0rd1234!"
+    image_reference = {
+      publisher = "Canonical"
+      offer     = "0001-com-ubuntu-server-focal"
+      sku       = "20_04-lts"
+      version   = "latest"
+    }
+  },
+  {
+    vm_name        = "win2019-vm"
+    os_type        = "windows"
+    vm_size        = "Standard_D2s_v3"
+    nic_count      = 1
+    admin_username = "adminuser"
+    admin_password = "P@ssw0rd1234!"
+    image_reference = {
+      publisher = "MicrosoftWindowsServer"
+      offer     = "WindowsServer"
+      sku       = "2019-Datacenter"
+      version   = "latest"
+    }
+  },
+  {
+    vm_name        = "win2022-2nic"
+    os_type        = "windows"
+    vm_size        = "Standard_D2s_v3"
+    nic_count      = 2
+    admin_username = "adminuser"
+    admin_password = "P@ssw0rd1234!"
+    image_reference = {
+      publisher = "MicrosoftWindowsServer"
+      offer     = "WindowsServer"
+      sku       = "2022-Datacenter"
+      version   = "latest"
     }
   }
-
-  dynamic "os_profile_windows_config" {
-    for_each = each.value.os_type == "windows" ? [1] : []
-    content {
-      provision_vm_agent        = true
-      enable_automatic_upgrades = true
-    }
-  }
-}
-
-locals {
-  nic_configs = flatten([
-    for vm in var.vm_configs : [
-      for i in range(vm.nic_count) : {
-        vm_name   = vm.vm_name
-        nic_index = i
-      }
-    ]
-  ])
-}
+]
