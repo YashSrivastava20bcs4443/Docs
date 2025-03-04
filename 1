@@ -1,90 +1,57 @@
-parameters:
-  - name: action
-    displayName: "Choose Action"
-    type: string
-    default: "Deploy"
-    values:
-      - Deploy
-      - Destroy
+Here’s a more professional and polished version of your update:
 
-  - name: os_type
-    displayName: "Choose OS Type"
-    type: string
-    default: "Linux"
-    values:
-      - Linux
-      - Windows
 
-  - name: vm_size
-    displayName: "Choose VM Size"
-    type: string
-    default: "Standard_D2s_v3"
-    values:
-      - Standard_B1s
-      - Standard_B2s
-      - Standard_D2s_v3
-      - Standard_D4s_v3
-      - Standard_E2s_v3
-      - Standard_E4s_v3
+---
 
-  - name: nic_count
-    displayName: "Number of NICs"
-    type: number
-    default: 1
-    values:
-      - 1
-      - 2
+Work Summary – Last Week (Tuesday to Tuesday)
 
-trigger: none
+1. Backend Development for TFN Website
 
-pool:
-  name: 'Self-Hosted'  # Your self-hosted agent pool name
+Developed a backend script to fetch chart data from the database.
 
-stages:
-  - stage: Deploy
-    displayName: "Deploy Resources"
-    condition: eq('${{ parameters.action }}', 'Deploy')
-    jobs:
-      - job: DeployTerraform
-        displayName: "Terraform Deployment"
-        steps:
-          - script: |
-              terraform --version
-            displayName: 'Check Terraform Version'
+Created a function to handle Null and NaN values in chart data retrieved from the database.
 
-          - script: |
-              terraform init
-            displayName: 'Terraform Init'
+Updated the filter panel logic to ensure the start and end dates default to the appropriate day.
 
-          - script: |
-              terraform plan \
-                -var="os_type=${{ parameters.os_type }}" \
-                -var="vm_size=${{ parameters.vm_size }}" \
-                -var="nic_count=${{ parameters.nic_count }}"
-            displayName: 'Terraform Plan'
 
-          - script: |
-              terraform apply -auto-approve \
-                -var="os_type=${{ parameters.os_type }}" \
-                -var="vm_size=${{ parameters.vm_size }}" \
-                -var="nic_count=${{ parameters.nic_count }}"
-            displayName: 'Terraform Apply'
+2. Frontend Development
 
-  - stage: Destroy
-    displayName: "Destroy Resources"
-    condition: eq('${{ parameters.action }}', 'Destroy')
-    jobs:
-      - job: DestroyTerraform
-        displayName: "Terraform Destroy"
-        steps:
-          - script: |
-              terraform --version
-            displayName: 'Check Terraform Version'
+Created charts.html to visualize charts and graphs.
 
-          - script: |
-              terraform init
-            displayName: 'Terraform Init'
+Enhanced the main page design and color scheme to improve visual appeal.
 
-          - script: |
-              terraform destroy -auto-approve
-            displayName: 'Terraform Destroy'
+Added a 3D effect to buttons on the data table for each page and included icons on summary card buttons.
+
+Designed and implemented a frontend layout for the charts and graphs page to enhance visualization.
+
+Updated the main page charts, reducing their size and aligning them side by side within a single container.
+
+
+3. Data Pipeline Enhancement
+
+Created and scheduled a data ingestion pipeline to insert data into the database on an hourly basis.
+
+
+
+---
+
+Planned Work – Upcoming Week (Tuesday to Tuesday)
+
+1. Will develop a Terraform script to create VNet, Subnet, NSG, and VM, allowing users to select OS type and NIC count before execution.
+
+
+2. Will work on the pipeline for system engineering requirements to execute the Terraform script for VM creation on Azure.
+
+
+3. Will enhance the database functionality of the TFN Website as per team requirements.
+
+
+4. Will work on Disaster Recovery (DR) Phase 3 requirements.
+
+
+
+
+---
+
+This version improves clarity, readability, and professionalism. Let me know if you need any changes!
+
