@@ -1,66 +1,62 @@
-resource_group_name = "rg-vm-demo"
-location            = "eastus"
-vnet_name           = "vnet-demo"
-vnet_address_space  = ["10.0.0.0/16"]
-subnet_name         = "subnet-demo"
-subnet_prefix       = ["10.0.1.0/24"]
-nsg_name            = "nsg-demo"
+parameters:
+  - name: os_type
+    displayName: "Choose OS Type"
+    type: string
+    default: "Linux"
+    values:
+      - Linux
+      - Windows
 
-vm_configs = [
-  {
-    vm_name        = "ubuntu18-vm"
-    os_type        = "linux"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 1
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "Canonical"
-      offer     = "UbuntuServer"
-      sku       = "18.04-LTS"
-      version   = "latest"
-    }
-  },
-  {
-    vm_name        = "ubuntu20-vm"
-    os_type        = "linux"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 1
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "Canonical"
-      offer     = "0001-com-ubuntu-server-focal"
-      sku       = "20_04-lts"
-      version   = "latest"
-    }
-  },
-  {
-    vm_name        = "win2019-vm"
-    os_type        = "windows"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 1
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "MicrosoftWindowsServer"
-      offer     = "WindowsServer"
-      sku       = "2019-Datacenter"
-      version   = "latest"
-    }
-  },
-  {
-    vm_name        = "win2022-2nic"
-    os_type        = "windows"
-    vm_size        = "Standard_D2s_v3"
-    nic_count      = 2
-    admin_username = "adminuser"
-    admin_password = "P@ssw0rd1234!"
-    image_reference = {
-      publisher = "MicrosoftWindowsServer"
-      offer     = "WindowsServer"
-      sku       = "2022-Datacenter"
-      version   = "latest"
-    }
-  }
-]
+  - name: vm_size
+    displayName: "Choose VM Size"
+    type: string
+    default: "Standard_D2s_v3"
+    values:
+      - Standard_B1s
+      - Standard_B2s
+      - Standard_D2s_v3
+      - Standard_D4s_v3
+      - Standard_E2s_v3
+      - Standard_E4s_v3
+
+  - name: nic_count
+    displayName: "Number of NICs"
+    type: number
+    default: 1
+    values:
+      - 1
+      - 2
+
+trigger: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: TerraformInstaller@0
+    displayName: 'Install Terraform'
+    inputs:
+      terraformVersion: '1.3.5'
+
+  - script: |
+      terraform init
+    displayName: 'Terraform Init'
+
+  - script: |
+      terraform plan \
+        -var="os_type=${{ parameters.os_type }}" \
+        -var="vm_size=${{ parameters.vm_size }}" \
+        -var="nic_count=${{ parameters.nic_count }}"
+    displayName: 'Terraform Plan'
+
+  - script: |
+      terraform apply -auto-approve \
+        -var="os_type=${{ parameters.os_type }}" \
+        -var="vm_size=${{ parameters.vm_size }}" \
+        -var="nic_count=${{ parameters.nic_count }}"
+    displayName: 'Terraform Apply'
+
+  - script: |
+      terraform destroy -auto-approve
+    displayName: 'Terraform Destroy'
+    condition: always()
