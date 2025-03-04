@@ -1,51 +1,90 @@
-resource "azurerm_network_interface" "vm_nic" {
-  count               = var.nic_count
-  name                = "${var.vm_name}-nic-${count.index}"
-  location            = var.location
-  resource_group_name = var.resource_group_name
+parameters:
+  - name: action
+    displayName: "Choose Action"
+    type: string
+    default: "Deploy"
+    values:
+      - Deploy
+      - Destroy
 
-  ip_configuration {
-    name                          = "internal"
-    subnet_id                     = var.subnet_id
-    private_ip_address_allocation = "Dynamic"
-  }
-}
+  - name: os_type
+    displayName: "Choose OS Type"
+    type: string
+    default: "Linux"
+    values:
+      - Linux
+      - Windows
 
-resource "azurerm_virtual_machine" "vm" {
-  name                  = var.vm_name
-  location              = var.location
-  resource_group_name   = var.resource_group_name
-  network_interface_ids = azurerm_network_interface.vm_nic[*].id
-  vm_size               = var.vm_size
+  - name: vm_size
+    displayName: "Choose VM Size"
+    type: string
+    default: "Standard_D2s_v3"
+    values:
+      - Standard_B1s
+      - Standard_B2s
+      - Standard_D2s_v3
+      - Standard_D4s_v3
+      - Standard_E2s_v3
+      - Standard_E4s_v3
 
-  storage_os_disk {
-    name              = "${var.vm_name}-osdisk"
-    caching           = "ReadWrite"
-    create_option     = "FromImage"
-    managed_disk_type = "Standard_LRS"
-  }
+  - name: nic_count
+    displayName: "Number of NICs"
+    type: number
+    default: 1
+    values:
+      - 1
+      - 2
 
-  os_profile {
-    computer_name  = var.vm_name
-    admin_username = var.admin_username
-    admin_password = var.admin_password
-  }
+trigger: none
 
-  os_profile_linux_config {
-    disable_password_authentication = false
-  }
+pool:
+  name: 'Self-Hosted'  # Your self-hosted agent pool name
 
-  dynamic "os_profile_windows_config" {
-    for_each = var.os_type == "Windows" ? [1] : []
-    content {
-      enable_automatic_upgrades = true
-    }
-  }
+stages:
+  - stage: Deploy
+    displayName: "Deploy Resources"
+    condition: eq('${{ parameters.action }}', 'Deploy')
+    jobs:
+      - job: DeployTerraform
+        displayName: "Terraform Deployment"
+        steps:
+          - script: |
+              terraform --version
+            displayName: 'Check Terraform Version'
 
-  source_image_reference {
-    publisher = var.os_type == "Windows" ? "MicrosoftWindowsServer" : "Canonical"
-    offer     = var.os_type == "Windows" ? "WindowsServer" : "UbuntuServer"
-    sku       = var.os_type == "Windows" ? "2019-Datacenter" : "18.04-LTS"
-    version   = "latest"
-  }
-}
+          - script: |
+              terraform init
+            displayName: 'Terraform Init'
+
+          - script: |
+              terraform plan \
+                -var="os_type=${{ parameters.os_type }}" \
+                -var="vm_size=${{ parameters.vm_size }}" \
+                -var="nic_count=${{ parameters.nic_count }}"
+            displayName: 'Terraform Plan'
+
+          - script: |
+              terraform apply -auto-approve \
+                -var="os_type=${{ parameters.os_type }}" \
+                -var="vm_size=${{ parameters.vm_size }}" \
+                -var="nic_count=${{ parameters.nic_count }}"
+            displayName: 'Terraform Apply'
+
+  - stage: Destroy
+    displayName: "Destroy Resources"
+    condition: eq('${{ parameters.action }}', 'Destroy')
+    jobs:
+      - job: DestroyTerraform
+        displayName: "Terraform Destroy"
+        steps:
+          - script: |
+              terraform --version
+            displayName: 'Check Terraform Version'
+
+          - script: |
+              terraform init
+            displayName: 'Terraform Init'
+
+          - script: |
+              terraform destroy -auto-approve
+            displayName: 'Terraform Destroy'
