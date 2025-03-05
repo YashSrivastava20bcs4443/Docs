@@ -1,24 +1,30 @@
 Slide 1: Introduction
-"Today, I'll be talking about how we automated network device backups to make them more reliable and efficient. The goal was to eliminate manual work, reduce errors, and ensure that all backups are securely stored at scheduled intervals. We achieved this using Infrastructure as Code (IaC) tools, which help us automate and streamline the entire backup process."
+*"Today, I'll be talking about how we automated network device backups to make them more reliable and efficient. The goal was to eliminate manual work, reduce errors, and ensure that all backups are securely stored at scheduled intervals.
+
+This solution is already in use in production, where backups are taken daily at 6 PM IST. Additionally, for demonstration purposes, we have a dedicated demo directory on the SFTP server to showcase backup outputs. We achieved all of this using Infrastructure as Code (IaC) tools, which help us automate and streamline the backup process."*
 
 Slide 2: Architecture Overview
-*"Here's a quick look at the architecture behind our automation. The process starts with the NetOps user or service account, which initiates the backup or configuration deployment. The heart of our setup is the Ansible playbook, responsible for automating the entire backup process.
+*"Here's a quick look at the architecture behind our automation.
 
-This is all managed through an Azure DevOps (ADO) pipeline, which ensures smooth execution and continuous integration. The pipeline triggers the Ansible playbook, which then applies configurations to the targeted devices.
-
-To keep everything secure, backups are stored in an SFTP server, and all sensitive credentials are protected using Azure Key Vault."*
-
+The process starts with the NetOps user or service account, which initiates the backup or configuration deployment.
+The Ansible playbook is at the core of the automation, handling all backup tasks.
+This is all managed through an Azure DevOps (ADO) pipeline, ensuring continuous execution and deployment.
+The pipeline runs daily at 6 PM IST, automatically triggering the backup process.
+The backup files are securely stored in an SFTP server, while all sensitive credentials are protected using Azure Key Vault.
+For demo purposes, we have a separate demo directory on the SFTP server to show backup results without affecting production data."*
 Slide 3: Pipeline Flow
-*"Now, let’s talk about how the pipeline works.
+*"Now, let’s talk about how the pipeline works:
 
-The pipeline gets triggered to start the backup process.
+The pipeline gets triggered as per the daily schedule at 6 PM IST.
 Ansible fetches device configurations from the network devices.
 These configurations are then securely stored on the SFTP server.
-Finally, we have Teams notifications set up to inform the team about the backup status, ensuring visibility and quick action in case of any issues."*
-Slide 4: Restoration Process
-*"If we ever need to restore a configuration, the process is quick and efficient.
+Teams notifications are sent to keep the team updated on backup status.
+For demo presentations, we use the demo directory on the SFTP server, allowing us to verify backups without impacting production data."*
 
-We first retrieve the latest backup file from the shared SFTP folder.
+Slide 4: Restoration Process
+*"If we ever need to restore a configuration, the process is simple and efficient:
+
+We first retrieve the latest backup file from the SFTP server.
 Then, we apply the configuration to the network devices to restore their settings.
-Lastly, we validate the system to ensure everything is working as expected.
-This ensures that we can quickly recover from any misconfiguration or failure, minimizing downtime and disruptions."*
+Finally, we validate the system to ensure everything is functioning properly.
+With this setup, we ensure quick recovery from any misconfigurations or failures, minimizing downtime in production."*
