@@ -1,4 +1,10 @@
-root@k3s-vm:/home/adminuser# kubectl get svc
-NAME         TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
-kubernetes   ClusterIP      10.43.0.1       <none>        443/TCP        128m
-nginx        LoadBalancer   10.43.104.238   10.0.2.101    80:32477/TCP   97m
+root@bgp-router-vm:/home/adminuser# netstat -r
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags   MSS Window  irtt Iface
+default         _gateway        0.0.0.0         UG        0 0          0 eth0
+10.0.1.0        0.0.0.0         255.255.255.0   U         0 0          0 eth0
+10.0.1.0        0.0.0.0         255.255.255.0   U         0 0          0 eth1
+10.0.2.100      -               255.255.255.255 !H        - -          - -
+10.0.2.101      -               255.255.255.255 !H        - -          - -
+168.63.129.16   _gateway        255.255.255.255 UGH       0 0          0 eth0
+169.254.169.254 _gateway        255.255.255.255 UGH       0 0          0 eth0
