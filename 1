@@ -1,1 +1,13 @@
+ VNet (vnet-demo)
+ Two Subnets
+1. Subnet 1 (subnet-public) – Public & Private Networking
 
+VM1 (BIRD & BGP Router)
+NIC 1 (Primary, Public IP) → External Traffic
+NIC 2 (Secondary, Private IP) → Internal BGP Routing
+ASN: 65516
+2. Subnet 2 (subnet-private) – Private Network Only
+
+VM2 (K3s Node)
+1 NIC (Private IP Only)
+ASN: 65515
