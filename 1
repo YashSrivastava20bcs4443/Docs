@@ -1,13 +1,27 @@
- VNet (vnet-demo)
- Two Subnets
-1. Subnet 1 (subnet-public) – Public & Private Networking
+#bird.conf
+router id 10.0.1.5;  # VM1 Private IP
 
-VM1 (BIRD & BGP Router)
-NIC 1 (Primary, Public IP) → External Traffic
-NIC 2 (Secondary, Private IP) → Internal BGP Routing
-ASN: 65516
-2. Subnet 2 (subnet-private) – Private Network Only
+protocol bgp {
+    local as 65516;
+    neighbor 10.0.2.4 as 65515;  # VM2 Private IP
+    hold time 180;
+}
 
-VM2 (K3s Node)
-1 NIC (Private IP Only)
-ASN: 65515
+
+#MetalLB Config
+kubectl create -f - <<EOF
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: external-ip-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 10.0.2.100-10.0.2.120 
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: l2-advertisement
+  namespace: metallb-system
+EOF
