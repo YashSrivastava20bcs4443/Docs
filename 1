@@ -66,3 +66,38 @@ metallb-system   metallb-webhook-servapply -f bgp-advertisement.yaml        443/
 {"level":"info","ts":"2025-03-07T05:07:43Z","logger":"controller-runtime.certwatcher","msg":"Updated current TLS certificate","stacktrace":"sigs.k8s.io/controller-runtime/pkg/certwatcher.(*CertWatcher).ReadCertificate\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/certwatcher/certwatcher.go:211\nsigs.k8s.io/controller-runtime/pkg/certwatcher.New\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/certwatcher/certwatcher.go:71\nsigs.k8s.io/controller-runtime/pkg/webhook.(*DefaultServer).Start\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/webhook/server.go:207\nsigs.k8s.io/controller-runtime/pkg/manager.(*runnableGroup).reconcile.func1\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/manager/runnable_group.go:226"}
 {"level":"info","ts":"2025-03-07T05:07:43Z","logger":"controller-runtime.webhook","msg":"Serving webhook server","host":"","port":9443,"stacktrace":"sigs.k8s.io/controller-runtime/pkg/webhook.(*DefaultServer).Start\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/webhook/server.go:242\nsigs.k8s.io/controller-runtime/pkg/manager.(*runnableGroup).reconcile.func1\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/manager/runnable_group.go:226"}
 {"level":"info","ts":"2025-03-07T05:07:43Z","logger":"controller-runtime.certwatcher","msg":"Starting certificate poll+watcher","interval":10,"stacktrace":"sigs.k8s.io/controller-runtime/pkg/certwatcher.(*CertWatcher).Start\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/certwatcher/certwatcher.go:133\nsigs.k8s.io/controller-runtime/pkg/webhook.(*DefaultServer).Start.func1\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/webhook/server.go:214"}
+
+
+
+root@bgp-router-vm:/home/adminuser# cat /etc/bird/bird.conf
+# Set a unique router ID
+router id 10.0.1.5;  # VM1 Private IP
+
+# Device protocol (needed for BGP to work)
+protocol device {
+}
+
+# Kernel protocol (syncs routes with OS)
+protocol kernel {
+    metric 0;      
+    import none;
+    export all;  # Ensure BIRD updates the kernel routing table
+}
+
+# BGP Configuration
+protocol bgp bgp1 {
+    local as 65516;
+    neighbor 10.0.2.4 as 65515;  # VM2 Private IP
+    multihop 2;   # Ensures BGP works across subnets if needed
+    hold time 180;
+    import all;   # Accept all routes from MetalLB
+    export all;   # Advertise all routes to MetalLB
+}
+
+#protocol static {
+#    route 10.0.2.0/24 via "eth0";
+#}
+
+protocol direct {
+  interface "lo";
+}
