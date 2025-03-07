@@ -1,10 +1,57 @@
-root@bgp-router-vm:/home/adminuser# netstat -r
-Kernel IP routing table
-Destination     Gateway         Genmask         Flags   MSS Window  irtt Iface
-default         _gateway        0.0.0.0         UG        0 0          0 eth0
-10.0.1.0        0.0.0.0         255.255.255.0   U         0 0          0 eth0
-10.0.1.0        0.0.0.0         255.255.255.0   U         0 0          0 eth1
-10.0.2.100      -               255.255.255.255 !H        - -          - -
-10.0.2.101      -               255.255.255.255 !H        - -          - -
-168.63.129.16   _gateway        255.255.255.255 UGH       0 0          0 eth0
-169.254.169.254 _gateway        255.255.255.255 UGH       0 0          0 eth0
+root@bgp-router-vm:/home/adminuser# birdc show protocols all bgp1
+BIRD 1.6.3 ready.
+name     proto    table    state  since       info
+bgp1     BGP      master   up     05:03:41    Established   
+  Preference:     100
+  Input filter:   ACCEPT
+  Output filter:  ACCEPT
+  Routes:         2 imported, 0 exported, 2 preferred
+  Route change stats:     received   rejected   filtered    ignored   accepted
+    Import updates:              2          0          0          0          2
+    Import withdraws:            0          0        ---          0          0
+    Export updates:              4          4          0        ---          0
+    Export withdraws:            0        ---        ---        ---          0
+  BGP state:          Established
+    Neighbor address: 10.0.2.4
+    Neighbor AS:      65515
+    Neighbor ID:      10.0.2.4
+    Neighbor caps:    AS4
+    Session:          external multihop AS4
+    Source address:   10.0.1.5
+    Hold timer:       51/90
+    Keepalive timer:  21/30
+
+root@bgp-router-vm:/home/adminuser# birdc show route export bgp1
+BIRD 1.6.3 ready.
+
+root@k3s-vm:/home/adminuser# kubectl get svc -A
+NAME                IPADDRESSPOOLS         IPADDRESSPOOL SELECTORS   PEERS
+bgp-advertisement   ["external-ip-pool"]                             ["my-peer"]
+root@k3s-vm:/home/adminuser# kubectl get services -A | grep LoadBalancer
+default          nginx                     LoadBalancer   10.43.104.238   10.0.2.101    80:32477/TCP                 16h
+default          test-service              LoadBalancer   10.43.224.73    <pending>     80:32711/TCP                 14h
+kube-system      traefik                   LoadBalancer   10.43.142.243   10.0.2.100    80:32345/TCP,443:30404/TCP   17h
+grep "error"/home/adminuser# kubectl logs -n metallb-system daemonset/speaker | g
+grep "error"/home/adminuser# kubectl logs -n metallb-system daemonset/speaker | g
+root@k3s-vm:/home/adminuser# kubectl get svc -A
+NAMESPACE        NAME                      TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+default          kubernetes                ClusterIP      10.43.0.1       <none>        443/TCP                      17h
+default          nginx                     LoadBalancer   10.43.104.238   10.0.2.101    80:32477/TCP                 16h
+default          test-service              LoadBalancer   10.43.224.73    <pending>     80:32711/TCP                 14h
+kube-system      kube-dns                  ClusterIP      10.43.0.10      <none>        53/UDP,53/TCP,9153/TCP       17h
+kube-system      metrics-server            ClusterIP      10.43.250.211   <none>        443/TCP                      17h
+kube-system      traefik                   LoadBalancer   10.43.142.243   10.0.2.100    80:32345/TCP,443:30404/TCP   17h
+metallb-system   metallb-webhook-service   ClusterIP      10.43.56.5      <none>        443/TCP                      17h
+
+
+
+io/controller-runtime@v0.20.1/pkg/manager/runnable_group.go:226"}
+{"level":"info","ts":"2025-03-07T05:07:43Z","logger":"controller-runtime.webhook","msg":"Serving webhook server","host":"","port":9443,"stacktrace":"sigs.k8s.io/controller-runtime/pkg/webhook.(*DefaultServer).Start\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/webhook/server.go:242\nsigs.k8s.io/controller-runtime/pkg/manager.(*runnableGroup).reconcile.func1\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/manager/runnable_group.go:226"}
+{"caller":"service_controller.go:115","controller":"ServiceReconciler","end reconcile":"metallb-system/metallb-webhook-service","level":"info","ts":"2025-03-07T05:07:42Z"}
+{"caller":"service_controller.go:64","controller":"ServiceReconciler","level":"info","start reconcile":"metallb-system/metallb-webhook-service","ts":"2025-03-07T05:07:51Z"}
+{"caller":"service_controller.go:115","controller":"ServiceReconciler","end reconcile":"metallb-system/metallb-webhook-service","level":"info","ts":"2025-03-07T05:07:51Z"}
+{"caller":"service_controller.go:64","controller":"ServiceReconciler","level":"info","start reconcile":"metallb-system/metallb-webhook-service","ts":"2025-03-07T05:07:51Z"}
+{"caller":"service_controller.go:115","controller":"ServiceReconciler","end reconcile":"metallb-system/metallb-webhook-service","level":"info","ts":"2025-03-07T05:07:51Z"}
+{"caller":"service_controller.go:64","controller":"ServiceReconciler","level":"info","start reconcile":"metallb-system/metallb-webhook-service","ts":"2025-03-07T05:07:51Z"}
+{"caller":"service_controller.go:115","controller":"ServiceReconciler","end reconcile":"metallb-system/metallb-webhook-service","level":"info","ts":"2025-03-07T05:07:51Z"}
+{"level":"info","ts":"2025-03-07T05:07:43Z","logger":"controller-runtime.certwatcher","msg":"Starting certificate poll+watcher","interval":10,"stacktrace":"sigs.k8s.io/controller-runtime/pkg/certwatcher.(*CertWatcher).Start\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/certwatcher/certwatcher.go:133\nsigs.k8s.io/controller-runtime/pkg/webhook.(*DefaultServer).Start.func1\n\t/go/pkg/mod/sigs.k8s.io/controller-runtime@v0.20.1/pkg/webhook/server.go:214"}
