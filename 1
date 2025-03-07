@@ -101,3 +101,15 @@ protocol bgp bgp1 {
 protocol direct {
   interface "lo";
 }
+
+
+
+root@k3s-vm:/home/adminuser# ip route show
+default via 10.0.2.1 dev eth0 proto dhcp src 10.0.2.4 metric 100 
+10.0.2.0/24 dev eth0 proto kernel scope link src 10.0.2.4 
+10.42.0.0/24 dev cni0 proto kernel scope link src 10.42.0.1 
+168.63.129.16 via 10.0.2.1 dev eth0 proto dhcp src 10.0.2.4 metric 100 
+169.254.169.254 via 10.0.2.1 dev eth0 proto dhcp src 10.0.2.4 metric 100 
+root@k3s-vm:/home/adminuser# kubectl get bgpadvertisements -n metallb-system
+NAME                IPADDRESSPOOLS         IPADDRESSPOOL SELECTORS   PEERS
+bgp-advertisement   ["external-ip-pool"]                             ["my-peer"]
