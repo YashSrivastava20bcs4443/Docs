@@ -113,3 +113,8 @@ default via 10.0.2.1 dev eth0 proto dhcp src 10.0.2.4 metric 100
 root@k3s-vm:/home/adminuser# kubectl get bgpadvertisements -n metallb-system
 NAME                IPADDRESSPOOLS         IPADDRESSPOOL SELECTORS   PEERS
 bgp-advertisement   ["external-ip-pool"]                             ["my-peer"]
+
+
+{"caller":"native.go:113","error":"dial \"10.0.1.5\": timeout","level":"error","localASN":65515,"msg":"failed to connect to peer","op":"connect","peer":"10.0.1.5","peerASN":65516,"ts":"2025-03-07T08:24:52Z"}
+struct { Version uint8; ASN16 uint16; HoldTime uint16; RouterID uint32; OptsLen uint8 }{Version:0x4, ASN16:0xffec, HoldTime:0xb4, RouterID:0xa000105, OptsLen:0x16}
+{"caller":"native.go:121","event":"sessionUp","level":"info","localASN":65515,"msg":"BGP session established","peer":"10.0.1.5","peerASN":65516,"ts":"2025-03-07T08:25:56Z"}
