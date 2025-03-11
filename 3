@@ -1,1 +1,45 @@
+trigger:
+- main
 
+pool:
+  vmImage: 'ubuntu-latest'  # Using Microsoft-hosted agent
+
+variables:
+  terraformVersion: '1.8.4'
+  workingDirectory: '$(Build.SourcesDirectory)/terraform'
+
+stages:
+- stage: Deploy
+  displayName: 'Terraform Apply'
+  jobs:
+  - job: Terraform
+    displayName: 'Deploy Infrastructure'
+    steps:
+    - task: TerraformInstaller@1
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: $(terraformVersion)
+
+    - task: AzureCLI@2
+      displayName: 'Login to Azure'
+      inputs:
+        azureSubscription: 'Your-Service-Connection-Name'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az --version
+
+    - script: |
+        terraform init
+      workingDirectory: $(workingDirectory)
+      displayName: 'Terraform Init'
+
+    - script: |
+        terraform plan -out=tfplan
+      workingDirectory: $(workingDirectory)
+      displayName: 'Terraform Plan'
+
+    - script: |
+        terraform apply -auto-approve tfplan
+      workingDirectory: $(workingDirectory)
+      displayName: 'Terraform Apply'
