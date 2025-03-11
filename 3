@@ -3,24 +3,48 @@ trigger:
 
 parameters:
   - name: osType
-    displayName: "OS Type (linux/windows)"
+    displayName: "OS Type"
     type: string
     default: "linux"
     values:
       - linux
       - windows
-  - name: vmSize
-    displayName: "VM Size"
+
+  # Linux VM Parameters
+  - name: linuxVmSize
+    displayName: "Linux VM Size"
     type: string
     default: "Standard_D2s_v3"
-  - name: nicCount
-    displayName: "Number of NICs"
+    values:
+      - Standard_D2s_v3
+      - Standard_B2s
+      - Standard_F2
+
+  - name: linuxNicCount
+    displayName: "Number of NICs (Linux)"
     type: number
     default: 1
+
   - name: linuxVmCount
     displayName: "Number of Linux VMs"
     type: number
     default: 1
+
+  # Windows VM Parameters
+  - name: windowsVmSize
+    displayName: "Windows VM Size"
+    type: string
+    default: "Standard_D2s_v3"
+    values:
+      - Standard_D2s_v3
+      - Standard_B2s
+      - Standard_F2
+
+  - name: windowsNicCount
+    displayName: "Number of NICs (Windows)"
+    type: number
+    default: 0
+
   - name: windowsVmCount
     displayName: "Number of Windows VMs"
     type: number
@@ -30,10 +54,10 @@ jobs:
 - job: Terraform_Deploy
   displayName: "Terraform Apply"
   pool:
-    vmImage: 'ubuntu-latest'  # Use Ubuntu-based Microsoft-hosted agent
+    vmImage: 'ubuntu-latest'
 
   steps:
-  - checkout: self  # Ensures the repo is checked out
+  - checkout: self
 
   - task: TerraformTaskV3@3
     displayName: "Terraform Init"
@@ -55,10 +79,10 @@ jobs:
       commandOptions: >
         -var="linux_vm_count=${{ parameters.linuxVmCount }}" 
         -var="windows_vm_count=${{ parameters.windowsVmCount }}" 
-        -var="linux_vm_config.vm_size=${{ parameters.vmSize }}" 
-        -var="linux_vm_config.nic_count=${{ parameters.nicCount }}" 
-        -var="windows_vm_config.vm_size=${{ parameters.vmSize }}" 
-        -var="windows_vm_config.nic_count=${{ parameters.nicCount }}"
+        -var="linux_vm_config.vm_size=${{ parameters.linuxVmSize }}" 
+        -var="linux_vm_config.nic_count=${{ parameters.linuxNicCount }}" 
+        -var="windows_vm_config.vm_size=${{ parameters.windowsVmSize }}" 
+        -var="windows_vm_config.nic_count=${{ parameters.windowsNicCount }}"
 
   - task: TerraformTaskV3@3
     displayName: "Terraform Apply"
@@ -69,8 +93,8 @@ jobs:
       commandOptions: >
         -var="linux_vm_count=${{ parameters.linuxVmCount }}" 
         -var="windows_vm_count=${{ parameters.windowsVmCount }}" 
-        -var="linux_vm_config.vm_size=${{ parameters.vmSize }}" 
-        -var="linux_vm_config.nic_count=${{ parameters.nicCount }}" 
-        -var="windows_vm_config.vm_size=${{ parameters.vmSize }}" 
-        -var="windows_vm_config.nic_count=${{ parameters.nicCount }}"
+        -var="linux_vm_config.vm_size=${{ parameters.linuxVmSize }}" 
+        -var="linux_vm_config.nic_count=${{ parameters.linuxNicCount }}" 
+        -var="windows_vm_config.vm_size=${{ parameters.windowsVmSize }}" 
+        -var="windows_vm_config.nic_count=${{ parameters.windowsNicCount }}"
       runAzLogin: false
