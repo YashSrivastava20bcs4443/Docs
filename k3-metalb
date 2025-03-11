@@ -44,3 +44,57 @@ kubectl expose deployment nginx --type=LoadBalancer --port=80
 
 Step 2: Get the LoadBalancer IP
 kubectl get svc
+
+
+Steps to Configure a BGP Peer in MetalLB
+nano bgppeer.yaml
+
+apiVersion: metallb.io/v1beta2
+kind: BGPPeer
+metadata:
+  name: bgp-peer-vm1
+  namespace: metallb-system
+spec:
+  myASN: 65515  # AS number for VM2 (K3s Node)
+  peerASN: 65516  # AS number for VM1 (BGP Router)
+  peerAddress: 10.0.1.5  # Private IP of VM1 (BGP Router)
+
+
+Apply the BGP Configuration in Kubernetes
+kubectl apply -f bgppeer.yaml
+
+Verify BGP Peering
+kubectl get bgppeers -n metallb-system
+
+
+Create a BGP Advertisement
+nano bgp-advertisement.yaml
+
+Add the following configuration:
+apiVersion: metallb.io/v1beta1
+kind: BGPAdvertisement
+metadata:
+  name: bgp-advertisement
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - external-ip-pool  # The pool you created earlier
+
+Apply the configuration:
+kubectl apply -f bgp-advertisement.yaml
+
+
+Verify the Advertisement
+kubectl get bgpadvertisements -n metallb-system
+
+Re-check the BGP Connection
+kubectl get bgppeers -n metallb-system
+
+Deploy a Test Service
+kubectl create deployment nginx --image=nginx
+kubectl expose deployment nginx --type=LoadBalancer --port=80
+
+Check if MetalLB assigns an external IP:
+kubectl get svc
+
+
