@@ -94,6 +94,38 @@ Deploy a Test Service
 kubectl create deployment nginx --image=nginx
 kubectl expose deployment nginx --type=LoadBalancer --port=80
 
+
+
+
+metallb-config.yaml
+
+nano metallb-config.yaml
+
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: external-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 10.0.2.100-10.0.2.120
+
+---
+apiVersion: metallb.io/v1beta1
+kind: BGPAdvertisement
+metadata:
+  name: bgp-adv
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - external-pool
+  peers:
+  - peer-address: 10.0.1.10
+    peer-asn: 65516
+    my-asn: 65515
+
+kubectl apply -f metallb-config.yaml
+
 Check if MetalLB assigns an external IP:
 kubectl get svc
 
