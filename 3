@@ -1,1 +1,1 @@
-az storage container generate-sas --account-name mytfstatesstacc --name softwares --permissions r --expiry 2025-12-31 -o tsv
+Hello Sir, I am currently deploying a VM for disaster recovery (DR), where I also need to install Node Exporter, Windows, and other software on multiple VMs. I have stored the required software in a Blob container and am using Terraform VM extension to download it via FileURI and execute it using CMD. However, I am facing an issue where the container is not accessible, even though I have provided the SAS token. I am getting a 403 error.
