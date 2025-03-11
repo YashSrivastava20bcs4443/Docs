@@ -1,0 +1,46 @@
+Step 1: Install K3s
+curl -sfL https://get.k3s.io | sh -
+
+Step 2: Check K3s Status
+sudo systemctl status k3s
+kubectl get nodes
+
+
+Install & Configure MetalLB
+
+Step 1: Install MetalLB
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/main/config/manifests/metallb-native.yaml
+
+Step 2: Configure IP Pool for LoadBalancer
+kubectl create -f - <<EOF
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: external-ip-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 10.0.2.100-10.0.2.120  # Update with your subnet range
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: l2-advertisement
+  namespace: metallb-system
+EOF
+
+
+Step 3: Verify MetalLB
+kubectl get pods -n metallb-system
+
+
+Deploy a Sample Nginx Service
+Now that K3s and MetalLB are ready, deploy a test service.
+
+Step 1: Deploy Nginx
+kubectl create deployment nginx --image=nginx
+kubectl expose deployment nginx --type=LoadBalancer --port=80
+
+
+Step 2: Get the LoadBalancer IP
+kubectl get svc
