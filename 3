@@ -1,45 +1,76 @@
 trigger:
 - main
 
-pool:
-  vmImage: 'ubuntu-latest'  # Using Microsoft-hosted agent
+parameters:
+  - name: osType
+    displayName: "OS Type (linux/windows)"
+    type: string
+    default: "linux"
+    values:
+      - linux
+      - windows
+  - name: vmSize
+    displayName: "VM Size"
+    type: string
+    default: "Standard_D2s_v3"
+  - name: nicCount
+    displayName: "Number of NICs"
+    type: number
+    default: 1
+  - name: linuxVmCount
+    displayName: "Number of Linux VMs"
+    type: number
+    default: 1
+  - name: windowsVmCount
+    displayName: "Number of Windows VMs"
+    type: number
+    default: 0
 
-variables:
-  terraformVersion: '1.8.4'
-  workingDirectory: '$(Build.SourcesDirectory)/terraform'
+jobs:
+- job: Terraform_Deploy
+  displayName: "Terraform Apply"
+  pool:
+    vmImage: 'ubuntu-latest'  # Use Ubuntu-based Microsoft-hosted agent
 
-stages:
-- stage: Deploy
-  displayName: 'Terraform Apply'
-  jobs:
-  - job: Terraform
-    displayName: 'Deploy Infrastructure'
-    steps:
-    - task: TerraformInstaller@1
-      displayName: 'Install Terraform'
-      inputs:
-        terraformVersion: $(terraformVersion)
+  steps:
+  - checkout: self  # Ensures the repo is checked out
 
-    - task: AzureCLI@2
-      displayName: 'Login to Azure'
-      inputs:
-        azureSubscription: 'Your-Service-Connection-Name'
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          az --version
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Init"
+    inputs:
+      provider: "azurerm"
+      command: "init"
+      backendServiceArm: "AzureConnection"
+      backendAzureRmResourceGroupName: "tfstate-resources"
+      backendAzureRmStorageAccountName: "mytfstatesstacc"
+      backendAzureRmContainerName: "tfstate"
+      backendAzureRmKey: "VM_TS_module/terraform.tfstate"
 
-    - script: |
-        terraform init
-      workingDirectory: $(workingDirectory)
-      displayName: 'Terraform Init'
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Plan"
+    inputs:
+      provider: "azurerm"
+      command: "plan"
+      backendServiceArm: "AzureConnection"
+      commandOptions: >
+        -var="linux_vm_count=${{ parameters.linuxVmCount }}" 
+        -var="windows_vm_count=${{ parameters.windowsVmCount }}" 
+        -var="linux_vm_config.vm_size=${{ parameters.vmSize }}" 
+        -var="linux_vm_config.nic_count=${{ parameters.nicCount }}" 
+        -var="windows_vm_config.vm_size=${{ parameters.vmSize }}" 
+        -var="windows_vm_config.nic_count=${{ parameters.nicCount }}"
 
-    - script: |
-        terraform plan -out=tfplan
-      workingDirectory: $(workingDirectory)
-      displayName: 'Terraform Plan'
-
-    - script: |
-        terraform apply -auto-approve tfplan
-      workingDirectory: $(workingDirectory)
-      displayName: 'Terraform Apply'
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Apply"
+    inputs:
+      provider: "azurerm"
+      command: "apply"
+      backendServiceArm: "AzureConnection"
+      commandOptions: >
+        -var="linux_vm_count=${{ parameters.linuxVmCount }}" 
+        -var="windows_vm_count=${{ parameters.windowsVmCount }}" 
+        -var="linux_vm_config.vm_size=${{ parameters.vmSize }}" 
+        -var="linux_vm_config.nic_count=${{ parameters.nicCount }}" 
+        -var="windows_vm_config.vm_size=${{ parameters.vmSize }}" 
+        -var="windows_vm_config.nic_count=${{ parameters.nicCount }}"
+      runAzLogin: false
