@@ -1,258 +1,114 @@
-    1  ls
-    2  nano bgp-advertisement.yaml
-    3  sudo su
-    4  sudo kubectl apply -f bgp-advertisement.yaml
-    5  kubectl get bgpadvertisements -n metallb-system -o yaml
-    6  sudo su
-    7  ls
-    8  cat bgppeer.yaml 
-    9  cat metallb-config.yaml 
-   10  cat bgp-advertisement.yaml 
-   11  history
-root@k3s-vm:/home/adminuser# history
-    1  kubectl rollout restart deployment -n metallb-system speaker
-    2  kubectl rollout restart deployment -n metallb-system controller
-    3  nano bgp-advertisement.yaml
-    4  kubectl apply -f bgp-advertisement.yaml
-    5  sudo birdc show route all
-    6  kubectl get bgppeers -n metallb-system
-    7  ubectl logs -n metallb-system deploy/controller
-    8  kubectl logs -n metallb-system deploy/controller
-    9  sudo netstat -tulnp | grep 179
-   10  sudo kubectl get bgppeers -n metallb-system
-   11  sudo kubectl get configmap -n metallb-system metallb -o yaml
-   12  kubectl cluster-info dump | grep -m 1 service-cluster-ip-range
-   13  ip a
-   14  nano metallb-config.yaml
-   15  sudo kubectl apply -f metallb-config.yaml
-   16  sudo kubectl delete pod -n metallb-system --all
-   17  sudo kubectl get all -n metallb-system
-   18  sudo netstat -tulnp | grep 179
-   19  sudo kubectl get configmap -n metallb-system config -o yaml
-   20  nano metallb-config.yaml
-   21  sudo kubectl apply -f metallb-config.yaml
-   22  sudo netstat -tulnp | grep 179
-   23  sudo kubectl logs -n metallb-system -l component=speaker --tail=50
-   24  sudo kubectl delete pod -n metallb-system --all
-   25  sudo kubectl get all -n metallb-system
-   26  sudo kubectl logs -n metallb-system -l component=controller --tail=50
-   27  sudo kubectl logs -n metallb-system -l component=speaker --tail=50
-   28  sudo kubectl logs -n metallb-system -l component=controller --tail=50
-   29  sudo kubectl logs -n metallb-system -l component=speaker --tail=50
-   30  sudo kubectl get configmap -n metallb-system config -o yaml
-   31  sudo kubectl describe daemonset speaker -n metallb-system
-   32  sudo kubectl logs -n metallb-system -l app=metallb,component=speaker
-   33  sudo kubectl get svc -A
-   34  curl 10.0.2.101
-   35  sudo kubectl get pods -n metallb-system
-   36  show ip bgp
-   37  sudo kubectl logs -n metallb-system -l app=metallb,component=speaker
-   38  kubectl get svc
-   39  nano bgp-advertisement.yaml
-   40  kubectl apply -f bgp-advertisement.yaml
-   41  kubectl logs -n metallb-system -l component=speaker
-   42  show ip bgp
-   43  apt install mailutils-mh
-   44  apt install mmh         
-   45  apt install nmh    
-   46  show ip bgp
-   47  kubectl get pods -n metallb-system -o wide
-   48  kubectl describe pod speaker-hj6r7 -n metallb-system
-   49  kubectl get bgpadvertisements -n metallb-system
-   50  kubectl get configmap -n metallb-system config -o yaml
-   51  telnet 10.0.1.5 179
-   52  ping 10.0.1.5
-   53  kubectl get bgpadvertisements
-   54  kubectl get bgpadvertisements -n metallb-system
-   55  kubectl rollout restart daemonset speaker -n metallb-system
-   56  kubectl logs -n metallb-system -l component=speaker | grep "advertising"
-   57  kubectl apply -f - <<EOF
-   58  apiVersion: metallb.io/v1beta1
-   59  kind: BGPAdvertisement
-   60  metadata:
-   61    name: default
-   62    namespace: metallb-system
-   63  spec:
-   64    ipAddressPools:
-   65    - default
-   66    aggregationLength: 32
-   67  EOF
-   68  kubectl rollout restart daemonset speaker -n metallb-system
-   69  kubectl logs -n metallb-system -l component=speaker | grep "advertising"
-   70  kubectl logs -n metallb-system -l component=speaker --tail=50kubectl get events -n metallb-system | grep BGP
-   71  kubectl get events -n metallb-system | grep BGP
-   72  kubectl logs -n metallb-system -l component=speaker --tail=5
-   73  birdc show protocols all
-   74  kubectl get bgpadvertisements -n metallb-system -o yaml
-   75  kubectl logs -n metallb-system -l component=speaker | grep "advertising"
-   76  kubectl apply -f - <<EOF
-   77  apiVersion: metallb.io/v1beta1
-   78  kind: IPAddressPool
-   79  metadata:
-   80    name: default
-   81    namespace: metallb-system
-   82  spec:
-   83    addresses:
-   84    - 10.0.2.100-10.0.2.200  # Use the correct subnet range
-   85  EOF
-   86  kubectl get ipaddresspools -n metallb-system -o yaml
-   87  kubectl apply -f - <<EOF
-   88  apiVersion: v1
-   89  kind: Service
-   90  metadata:
-   91    name: test-service
-   92    namespace: default
-   93  spec:
-   94    selector:
-   95      app: nginx
-   96    ports:
-   97    - protocol: TCP
-   98      port: 80
-   99      targetPort: 80
-  100    type: LoadBalancer
-  101    loadBalancerIP: 10.0.2.150  # Must be within the IP pool range
-  102  EOF
-  103  kubectl logs -n metallb-system -l component=speaker | grep "advertising"
-  104  birdc show protocols all
-  105  apt install bird
-  106  kubectl get bgppeers -n metallb-system
-  107  kubectl logs -n metallb-system -l component=speaker | grep "advertising"
-  108  birdc show route export all
-  109  kubectl logs -n metallb-system -l component=speaker | grep "advertising"
-  110  kubectl get ipaddresspools -n metallb-system -o yaml
-  111  kubectl get bgppeers -n metallb-system -o yaml
-  112  kubectl get services -A | grep LoadBalancer
-  113  kubectl get bgpadvertisements -n metallb-system -o yaml
-  114  kubectl logs -n metallb-system -l component=speaker
-  115  kubectl get ipaddresspools -n metallb-system
-  116  kubectl logs -n metallb-system -l component=speaker | grep "layer2"
-  117  nano bgp-advertisement.yaml
-  118  kubectl apply -f bgp-advertisement.yaml
-  119  kubectl rollout restart daemonset speaker -n metallb-system
-  120  kubectl logs -n metallb-system -l component=speaker | grep "advertising"
-  121  kubectl delete pod -n metallb-system -l component=speaker
-  122  kubectl logs -n metallb-system -l component=speaker | grep "advertising"
-  123  kubectl rollout restart deployment controller -n metallb-system
-  124  kubectl get ipaddresspools -n metallb-system
-  125  kubectl apply -f bgp-advertisement.yaml
-  126  kubectl rollout restart daemonset speaker -n metallb-system
-  127  exit
-  128  kubectl get bgpadvertisements -n metallb-system -o yaml
-  129  kubectl delete bgpadvertisement default -n metallb-system
-  130  kubectl apply -f bgp-advertisement.yaml
-  131  kubectl rollout restart daemonset speaker -n metallb-system
-  132  kubectl delete bgpadvertisement default -n metallb-system
-  133  kubectl rollout restart daemonset speaker -n metallb-system
-  134  kubectl logs -n metallb-system -l component=speaker | grep "advertising"
-  135  kubectl logs -n metallb-system -l component=speaker
-  136  kubectl get ipaddresspools -n metallb-system -o yaml
-  137  kubectl get cm -n metallb-system -o yaml | grep -A10 "config"
-  138  kubectl edit cm config -n metallb-system
-  139  clear
-  140  export KUBE_EDITOR="nano"
-  141  kubectl edit cm config -n metallb-system
-  142  kubectl rollout restart daemonset speaker -n metallb-system
-  143  kubectl logs -n metallb-system -l component=speaker | grep "advertising"
-  144  clear
-  145  kubectl get bgpadvertisements -n metallb-system
-  146  kubectl apply -f bgp-advertisement.yaml
-  147  kubectl rollout restart daemonset speaker -n metallb-system
-  148  kubectl get bgpadvertisements -n metallb-system -o yaml
-  149  clear
-  150  kubectl get bgpadvertisements -n metallb-system -o yaml
-  151  clewar
-  152  clear
-  153  kubectl get bgpadvertisements -n metallb-system -o yaml
-  154  kubectl delete bgpadvertisement bgp-advertisement -n metallb-system
-  155  nano bgp-advertisement.yaml 
-  156  kubectl apply -f bgp-advertisement.yaml
-  157  kubectl rollout restart daemonset speaker -n metallb-system
-  158  kubectl get bgpadvertisements -n metallb-system -o yaml
-  159  clear
-  160  kubectl get bgpadvertisements -n metallb-system -o yaml
-  161  kubectl get svc -A | grep LoadBalancer
-  162  kubectl logs -n metallb-system -l app=metallb -f
-  163  clerar
-  164  clear
-  165  birdc show protocols
-  166  clear
-  167  kubectl get bgpadvertisements -n metallb-system -o yaml
-  168  kubectl get svc -A | grep LoadBalancer
-  169  kubectl logs -n metallb-system -l app=metallb -f
-  170  clear
-  171  kubectl delete bgpadvertisement -n metallb-system bgpadvertisement-1
-  172  kubectl get bgpadvertisements -n metallb-system
-  173  kubectl delete bgpadvertisement -n metallb-system bgp-advertisement
-  174  cat <<EOF | kubectl apply -f -
-  175  apiVersion: metallb.io/v1beta1
-  176  kind: BGPAdvertisement
-  177  metadata:
-  178    name: bgp-advertisement
-  179    namespace: metallb-system
-  180  spec:
-  181    ipAddressPools:
-  182    - external-ip-pool
-  183    aggregationLength: 32
-  184    aggregationLengthV6: 128
-  185  EOF
-  186  kubectl get bgpadvertisements -n metallb-system -o yaml
-  187  kubectl rollout restart daemonset speaker -n metallb-system
-  188  kubectl logs -n metallb-system -l app=metallb -f
-  189  kubectl delete bgpadvertisement -n metallb-system bgpadvertisement-1
-  190  kubectl get bgpadvertisements -n metallb-system
-  191  kubectl rollout restart daemonset speaker -n metallb-system
-  192  kubectl get bgpadvertisements -n metallb-system
-  193  kubectl logs -n metallb-system -l app=metallb -f
-  194  kubectl delete bgpadvertisement --all -n metallb-system
-  195  kubectl get bgpadvertisements -n metallb-system
-  196  apiVersion: metallb.io/v1beta1
-  197  kind: BGPAdvertisement
-  198  metadata:
-  199  spec:
-  200  ls
-  201  nano bgp-advertisement.yaml 
-  202  kubectl apply -f bgp-advertisement.yaml
-  203  kubectl rollout restart daemonset speaker -n metallb-system
-  204  kubectl rollout restart deployment controller -n metallb-system
-  205  kubectl get bgpadvertisements -n metallb-system
-  206  kubectl get services -A | grep LoadBalancer
-  207  kubectl logs -n metallb-system daemonset/speaker | grep "error"
-  208  kubectl get svc -A
-  209  birdc show route export bgp1
-  210  kubectl logs -n metallb-system -l app=metallb -f
-  211  kubectl logs -n metallb-system daemonset/speaker | grep "announcing"
-  212  kubectl rollout restart daemonset speaker -n metallb-system
-  213  kubectl delete bgpadvertisement -n metallb-system bgp-advertisement
-  214  kubectl apply -f bgp-advertisement.yaml
-  215  kubectl get svc -A
-  216  kubectl apply -f bgp-advertisement.yaml
-  217  kubectl logs -n metallb-system -l app=metallb -f
-  218  kubectl logs -n metallb-system daemonset/speaker
-  219  kubectl get pods -n metallb-system
-  220  kubectl get bgppeers -n metallb-system
-  221  kubectl get services -A | grep LoadBalancer
-  222  curl telnet 10.0.2.4 179
-  223  curl 10.0.2.101
-  224  ping 10.0.2.101
-  225  kubectl get bgpadvertisements -n metallb-system
-  226  netsat -r
-  227  ip -a
-  228  kubectl get bgppeers -n metallb-system
-  229  kubectl get bgpadvertisements -n metallb-system
-  230  kubectl logs -n metallb-system daemonset/speaker
-  231  ping 10.0.1.5
-  232  ip route show
-  233  kubectl get bgpadvertisements -n metallb-system
-  234  root@k3s-vm:/home/adminuser# ip route show
-  235  default via 10.0.2.1 dev eth0 proto dhcp src 10.0.2.4 metric 100 
-  236  10.0.2.0/24 dev eth0 proto kernel scope link src 10.0.2.4 
-  237  10.42.0.0/24 dev cni0 proto kernel scope link src 10.42.0.1 
-  238  168.63.129.16 via 10.0.2.1 dev eth0 proto dhcp src 10.0.2.4 metric 100 
-  239  169.254.169.254 via 10.0.2.1 dev eth0 proto dhcp src 10.0.2.4 metric 100 
-  240  root@k3s-vm:/home/adminuser# kubectl get bgpadvertisements -n metallb-system
-  241  NAME                IPADDRESSPOOLS         IPADDRESSPOOL SELECTORS   PEERS
-  242  bgp-advertisement   ["external-ip-pool"]                             ["my-peer"]
-  243  ls
-  244  cat bgp-advertisement.yaml
-  245  cat bgppeer.yaml 
-  246  history
+trigger:
+- none
+
+parameters:
+  - name: osType
+    displayName: "OS Type (linux/windows)"
+    type: string
+    default: "linux"
+    values:
+      - linux
+      - windows
+  - name: vmSize
+    displayName: "VM Size"
+    type: string
+    default: "Standard_D2s_v3"
+  - name: nicCount
+    displayName: "Number of NICs"
+    type: number
+    default: 1
+  - name: linuxVmCount
+    displayName: "Number of Linux VMs"
+    type: number
+    default: 1
+  - name: windowsVmCount
+    displayName: "Number of Windows VMs"
+    type: number
+    default: 0
+
+variables:
+- group: TerraformVars  
+- name: terraformVarsFile
+  value: "$(Build.SourcesDirectory)/terraform.tfvars"  
+
+jobs:
+- job: Terraform_Deploy
+  displayName: "Terraform Apply"
+  pool:
+    vmImage: ubuntu-latest
+
+  steps:
+  - checkout: self  # ✅ Ensures repo is checked out
+
+  # ✅ Step 1: Dynamically update terraform.tfvars
+  - script: |
+      echo "linux_vm_count=${{ parameters.linuxVmCount }}" > $(terraformVarsFile)
+      echo "windows_vm_count=${{ parameters.windowsVmCount }}" >> $(terraformVarsFile)
+      echo "linux_vm_config = {" >> $(terraformVarsFile)
+      echo "  os_type = \"linux\"" >> $(terraformVarsFile)
+      echo "  vm_size = \"${{ parameters.vmSize }}\"" >> $(terraformVarsFile)
+      echo "  nic_count = ${{ parameters.nicCount }}" >> $(terraformVarsFile)
+      echo "  admin_username = \"$(ADMIN_USERNAME)\"" >> $(terraformVarsFile)
+      echo "  admin_password = \"$(ADMIN_PASSWORD)\"" >> $(terraformVarsFile)
+      echo "  public_ip = false" >> $(terraformVarsFile)
+      echo "  image_reference = {" >> $(terraformVarsFile)
+      echo "    publisher = \"Canonical\"" >> $(terraformVarsFile)
+      echo "    offer = \"UbuntuServer\"" >> $(terraformVarsFile)
+      echo "    sku = \"18.04-LTS\"" >> $(terraformVarsFile)
+      echo "    version = \"latest\"" >> $(terraformVarsFile)
+      echo "  }" >> $(terraformVarsFile)
+      echo "}" >> $(terraformVarsFile)
+
+      echo "windows_vm_config = {" >> $(terraformVarsFile)
+      echo "  os_type = \"windows\"" >> $(terraformVarsFile)
+      echo "  vm_size = \"${{ parameters.vmSize }}\"" >> $(terraformVarsFile)
+      echo "  nic_count = ${{ parameters.nicCount }}" >> $(terraformVarsFile)
+      echo "  admin_username = \"$(ADMIN_USERNAME)\"" >> $(terraformVarsFile)
+      echo "  admin_password = \"$(ADMIN_PASSWORD)\"" >> $(terraformVarsFile)
+      echo "  public_ip = false" >> $(terraformVarsFile)
+      echo "  image_reference = {" >> $(terraformVarsFile)
+      echo "    publisher = \"MicrosoftWindowsServer\"" >> $(terraformVarsFile)
+      echo "    offer = \"WindowsServer\"" >> $(terraformVarsFile)
+      echo "    sku = \"2019-Datacenter\"" >> $(terraformVarsFile)
+      echo "    version = \"latest\"" >> $(terraformVarsFile)
+      echo "  }" >> $(terraformVarsFile)
+      echo "}" >> $(terraformVarsFile)
+    displayName: "Generate terraform.tfvars dynamically"
+
+  # ✅ Step 2: Terraform Init
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Init"
+    inputs:
+      provider: "azurerm"
+      command: "init"
+      backendServiceArm: "Azure for Students (b70d680e-c5e0-4884-b641-1686a43679d4)"
+      backendAzureRmResourceGroupName: "tfstate-resources"
+      backendAzureRmStorageAccountName: "mytfstatesstacc"
+      backendAzureRmContainerName: "tfstate"
+      backendAzureRmKey: "pipelinetst/terraform.tfstate"
+      commandOptions: >
+        -backend-config="storage_account_name=mytfstatesstacc"
+        -backend-config="container_name=tfstate"
+        -backend-config="key=pipelinetst/terraform.tfstate"
+        -backend-config="resource_group_name=tfstate-resources"
+        -backend-config="subscription_id=b70d680e-c5e0-4884-b641-1686a43679d4"
+        -backend-config="tenant_id=$(ARM_TENANT_ID)"
+        -backend-config="client_id=$(ARM_CLIENT_ID)"
+        -backend-config="client_secret=$(ARM_CLIENT_SECRET)"
+
+
+  # ✅ Step 3: Terraform Plan
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Plan"
+    inputs:
+      provider: "azurerm"
+      command: "plan"
+      commandOptions: "-var-file=$(terraformVarsFile) -detailed-exitcode"
+
+  # ✅ Step 4: Terraform Apply
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Apply"
+    inputs:
+      provider: "azurerm"
+      command: "apply"
+      commandOptions: "-var-file=$(terraformVarsFile) -auto-approve"
