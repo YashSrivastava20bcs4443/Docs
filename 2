@@ -27,20 +27,20 @@ parameters:
     default: 0
 
 variables:
-- group: TerraformVars  
+- group: TerraformVars  # ✅ Variable group for sensitive values
 - name: terraformVarsFile
-  value: "$(Build.SourcesDirectory)/terraform.tfvars"  
+  value: "$(Build.SourcesDirectory)/terraform.tfvars"  # Path to tfvars file
 
 jobs:
 - job: Terraform_Deploy
   displayName: "Terraform Apply"
   pool:
-    vmImage: ubuntu-latest
+    vmImage: ubuntu-latest  # Microsoft-hosted agent
 
   steps:
   - checkout: self  # ✅ Ensures repo is checked out
 
-  # ✅ Step 1: Dynamically update terraform.tfvars
+  # ✅ Step 1: Generate terraform.tfvars dynamically
   - script: |
       echo "linux_vm_count=${{ parameters.linuxVmCount }}" > $(terraformVarsFile)
       echo "windows_vm_count=${{ parameters.windowsVmCount }}" >> $(terraformVarsFile)
@@ -75,26 +75,17 @@ jobs:
       echo "}" >> $(terraformVarsFile)
     displayName: "Generate terraform.tfvars dynamically"
 
-  # ✅ Step 2: Terraform Init
+  # ✅ Step 2: Terraform Init using Service Connection
   - task: TerraformTaskV3@3
     displayName: "Terraform Init"
     inputs:
       provider: "azurerm"
       command: "init"
-      backendServiceArm: "Azure for Students (b70d680e-c5e0-4884-b641-1686a43679d4)"
+      backendServiceArm: "AzureConnection"
       backendAzureRmResourceGroupName: "tfstate-resources"
       backendAzureRmStorageAccountName: "mytfstatesstacc"
       backendAzureRmContainerName: "tfstate"
       backendAzureRmKey: "pipelinetst/terraform.tfstate"
-      commandOptions: >
-        -backend-config="storage_account_name=mytfstatesstacc"
-        -backend-config="container_name=tfstate"
-        -backend-config="key=pipelinetst/terraform.tfstate"
-        -backend-config="resource_group_name=tfstate-resources"
-        -backend-config="subscription_id=b70d680e-c5e0-4884-b641-1686a43679d4"
-        -backend-config="tenant_id=$(ARM_TENANT_ID)"
-        -backend-config="client_id=$(ARM_CLIENT_ID)"
-        -backend-config="client_secret=$(ARM_CLIENT_SECRET)"
 
 
   # ✅ Step 3: Terraform Plan
@@ -103,6 +94,7 @@ jobs:
     inputs:
       provider: "azurerm"
       command: "plan"
+      environmentServiceNameAzureRM: "AzureConnection"
       commandOptions: "-var-file=$(terraformVarsFile) -detailed-exitcode"
 
   # ✅ Step 4: Terraform Apply
@@ -111,4 +103,5 @@ jobs:
     inputs:
       provider: "azurerm"
       command: "apply"
+      environmentServiceNameAzureRM: "AzureConnection"
       commandOptions: "-var-file=$(terraformVarsFile) -auto-approve"
