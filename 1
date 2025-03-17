@@ -1,14 +1,206 @@
-Subject: Software Installation Status Update – Windows & Linux
+# Public IP for VMs where public_ip is true (only for primary NIC)
+resource "azurerm_public_ip" "pip" {
+  for_each            = { for vm_name in concat([for i in range(var.linux_vm_count) : "ubuntu-vm-${i + 1}" if var.linux_vm_config.public_ip], [for i in range(var.windows_vm_count) : "win-vm-${i + 1}" if var.windows_vm_config.public_ip]) : vm_name => vm_name }
+  name                = "${each.value}-pip"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  allocation_method   = "Static"
+  sku                 = "Standard"
 
-Hi Team,
+  tags = {
+    resource_type = "vm"
+    environment   = "dr"
+    cost_center   = "it"
+    service       = "app_server"
+  }
+}
 
-The software installation process has been completed on both Windows and Linux VMs. Below is the status update:
+# Generate NICs for all VMs
+resource "azurerm_network_interface" "nic" {
+  for_each            = { for nic in local.all_nic_configs : "${nic.vm_name}-${nic.nic_index}" => nic }
+  name                = "${each.value.vm_name}-nic-${each.value.nic_index}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
 
-✅ Windows VMs: All required software has been installed and tested successfully. Everything is working as expected.
+  ip_configuration {
+    name                          = "ipconfig-${nic.nic_index}"
+    subnet_id                     = var.subnet_id
+    private_ip_address_allocation = "Dynamic"
+    primary                       = nic.nic_index == 0 ? true : false
+    public_ip_address_id          = nic.nic_index == 0 && lookup(azurerm_public_ip.pip, nic.vm_name, null) != null ? azurerm_public_ip.pip[nic.vm_name].id : null
+  }
 
-⚠️ Linux VMs: All software installations and configurations (including node_exporter, nfs-common, user additions, and firewall settings) have been completed. However, we are facing an issue with Sentinel installation.
+  tags = {
+    resource_type = "vm"
+    environment   = "dr"
+    cost_center   = "it"
+    service       = "app_server"
+  }
 
-🔍 Issue Details:
-From the logs, it appears that the issue may be related to the site token.
+  depends_on = [azurerm_public_ip.pip]
+}
 
-@Sakib – Can you please check and verify if the site token is correct? Let me know if any further debugging is required.
+# Linux VMs
+resource "azurerm_virtual_machine" "linux_vm" {
+  for_each              = { for i in range(var.linux_vm_count) : "ubuntu-vm-${i + 1}" => i }
+  name                  = each.key
+  location              = var.location
+  resource_group_name   = var.resource_group_name
+  vm_size               = var.linux_vm_config.vm_size
+  network_interface_ids = [for i in range(var.linux_vm_config.nic_count) : azurerm_network_interface.nic["${each.key}-${i}"].id]
+
+  storage_image_reference {
+    publisher = var.linux_vm_config.image_reference.publisher
+    offer     = var.linux_vm_config.image_reference.offer
+    sku       = var.linux_vm_config.image_reference.sku
+    version   = var.linux_vm_config.image_reference.version
+  }
+
+  storage_os_disk {
+    name              = "${each.key}-osdisk"
+    caching           = "ReadWrite"
+    create_option     = "FromImage"
+    managed_disk_type = "Standard_LRS"
+  }
+
+  os_profile {
+    computer_name  = each.key
+    admin_username = var.linux_vm_config.admin_username
+    admin_password = var.linux_vm_config.admin_password
+  }
+
+  os_profile_linux_config {
+    disable_password_authentication = false
+  }
+
+  tags = {
+    resource_type = "vm"
+    environment   = "dr"
+    cost_center   = "it"
+    service       = "app_server"
+  }
+
+  depends_on = [azurerm_network_interface.nic]
+}
+
+# Windows VMs
+resource "azurerm_virtual_machine" "windows_vm" {
+  for_each              = { for i in range(var.windows_vm_count) : "win-vm-${i + 1}" => i }
+  name                  = each.key
+  location              = var.location
+  resource_group_name   = var.resource_group_name
+  vm_size               = var.windows_vm_config.vm_size
+  network_interface_ids = [for i in range(var.windows_vm_config.nic_count) : azurerm_network_interface.nic["${each.key}-${i}"].id]
+
+  storage_image_reference {
+    publisher = var.windows_vm_config.image_reference.publisher
+    offer     = var.windows_vm_config.image_reference.offer
+    sku       = var.windows_vm_config.image_reference.sku
+    version   = var.windows_vm_config.image_reference.version
+  }
+
+  storage_os_disk {
+    name              = "${each.key}-osdisk"
+    caching           = "ReadWrite"
+    create_option     = "FromImage"
+    managed_disk_type = "Standard_LRS"
+  }
+
+  os_profile {
+    computer_name  = each.key
+    admin_username = var.windows_vm_config.admin_username
+    admin_password = var.windows_vm_config.admin_password
+  }
+
+  os_profile_windows_config {
+    provision_vm_agent        = true
+    enable_automatic_upgrades = true
+  }
+
+  tags = {
+    resource_type = "vm"
+    environment   = "dr"
+    cost_center   = "it"
+    service       = "app_server"
+  }
+
+  depends_on = [azurerm_network_interface.nic]
+}
+
+# Linux VM Extension: Install Node Exporter, SentinelOne, nfs-common, Configure Syslog, Disable Firewalls, Add Users
+resource "azurerm_virtual_machine_extension" "linux_setup" {
+  for_each            = azurerm_virtual_machine.linux_vm
+  name                = "${each.key}-linux-setup"
+  virtual_machine_id  = each.value.id
+  publisher           = "Microsoft.Azure.Extensions"
+  type                = "CustomScript"
+  type_handler_version = "2.0"
+
+  protected_settings = jsonencode({
+    "fileUris" = [
+      "https://mytfstatesstacc.blob.core.windows.net/softwares/node_exporter-1.9.0.linux-amd64.tar.gz?<SAS_TOKEN>",
+      "https://mytfstatesstacc.blob.core.windows.net/softwares/SentinelAgent_linux_x86_64_v24_2_2_20.deb?<SAS_TOKEN>"
+    ],
+    "commandToExecute" = "bash -c 'set -e; sudo apt-get update; sudo apt-get upgrade -y; tar xvfz node_exporter-1.9.0.linux-amd64.tar.gz; sudo mv node_exporter-1.9.0.linux-amd64/node_exporter /usr/local/bin/; rm -rf node_exporter-1.9.0.linux-amd64*; sudo tee /etc/systemd/system/node_exporter.service <<< \"[Unit]\nDescription=Node Exporter\nAfter=network.target\n\n[Service]\nExecStart=/usr/local/bin/node_exporter\nRestart=always\n\n[Install]\nWantedBy=multi-user.target\"; sudo systemctl daemon-reload; sudo systemctl enable node_exporter; sudo systemctl start node_exporter; sleep 30; dpkg -i SentinelAgent_linux_x86_64_v24_2_2_20.deb || apt-get install -f; apt-get update; apt-get install -y rsyslog; echo \"Configuring SentinelOne with site key...\" >> /var/log/sentinel_setup.log; /opt/sentinelone/bin/sentinelctl config set sitekey ImR10DdmZjY4ZjZkNGFhY2Qi >> /var/log/sentinel_setup.log 2>&1 || echo \"SentinelOne config failed\" >> /var/log/sentinel_setup.log; /opt/sentinelone/bin/sentinelctl control start; sudo tee /etc/rsyslog.d/50-default.conf <<< \"*.* @@10.7.35.46:514\"; systemctl restart rsyslog; apt-get install -y nfs-common; systemctl stop firewalld || true; systemctl disable firewalld || true; ufw disable; useradd -m -p $(openssl passwd -1 \"drddemosyseng@2025#\") syseng_cyberark || true; useradd -m -p $(openssl passwd -1 \"drddemosyseng@2025#\") devops_cyberark || true; useradd -m -p $(openssl passwd -1 \"drddemosyseng@2025#\") ems_cyberark || true; useradd -m -p $(openssl passwd -1 \"drddemosyseng@2025#\") scomadmin || true; useradd -m -p $(openssl passwd -1 \"drddemosyseng@2025#\") db_cyberark || true; useradd -m -p $(openssl passwd -1 \"drddemosyseng@2025#\") devadmin || true; useradd -m -p $(openssl passwd -1 \"drddemosyseng@2025#\") qradarsv_cyberark || true'"
+  })
+
+  tags = {
+    resource_type = "vm"
+    environment   = "dr"
+    cost_center   = "it"
+    service       = "app_server"
+  }
+
+  depends_on = [azurerm_virtual_machine.linux_vm]
+}
+
+# Windows VM Extension: Install Windows Exporter, SentinelOne, WinCollect
+resource "azurerm_virtual_machine_extension" "windows_setup" {
+  for_each            = azurerm_virtual_machine.windows_vm
+  name                = "${each.key}-windows-setup"
+  virtual_machine_id  = each.value.id
+  publisher           = "Microsoft.Compute"
+  type                = "CustomScriptExtension"
+  type_handler_version = "1.10"
+
+  protected_settings = jsonencode({
+    "fileUris" = [
+      "https://mytfstatesstacc.blob.core.windows.net/softwares/windows_exporter-0.26.1-amd64.msi?<SAS_TOKEN>",
+      "https://mytfstatesstacc.blob.core.windows.net/softwares/SentinelInstaller_windows_64bit_v24_1_5_277.msi?<SAS_TOKEN>",
+      "https://mytfstatesstacc.blob.core.windows.net/softwares/wincollect-10.1.3-24.x64_6_3_(1).msi?<SAS_TOKEN>"
+    ],
+    "commandToExecute" = "powershell -ExecutionPolicy Unrestricted -Command \"msiexec.exe /i windows_exporter-0.26.1-amd64.msi /quiet /norestart; msiexec.exe /i SentinelInstaller_windows_64bit_v24_1_5_277.msi SITE_TOKEN='YOUR_WINDOWS_SITE_TOKEN_HERE' /quiet /norestart; msiexec.exe /i wincollect-10.1.3-24.x64_6_3_(1).msi /quiet /norestart; Start-Sleep -Seconds 30; if (-not (Test-Path 'C:\\Program Files\\IBM\\WinCollect\\config')) { New-Item -Path 'C:\\Program Files\\IBM\\WinCollect\\config' -ItemType Directory -Force }; Set-Content -Path 'C:\\Program Files\\IBM\\WinCollect\\config\\config.ini' -Value '[WinCollect]`nDestination=10.7.35.46`nPort=514`nProtocol=TCP`nLogSource=WindowsEvents' -Force; $wincollectService = Get-Service -Name '*WinCollect*' | Select-Object -First 1; if ($wincollectService) { Restart-Service -Name $wincollectService.Name -Force } else { Write-Output 'WinCollect service not found' | Out-File -FilePath 'C:\\wincollect_setup.log' }\""
+  })
+
+  tags = {
+    resource_type = "vm"
+    environment   = "dr"
+    cost_center   = "it"
+    service       = "app_server"
+  }
+
+  depends_on = [azurerm_virtual_machine.windows_vm]
+}
+
+# Local variable to generate NIC configs for all VMs
+locals {
+  linux_nic_configs = flatten([
+    for i in range(var.linux_vm_count) : [
+      for j in range(var.linux_vm_config.nic_count) : {
+        vm_name   = "ubuntu-vm-${i + 1}"
+        nic_index = j
+      }
+    ]
+  ])
+
+  windows_nic_configs = flatten([
+    for i in range(var.windows_vm_count) : [
+      for j in range(var.windows_vm_config.nic_count) : {
+        vm_name   = "win-vm-${i + 1}"
+        nic_index = j
+      }
+    ]
+  ])
+
+  all_nic_configs = concat(local.linux_nic_configs, local.windows_nic_configs)
+}
