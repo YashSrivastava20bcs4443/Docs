@@ -2,3 +2,27 @@ diagnose sys session filter dst 10.0.1.5
 diagnose sys session list
 Check MetalLB Speaker Logs for BGP Issues
 kubectl logs -n metallb-system -l component=speaker
+
+
+ Check if TCP Port 179 (BGP) is Allowed
+BGP runs on TCP port 179. Ensure FortiGate allows traffic on this port:
+
+shell
+Copy
+Edit
+diagnose sys session filter dst 10.0.1.5
+diagnose sys session list
+✅ If no session appears, create a firewall policy:
+
+config firewall policy
+    edit 1
+        set name "Allow BGP"
+        set srcintf "port1"
+        set dstintf "port2"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set service "BGP"
+        set schedule "always"
+    next
+end
