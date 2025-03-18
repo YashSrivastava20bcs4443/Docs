@@ -71,3 +71,5 @@ kubectl get bgppeer -n metallb-system
 
 sudo tcpdump -i any port 179 -nn
 sudo tcpdump -i any -nn port 179
+
+diagnose sniffer packet any 'dst host 18.250.64.5 and port 179' 4
