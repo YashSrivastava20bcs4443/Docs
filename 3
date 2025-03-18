@@ -73,3 +73,8 @@ spec:
   myASN: 65515        # MetalLB's ASN
   peerASN: 65516      # Bird's ASN
   peerAddress: 10.250.0.4  # Bird's IP
+
+
+kubectl apply -f ipaddresspool.yaml
+kubectl apply -f bgp-advertisement.yaml
+kubectl apply -f bgppeer.yaml
