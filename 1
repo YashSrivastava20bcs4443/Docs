@@ -46,5 +46,8 @@ kubectl edit l2advertisement 12-advertisement -n metallb-system
  kubectl delete ipaddresspool external-ip-pool -n metallb-system
 kubectl delete l2advertisement 12-advertisement -n metallb-system
 
+kubectl logs -n metallb-system -l component=speaker
+
+
 
 
