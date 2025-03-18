@@ -27,13 +27,24 @@ config firewall policy
     next
 end
 
+kubectl get ipaddresspools -n metallb-system
+kubectl get l2advertisements -n metallb-system
 
-sudo iptables -F
-sudo iptables -X
-sudo iptables -t nat -F
-sudo iptables -t nat -X
-sudo iptables -t mangle -F
-sudo iptables -t mangle -X
-sudo iptables -P INPUT ACCEPT
-sudo iptables -P FORWARD ACCEPT
-sudo iptables -P OUTPUT ACCEPT
+kubectl describe ipaddresspool external-ip-pool -n metallb-system
+kubectl describe l2advertisement 12-advertisement -n metallb-system
+
+
+If You Want to Modify the Existing Configuration
+kubectl edit ipaddresspool external-ip-pool -n metallb-system
+
+
+kubectl edit l2advertisement 12-advertisement -n metallb-system
+
+ If You Want to Replace the Configuration
+ First, delete the existing resources, then apply the new YAML file.
+
+ kubectl delete ipaddresspool external-ip-pool -n metallb-system
+kubectl delete l2advertisement 12-advertisement -n metallb-system
+
+
+
