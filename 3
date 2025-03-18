@@ -78,3 +78,7 @@ spec:
 kubectl apply -f ipaddresspool.yaml
 kubectl apply -f bgp-advertisement.yaml
 kubectl apply -f bgppeer.yaml
+
+kubectl get ipaddresspool -n metallb-system
+kubectl get bgpadvertisement -n metallb-system
+kubectl get bgppeer -n metallb-system
