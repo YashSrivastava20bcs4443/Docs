@@ -52,3 +52,12 @@ kubectl logs -n metallb-system -l component=speaker
 kubectl get bgppeers -n metallb-system
 
 
+
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: external-ip-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.0.2.100-10.0.2.120  
