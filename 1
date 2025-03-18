@@ -66,3 +66,8 @@ spec:
 kubectl get ipaddresspool -n metallb-system
 kubectl get bgpadvertisement -n metallb-system
 kubectl get bgppeer -n metallb-system
+
+
+
+sudo tcpdump -i any port 179 -nn
+sudo tcpdump -i any -nn port 179
