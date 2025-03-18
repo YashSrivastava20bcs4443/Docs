@@ -1,107 +1,127 @@
-trigger:
-- none
-
-parameters:
-  - name: osType
-    displayName: "OS Type (linux/windows)"
-    type: string
-    default: "linux"
-    values:
-      - linux
-      - windows
-  - name: vmSize
-    displayName: "VM Size"
-    type: string
-    default: "Standard_D2s_v3"
-  - name: nicCount
-    displayName: "Number of NICs"
-    type: number
-    default: 1
-  - name: linuxVmCount
-    displayName: "Number of Linux VMs"
-    type: number
-    default: 1
-  - name: windowsVmCount
-    displayName: "Number of Windows VMs"
-    type: number
-    default: 0
-
-variables:
-- group: TerraformVars  # ✅ Variable group for sensitive values
-- name: terraformVarsFile
-  value: "$(Build.SourcesDirectory)/terraform.tfvars"  # Path to tfvars file
-
-jobs:
-- job: Terraform_Deploy
-  displayName: "Terraform Apply"
-  pool:
-    vmImage: ubuntu-latest  # Microsoft-hosted agent
-
-  steps:
-  - checkout: self  # ✅ Ensures repo is checked out
-
-  # ✅ Step 1: Generate terraform.tfvars dynamically
-  - script: |
-      echo "linux_vm_count=${{ parameters.linuxVmCount }}" > $(terraformVarsFile)
-      echo "windows_vm_count=${{ parameters.windowsVmCount }}" >> $(terraformVarsFile)
-      echo "linux_vm_config = {" >> $(terraformVarsFile)
-      echo "  os_type = \"linux\"" >> $(terraformVarsFile)
-      echo "  vm_size = \"${{ parameters.vmSize }}\"" >> $(terraformVarsFile)
-      echo "  nic_count = ${{ parameters.nicCount }}" >> $(terraformVarsFile)
-      echo "  admin_username = \"$(ADMIN_USERNAME)\"" >> $(terraformVarsFile)
-      echo "  admin_password = \"$(ADMIN_PASSWORD)\"" >> $(terraformVarsFile)
-      echo "  public_ip = false" >> $(terraformVarsFile)
-      echo "  image_reference = {" >> $(terraformVarsFile)
-      echo "    publisher = \"Canonical\"" >> $(terraformVarsFile)
-      echo "    offer = \"UbuntuServer\"" >> $(terraformVarsFile)
-      echo "    sku = \"18.04-LTS\"" >> $(terraformVarsFile)
-      echo "    version = \"latest\"" >> $(terraformVarsFile)
-      echo "  }" >> $(terraformVarsFile)
-      echo "}" >> $(terraformVarsFile)
-
-      echo "windows_vm_config = {" >> $(terraformVarsFile)
-      echo "  os_type = \"windows\"" >> $(terraformVarsFile)
-      echo "  vm_size = \"${{ parameters.vmSize }}\"" >> $(terraformVarsFile)
-      echo "  nic_count = ${{ parameters.nicCount }}" >> $(terraformVarsFile)
-      echo "  admin_username = \"$(ADMIN_USERNAME)\"" >> $(terraformVarsFile)
-      echo "  admin_password = \"$(ADMIN_PASSWORD)\"" >> $(terraformVarsFile)
-      echo "  public_ip = false" >> $(terraformVarsFile)
-      echo "  image_reference = {" >> $(terraformVarsFile)
-      echo "    publisher = \"MicrosoftWindowsServer\"" >> $(terraformVarsFile)
-      echo "    offer = \"WindowsServer\"" >> $(terraformVarsFile)
-      echo "    sku = \"2019-Datacenter\"" >> $(terraformVarsFile)
-      echo "    version = \"latest\"" >> $(terraformVarsFile)
-      echo "  }" >> $(terraformVarsFile)
-      echo "}" >> $(terraformVarsFile)
-    displayName: "Generate terraform.tfvars dynamically"
-
-  # ✅ Step 2: Terraform Init using Service Connection
-  - task: TerraformTaskV3@3
-    displayName: "Terraform Init"
-    inputs:
-      provider: "azurerm"
-      command: "init"
-      backendServiceArm: "AzureConnection"
-      backendAzureRmResourceGroupName: "tfstate-resources"
-      backendAzureRmStorageAccountName: "mytfstatesstacc"
-      backendAzureRmContainerName: "tfstate"
-      backendAzureRmKey: "pipelinetst/terraform.tfstate"
+If you want to replace Bird with a FortiGate firewall for BGP peering with MetalLB on your k3 cluster (IP 10.250.0.5), and keep the FortiGate's IP as 10.250.0.4, I'll guide you through configuring BGP on the FortiGate. The goal is to establish BGP peering with MetalLB, advertise routes (if needed), and accept the IP pool (10.0.2.100-10.0.2.120) advertised by MetalLB. Below is the configuration assuming a basic FortiGate setup.
+________________________________________
+Assumptions
+•	FortiGate interface connected to the k3 cluster is port1 with IP 10.250.0.4/24.
+•	MetalLB’s IP remains 10.250.0.5, with myASN: 65515 and peerASN: 65516 (from your earlier MetalLB config).
+•	FortiGate will use ASN 65516 (matching Bird’s role).
+•	No additional routing protocols (e.g., OSPF) are in use; this is a simple BGP setup.
+________________________________________
+FortiGate BGP Configuration
+Step 1: Configure the Interface
+Ensure the FortiGate’s interface facing the k3 cluster is configured with the correct IP.
 
 
-  # ✅ Step 3: Terraform Plan
-  - task: TerraformTaskV3@3
-    displayName: "Terraform Plan"
-    inputs:
-      provider: "azurerm"
-      command: "plan"
-      environmentServiceNameAzureRM: "AzureConnection"
-      commandOptions: "-var-file=$(terraformVarsFile) -detailed-exitcode"
+config system interface
+    edit "port1"
+        set ip 10.250.0.4 255.255.255.0
+        set allowaccess ping  # Optional: for troubleshooting
+        set type physical
+    next
+end
+Step 2: Enable BGP and Set Router ID
+Configure BGP with the ASN and router ID (using the FortiGate’s IP).
 
-  # ✅ Step 4: Terraform Apply
-  - task: TerraformTaskV3@3
-    displayName: "Terraform Apply"
-    inputs:
-      provider: "azurerm"
-      command: "apply"
-      environmentServiceNameAzureRM: "AzureConnection"
-      commandOptions: "-var-file=$(terraformVarsFile) -auto-approve"
+
+config router bgp
+    set as 65516
+    set router-id 10.250.0.4
+Step 3: Configure the BGP Neighbor (MetalLB)
+Add MetalLB as a BGP neighbor.
+
+
+    config neighbor
+        edit "10.250.0.5"
+            set remote-as 65515
+            set update-source "port1"  # Specify the interface facing MetalLB
+        next
+    end
+Step 4: Advertise Routes (Optional)
+If you want FortiGate to advertise any networks to MetalLB (e.g., a local subnet), define them. For this example, let’s advertise 10.250.0.0/24 (the FortiGate’s interface subnet):
+
+
+    config network
+        edit 1
+            set prefix 10.250.0.0 255.255.255.0
+        next
+    end
+•	Note: Routes must exist in the FortiGate’s routing table (e.g., connected or static) to be advertised. If you don’t need to advertise anything, skip this step.
+Step 5: Allow BGP Traffic (Firewall Policy)
+Create a policy to allow BGP traffic (TCP port 179) between FortiGate and MetalLB.
+
+
+config firewall policy
+    edit 1
+        set name "allow-bgp"
+        set srcintf "port1"
+        set dstintf "port1"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set service "BGP"  # Predefined service for TCP 179
+        set schedule "always"
+        set nat disable
+    next
+end
+Full Configuration
+Here’s the combined CLI configuration:
+
+
+config system interface
+    edit "port1"
+        set ip 10.250.0.4 255.255.255.0
+        set allowaccess ping
+        set type physical
+    next
+end
+
+config router bgp
+    set as 65516
+    set router-id 10.250.0.4
+    config neighbor
+        edit "10.250.0.5"
+            set remote-as 65515
+            set update-source "port1"
+        next
+    end
+    config network
+        edit 1
+            set prefix 10.250.0.0 255.255.255.0
+        next
+    end
+end
+
+config firewall policy
+    edit 1
+        set name "allow-bgp"
+        set srcintf "port1"
+        set dstintf "port1"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set service "BGP"
+        set schedule "always"
+        set nat disable
+    next
+end
+________________________________________
+Verification on FortiGate
+1.	Check BGP Neighbor Status: 
+get router info bgp summary
+Look for: 
+BGP router identifier 10.250.0.4, local AS number 65516
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+10.250.0.5     4 65515    10      12        0     0    0 00:05:00 Established
+o	State/PfxRcd should show Established and the number of prefixes received (e.g., from the MetalLB IP pool).
+2.	View Received Routes: 
+get router info bgp neighbors 10.250.0.5 received-routes
+You should see the 10.0.2.100/32, 10.0.2.101/32, etc., routes from MetalLB’s IP pool if a LoadBalancer service is active.
+3.	View Advertised Routes: 
+
+
+get router info bgp neighbors 10.250.0.5 advertised-routes
+If you configured the 10.250.0.0/24 network, it should appear here.
+4.	Check Routing Table: 
+get router info routing-table all
+Look for BGP routes like: 
+B   10.0.2.100/32 [20/0] via 10.250.0.5, port1, 00:05:00
+
