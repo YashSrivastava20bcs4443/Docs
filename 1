@@ -73,3 +73,6 @@ sudo tcpdump -i any port 179 -nn
 sudo tcpdump -i any -nn port 179
 
 diagnose sniffer packet any 'dst host 18.250.64.5 and port 179' 4
+
+
+The error "OpenSSL/3.0.13: error: 0A00010B:SSL routines::wrong version number" usually indicates that the server is not actually running an SSL/TLS service on port 443 or is using an incompatible TLS version. 
