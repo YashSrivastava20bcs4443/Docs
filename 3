@@ -1,78 +1,75 @@
-Slide 1: Title Slide
-Project: Automated VM Deployment in Existing DR Infrastructure
-🚀 Using Terraform & Azure DevOps Release Pipeline
+sudo apt update && sudo apt install -y bird
+sudo nano /etc/bird/bird.conf
 
-Slide 2: Introduction
-We are automating the creation of Virtual Machines (VMs) in an existing Disaster Recovery (DR) infrastructure using Terraform.
-The process is integrated into an Azure DevOps Release Pipeline with manual approval before deployment.
-Slide 3: Existing DR Infrastructure
-Virtual Network (VNet)
-Subnet (SNet)
-Network Security Group (NSG)
-Existing DR Policies and Setup
-Slide 4: Terraform for VM Creation
-We use Terraform to create VMs in the existing DR setup.
-Terraform uses:
-✅ Existing VNet & SNet
-✅ Existing NSG for security policies
-✅ Managed Disks & Availability Set (if required)
-✅ Terraform VM Extension for post-creation software installation
-Slide 5: VM Extension for Software Installation
-After VM creation, we use Terraform VM Extensions to install:
-✅ Required software (e.g., monitoring agents, security tools)
-✅ Configuration scripts (e.g., PowerShell, Bash)
-✅ Custom initialization settings
-Slide 6: Azure DevOps Release Pipeline Workflow
-📌 Trigger: Manual execution by the user
-📌 Approval Stage: Needs manual approval before deployment
-📌 Terraform Execution:
-1️⃣ Terraform Init – Initialize backend state
-2️⃣ Terraform Plan – Preview changes
-3️⃣ Terraform Apply – Deploy resources
-📌 Post-Deployment Tasks: Install software via VM Extension
 
-Slide 7: Pipeline Flow Diagram
-1️⃣ User Manually Runs the Pipeline
-⬇️
-2️⃣ Approval Required (Managers/Approvers)
-⬇️
-3️⃣ Terraform Deploys VMs (in DR Infra)
-⬇️
-4️⃣ VM Extension Installs Software
-⬇️
-✅ Deployment Completed
+# Router ID: A unique identifier for this Bird instance.
+# Using Bird's IP address (10.250.0.4) instead of the default 198.51.100.1.
+router id 10.250.0.4;
 
-Slide 8: Benefits of This Automation
-🚀 Faster & Consistent VM Deployment
-🔒 Security Compliance with DR Policies
-💰 Cost & Time Savings via Automation
-🛠️ Easy Software Installation via VM Extension
-📊 Approval Process Ensures Control
+# Kernel protocol: Synchronizes Bird's routing table with the OS kernel.
+protocol kernel {
+    scan time 60;
+    import none;  # Don't import routes from the kernel unless needed
+    export all;   # Export routes learned via BGP to the kernel
+}
 
-Slide 9: Next Steps & Enhancements
-🔹 Auto-Scaling Support in future updates
-🔹 Infrastructure Monitoring Integration
-🔹 Enhancing Security Policies via Terraform
+# Device protocol: Monitors network interfaces.
+protocol device {
+    scan time 60;
+}
 
-Slide 10: Conclusion
-✅ Automated, Secure, and Controlled VM Deployment
-✅ Seamless Integration with Azure DevOps
-✅ Approval-based Deployment Process
+# BGP protocol: Configures peering with MetalLB on k3 (10.250.0.5).
+protocol bgp metallb {
+    local as 65516;           # Bird's ASN (matches your BGPPeer spec)
+    neighbor 10.250.0.5 as 65515;  # MetalLB's IP and ASN
+    import all;               # Accept all routes from MetalLB
+    export all;               # Advertise all routes to MetalLB (if any)
+}
 
-🎯 Any Questions?
-
-This content should work well for a presentation. You can copy it into PowerPoint and add visuals (e.g., Azure DevOps pipeline diagrams, Terraform workflow images) for better engagement. 🚀 Let me know if you need modifications! 😊
+sudo systemctl restart bird
+sudo systemctl enable bird
+sudo birdc show protocols
 
 
 
+curl -sfL https://get.k3s.io | sh -
+sudo systemctl status k3s
+kubectl get nodes
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/main/config/manifests/metallb-native.yaml
 
 
+ipaddresspool.yaml
+bgp-advertisement.yaml
+bgppeer.yaml
+
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: external-ip-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.0.2.100-10.0.2.120  # Update this to match your desired external IP range
 
 
+apiVersion: metallb.io/v1beta1
+kind: BGPAdvertisement
+metadata:
+  name: bgp-advertisement
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - external-ip-pool
+  aggregationLength: 32
+  localPref: 100
 
 
-
-
-Search
-
-Reason
+apiVersion: metallb.io/v1beta2
+kind: BGPPeer
+metadata:
+  name: bgp-peer-bird
+  namespace: metallb-system
+spec:
+  myASN: 65515        # MetalLB's ASN
+  peerASN: 65516      # Bird's ASN
+  peerAddress: 10.250.0.4  # Bird's IP
