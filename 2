@@ -1,32 +1,46 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx-deployment
-spec:
-  replicas: 2  # Creates 2 pods
-  selector:
-    matchLabels:
-      app: nginx  # MUST MATCH the service selector
-  template:
-    metadata:
-      labels:
-        app: nginx  # MUST MATCH the service selector
-    spec:
-      containers:
-        - name: nginx
-          image: nginx:latest  # Uses the latest nginx image
-          ports:
-            - containerPort: 80
+Here’s your refined and professional update:
+
+
+---
+
+Work Summary – Last Week (Tuesday to Tuesday)
+
+1. Implemented feedback and added extra features to the pipeline for system engineering requirements to execute the Terraform script for VM creation on Azure (testing is pending).
+
+
+2. Successfully set up MetalLB configuration for BGP peering in the Disaster Recovery (DR) environment.
+
+
+3. Completed and tested the script for automating package installation on VMs via Terraform on Azure Cloud.
+
+
+4. Configured Bird MetalLB BGP peering for testing purposes in the Disaster Recovery (DR) environment.
 
 
 
-kubectl apply -f nginx-deployment.yaml
 
-kubectl get pods -o wide
+---
 
-kubectl get endpoints nginx
+Planned Work – Upcoming Week (Tuesday to Tuesday)
 
-kubectl get pods
-kubectl get svc nginx
-kubectl get deployment nginx-deployment
-kubectl get endpoints nginx
+1. Will add all credentials to Azure Key Vault, which will be used for package installation via Terraform on Azure Cloud.
+
+
+2. Will test the pipeline for system engineering requirements to execute the Terraform script for VM creation on Azure.
+
+
+3. Will create documentation for the BGP peering process and present it in a demo.
+
+
+4. Will document the process for package installation using Terraform on Azure Cloud.
+
+
+5. Will present a demo showcasing automated VM deployment within the existing DR infrastructure.
+
+
+
+
+---
+
+This version ensures clarity, professionalism, and a well-structured flow. Let me know if you need any modifications!
+
