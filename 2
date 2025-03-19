@@ -1,127 +1,32 @@
-If you want to replace Bird with a FortiGate firewall for BGP peering with MetalLB on your k3 cluster (IP 10.250.0.5), and keep the FortiGate's IP as 10.250.0.4, I'll guide you through configuring BGP on the FortiGate. The goal is to establish BGP peering with MetalLB, advertise routes (if needed), and accept the IP pool (10.0.2.100-10.0.2.120) advertised by MetalLB. Below is the configuration assuming a basic FortiGate setup.
-________________________________________
-Assumptions
-•	FortiGate interface connected to the k3 cluster is port1 with IP 10.250.0.4/24.
-•	MetalLB’s IP remains 10.250.0.5, with myASN: 65515 and peerASN: 65516 (from your earlier MetalLB config).
-•	FortiGate will use ASN 65516 (matching Bird’s role).
-•	No additional routing protocols (e.g., OSPF) are in use; this is a simple BGP setup.
-________________________________________
-FortiGate BGP Configuration
-Step 1: Configure the Interface
-Ensure the FortiGate’s interface facing the k3 cluster is configured with the correct IP.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 2  # Creates 2 pods
+  selector:
+    matchLabels:
+      app: nginx  # MUST MATCH the service selector
+  template:
+    metadata:
+      labels:
+        app: nginx  # MUST MATCH the service selector
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:latest  # Uses the latest nginx image
+          ports:
+            - containerPort: 80
 
 
-config system interface
-    edit "port1"
-        set ip 10.250.0.4 255.255.255.0
-        set allowaccess ping  # Optional: for troubleshooting
-        set type physical
-    next
-end
-Step 2: Enable BGP and Set Router ID
-Configure BGP with the ASN and router ID (using the FortiGate’s IP).
 
+kubectl apply -f nginx-deployment.yaml
 
-config router bgp
-    set as 65516
-    set router-id 10.250.0.4
-Step 3: Configure the BGP Neighbor (MetalLB)
-Add MetalLB as a BGP neighbor.
+kubectl get pods -o wide
 
+kubectl get endpoints nginx
 
-    config neighbor
-        edit "10.250.0.5"
-            set remote-as 65515
-            set update-source "port1"  # Specify the interface facing MetalLB
-        next
-    end
-Step 4: Advertise Routes (Optional)
-If you want FortiGate to advertise any networks to MetalLB (e.g., a local subnet), define them. For this example, let’s advertise 10.250.0.0/24 (the FortiGate’s interface subnet):
-
-
-    config network
-        edit 1
-            set prefix 10.250.0.0 255.255.255.0
-        next
-    end
-•	Note: Routes must exist in the FortiGate’s routing table (e.g., connected or static) to be advertised. If you don’t need to advertise anything, skip this step.
-Step 5: Allow BGP Traffic (Firewall Policy)
-Create a policy to allow BGP traffic (TCP port 179) between FortiGate and MetalLB.
-
-
-config firewall policy
-    edit 1
-        set name "allow-bgp"
-        set srcintf "port1"
-        set dstintf "port1"
-        set srcaddr "all"
-        set dstaddr "all"
-        set action accept
-        set service "BGP"  # Predefined service for TCP 179
-        set schedule "always"
-        set nat disable
-    next
-end
-Full Configuration
-Here’s the combined CLI configuration:
-
-
-config system interface
-    edit "port1"
-        set ip 10.250.0.4 255.255.255.0
-        set allowaccess ping
-        set type physical
-    next
-end
-
-config router bgp
-    set as 65516
-    set router-id 10.250.0.4
-    config neighbor
-        edit "10.250.0.5"
-            set remote-as 65515
-            set update-source "port1"
-        next
-    end
-    config network
-        edit 1
-            set prefix 10.250.0.0 255.255.255.0
-        next
-    end
-end
-
-config firewall policy
-    edit 1
-        set name "allow-bgp"
-        set srcintf "port1"
-        set dstintf "port1"
-        set srcaddr "all"
-        set dstaddr "all"
-        set action accept
-        set service "BGP"
-        set schedule "always"
-        set nat disable
-    next
-end
-________________________________________
-Verification on FortiGate
-1.	Check BGP Neighbor Status: 
-get router info bgp summary
-Look for: 
-BGP router identifier 10.250.0.4, local AS number 65516
-Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
-10.250.0.5     4 65515    10      12        0     0    0 00:05:00 Established
-o	State/PfxRcd should show Established and the number of prefixes received (e.g., from the MetalLB IP pool).
-2.	View Received Routes: 
-get router info bgp neighbors 10.250.0.5 received-routes
-You should see the 10.0.2.100/32, 10.0.2.101/32, etc., routes from MetalLB’s IP pool if a LoadBalancer service is active.
-3.	View Advertised Routes: 
-
-
-get router info bgp neighbors 10.250.0.5 advertised-routes
-If you configured the 10.250.0.0/24 network, it should appear here.
-4.	Check Routing Table: 
-get router info routing-table all
-Look for BGP routes like: 
-B   10.0.2.100/32 [20/0] via 10.250.0.5, port1, 00:05:00
-
+kubectl get pods
+kubectl get svc nginx
+kubectl get deployment nginx-deployment
+kubectl get endpoints nginx
