@@ -84,7 +84,7 @@ kubectl get bgpadvertisement -n metallb-system
 kubectl get bgppeer -n metallb-system
 
 
-kubectl expose deployment nginx --port=80 --type=LoadBalancer
+kubectl create deployment nginx --image=nginx
 kubectl expose deployment nginx --port=80 --type=LoadBalancer
 kubectl get svc nginx
 
