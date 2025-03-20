@@ -1,46 +1,10 @@
-Here’s your refined and professional update:
+import base64
 
+# Example Base64 encoded string
+encoded_str = "SGVsbG8gd29ybGQh"  # "Hello world!" in Base64
 
----
+# Decoding Base64
+decoded_bytes = base64.b64decode(encoded_str)
+decoded_str = decoded_bytes.decode("utf-8")
 
-Work Summary – Last Week (Tuesday to Tuesday)
-
-1. Implemented feedback and added extra features to the pipeline for system engineering requirements to execute the Terraform script for VM creation on Azure (testing is pending).
-
-
-2. Successfully set up MetalLB configuration for BGP peering in the Disaster Recovery (DR) environment.
-
-
-3. Completed and tested the script for automating package installation on VMs via Terraform on Azure Cloud.
-
-
-4. Configured Bird MetalLB BGP peering for testing purposes in the Disaster Recovery (DR) environment.
-
-
-
-
----
-
-Planned Work – Upcoming Week (Tuesday to Tuesday)
-
-1. Will add all credentials to Azure Key Vault, which will be used for package installation via Terraform on Azure Cloud.
-
-
-2. Will test the pipeline for system engineering requirements to execute the Terraform script for VM creation on Azure.
-
-
-3. Will create documentation for the BGP peering process and present it in a demo.
-
-
-4. Will document the process for package installation using Terraform on Azure Cloud.
-
-
-5. Will present a demo showcasing automated VM deployment within the existing DR infrastructure.
-
-
-
-
----
-
-This version ensures clarity, professionalism, and a well-structured flow. Let me know if you need any modifications!
-
+print("Decoded string:", decoded_str)
