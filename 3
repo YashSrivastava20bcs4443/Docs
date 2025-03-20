@@ -84,6 +84,11 @@ kubectl get bgpadvertisement -n metallb-system
 kubectl get bgppeer -n metallb-system
 
 
+kubectl expose deployment nginx --port=80 --type=LoadBalancer
+kubectl expose deployment nginx --port=80 --type=LoadBalancer
+kubectl get svc nginx
+
+
 apiVersion: v1
 kind: Service
 metadata:
