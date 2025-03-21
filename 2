@@ -1,4 +1,51 @@
-Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\State"
+install_sentinelone.ps1
 
+# install_sentinelone.ps1
+# Define variables
+$blobUrl = "https://sysengtestaccount.blob.core.windows.net/baseline-software/SentinelInstaller_windows_64bit_v24_1_5_277.msi?sp=r&st=2025-03-17T09:36:33Z&se=2025-03-21T17:36:33Z&spr=https&sv=2022-11-02&sr=b&sig=1JN48XUVxzyHg6H8xA1DxeZaQdDOzFYQ0w96FCVMyiQ%3D"
+$siteToken = "eyJ1cmwiOiAiaHR0cHM6Ly91c2VhMS0wMTguc2VudGluZWxvbmUubmV0IiwgInNpdGVfa2V5IjogImRkN2FjZjY4ZjZkNGFhY2QifQ=="
+$destinationPath = "C:\Temp\SentinelInstaller.msi"
+$logPath = "C:\Temp\SentinelOneInstallLog.txt"
 
-C:\Windows\System32\Sysprep\sysprep.exe /generalize /shutdown /oobe
+# Create Temp directory if it doesn't exist
+if (-not (Test-Path "C:\Temp")) {
+    New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null
+}
+
+# Initialize log file
+"Starting SentinelOne installation at $(Get-Date)" | Out-File -FilePath $logPath
+
+# Download SentinelOne installer from Azure Blob Storage
+try {
+    "Downloading SentinelOne installer from $blobUrl" | Out-File -FilePath $logPath -Append
+    Invoke-WebRequest -Uri $blobUrl -OutFile $destinationPath -ErrorAction Stop
+    "Download completed successfully" | Out-File -FilePath $logPath -Append
+} catch {
+    "Error downloading SentinelOne installer: $_" | Out-File -FilePath $logPath -Append
+    exit 1
+}
+
+# Install SentinelOne silently using msiexec
+try {
+    "Installing SentinelOne..." | Out-File -FilePath $logPath -Append
+    $arguments = "/i `"$destinationPath`" SITE_TOKEN=$siteToken /quiet /norestart"
+    Start-Process -FilePath "msiexec.exe" -ArgumentList $arguments -Wait -NoNewWindow -ErrorAction Stop
+    "Installation command executed" | Out-File -FilePath $logPath -Append
+} catch {
+    "Error installing SentinelOne: $_" | Out-File -FilePath $logPath -Append
+    exit 1
+}
+
+# Verify SentinelOne installation
+Start-Sleep -Seconds 30  # Wait for service to initialize
+$sentinelService = Get-Service -Name "SentinelAgent" -ErrorAction SilentlyContinue
+if ($sentinelService -and $sentinelService.Status -eq "Running") {
+    "SentinelOne installed and running successfully" | Out-File -FilePath $logPath -Append
+} else {
+    "SentinelOne installation failed or service not running" | Out-File -FilePath $logPath -Append
+    exit 1
+}
+
+# Clean up
+Remove-Item -Path $destinationPath -Force -ErrorAction SilentlyContinue
+"Installation script completed at $(Get-Date)" | Out-File -FilePath $logPath -Append
