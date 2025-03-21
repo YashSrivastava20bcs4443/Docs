@@ -1,51 +1,163 @@
-install_sentinelone.ps1
+# Public IP for VMs where public_ip is true (only for primary NIC)
+resource "azurerm_public_ip" "pip" {
+  for_each            = { for vm_name in concat([for i in range(var.linux_vm_count) : "ubuntu-vm-${i + 1}" if var.linux_vm_config.public_ip], [for i in range(var.windows_vm_count) : "win-vm-${i + 1}" if var.windows_vm_config.public_ip]) : vm_name => vm_name }
+  name                = "${each.value}-pip"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  allocation_method   = "Static"
+  sku                 = "Standard"
 
-# install_sentinelone.ps1
-# Define variables
-$blobUrl = "https://sysengtestaccount.blob.core.windows.net/baseline-software/SentinelInstaller_windows_64bit_v24_1_5_277.msi?sp=r&st=2025-03-17T09:36:33Z&se=2025-03-21T17:36:33Z&spr=https&sv=2022-11-02&sr=b&sig=1JN48XUVxzyHg6H8xA1DxeZaQdDOzFYQ0w96FCVMyiQ%3D"
-$siteToken = "eyJ1cmwiOiAiaHR0cHM6Ly91c2VhMS0wMTguc2VudGluZWxvbmUubmV0IiwgInNpdGVfa2V5IjogImRkN2FjZjY4ZjZkNGFhY2QifQ=="
-$destinationPath = "C:\Temp\SentinelInstaller.msi"
-$logPath = "C:\Temp\SentinelOneInstallLog.txt"
-
-# Create Temp directory if it doesn't exist
-if (-not (Test-Path "C:\Temp")) {
-    New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null
+  tags = {
+    resource_type = "vm"
+    environment   = "dr"
+    cost_center   = "it"
+    service       = "app_server"
+  }
 }
 
-# Initialize log file
-"Starting SentinelOne installation at $(Get-Date)" | Out-File -FilePath $logPath
+# Generate NICs for all VMs
+resource "azurerm_network_interface" "nic" {
+  for_each            = { for nic in local.all_nic_configs : "${nic.vm_name}-${nic.nic_index}" => nic }
+  name                = "${each.value.vm_name}-nic-${each.value.nic_index}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
 
-# Download SentinelOne installer from Azure Blob Storage
-try {
-    "Downloading SentinelOne installer from $blobUrl" | Out-File -FilePath $logPath -Append
-    Invoke-WebRequest -Uri $blobUrl -OutFile $destinationPath -ErrorAction Stop
-    "Download completed successfully" | Out-File -FilePath $logPath -Append
-} catch {
-    "Error downloading SentinelOne installer: $_" | Out-File -FilePath $logPath -Append
-    exit 1
+  ip_configuration {
+    name                          = "ipconfig-${each.value.nic_index}"
+    subnet_id                     = var.subnet_id
+    private_ip_address_allocation = "Dynamic"
+    primary                       = each.value.nic_index == 0 ? true : false
+    public_ip_address_id          = each.value.nic_index == 0 && lookup(azurerm_public_ip.pip, each.value.vm_name, null) != null ? azurerm_public_ip.pip[each.value.vm_name].id : null
+  }
+
+  tags = {
+    resource_type = "vm"
+    environment   = "dr"
+    cost_center   = "it"
+    service       = "app_server"
+  }
+
+  depends_on = [azurerm_public_ip.pip]
 }
 
-# Install SentinelOne silently using msiexec
-try {
-    "Installing SentinelOne..." | Out-File -FilePath $logPath -Append
-    $arguments = "/i `"$destinationPath`" SITE_TOKEN=$siteToken /quiet /norestart"
-    Start-Process -FilePath "msiexec.exe" -ArgumentList $arguments -Wait -NoNewWindow -ErrorAction Stop
-    "Installation command executed" | Out-File -FilePath $logPath -Append
-} catch {
-    "Error installing SentinelOne: $_" | Out-File -FilePath $logPath -Append
-    exit 1
+# Linux VMs from Golden Image (Ubuntu 22.04 LTS)
+resource "azurerm_virtual_machine" "linux_vm" {
+  for_each              = { for i in range(var.linux_vm_count) : "ubuntu-vm-${i + 1}" => i }
+  name                  = each.key
+  location              = var.location
+  resource_group_name   = var.resource_group_name
+  vm_size               = var.linux_vm_config.vm_size
+  network_interface_ids = [for i in range(var.linux_vm_config.nic_count) : azurerm_network_interface.nic["${each.key}-${i}"].id]
+
+  storage_image_reference {
+    id = "/subscriptions/9703ed77-b2d9-4ab6-8659-2c00cfd69f8b/resourceGroups/use1-dr-rgp01/providers/Microsoft.Compute/galleries/use1-drd-GoldenImages/images/UbuntuGoldenImage/versions/1.0.0"
+  }
+
+  storage_os_disk {
+    name              = "${each.key}-osdisk"
+    caching           = "ReadWrite"
+    create_option     = "FromImage"
+    managed_disk_type = "Standard_LRS"
+  }
+
+  os_profile {
+    computer_name  = each.key
+    admin_username = var.linux_vm_config.admin_username
+    admin_password = var.linux_vm_config.admin_password
+  }
+
+  os_profile_linux_config {
+    disable_password_authentication = false
+  }
+
+  tags = {
+    resource_type = "vm"
+    environment   = "dr"
+    cost_center   = "it"
+    service       = "app_server"
+  }
+
+  depends_on = [azurerm_network_interface.nic]
 }
 
-# Verify SentinelOne installation
-Start-Sleep -Seconds 30  # Wait for service to initialize
-$sentinelService = Get-Service -Name "SentinelAgent" -ErrorAction SilentlyContinue
-if ($sentinelService -and $sentinelService.Status -eq "Running") {
-    "SentinelOne installed and running successfully" | Out-File -FilePath $logPath -Append
-} else {
-    "SentinelOne installation failed or service not running" | Out-File -FilePath $logPath -Append
-    exit 1
+# Windows VMs from Golden Image (Windows Server 2022)
+resource "azurerm_virtual_machine" "windows_vm" {
+  for_each              = { for i in range(var.windows_vm_count) : "win-vm-${i + 1}" => i }
+  name                  = each.key
+  location              = var.location
+  resource_group_name   = var.resource_group_name
+  vm_size               = var.windows_vm_config.vm_size
+  network_interface_ids = [for i in range(var.windows_vm_config.nic_count) : azurerm_network_interface.nic["${each.key}-${i}"].id]
+
+  storage_image_reference {
+    id = "/subscriptions/9703ed77-b2d9-4ab6-8659-2c00cfd69f8b/resourceGroups/use1-dr-rgp01/providers/Microsoft.Compute/galleries/use1-drd-GoldenImages/images/WindowsGoldenImage/versions/1.0.0"
+  }
+
+  storage_os_disk {
+    name              = "${each.key}-osdisk"
+    caching           = "ReadWrite"
+    create_option     = "FromImage"
+    managed_disk_type = "Standard_LRS"
+  }
+
+  os_profile {
+    computer_name  = each.key
+    admin_username = var.windows_vm_config.admin_username
+    admin_password = var.windows_vm_config.admin_password
+  }
+
+  os_profile_windows_config {
+    provision_vm_agent        = true
+    enable_automatic_upgrades = true
+  }
+
+  tags = {
+    resource_type = "vm"
+    environment   = "dr"
+    cost_center   = "it"
+    service       = "app_server"
+  }
+
+  depends_on = [azurerm_network_interface.nic]
 }
 
-# Clean up
-Remove-Item -Path $destinationPath -Force -ErrorAction SilentlyContinue
-"Installation script completed at $(Get-Date)" | Out-File -FilePath $logPath -Append
+# Custom Script Extension to Install and Verify SentinelOne on Windows VMs
+resource "azurerm_virtual_machine_extension" "sentinelone_install" {
+  for_each            = { for i in range(var.windows_vm_count) : "win-vm-${i + 1}" => i }
+  name                = "${each.key}-sentinelone-install"
+  virtual_machine_id  = azurerm_virtual_machine.windows_vm[each.key].id
+  publisher           = "Microsoft.Compute"
+  type                = "CustomScriptExtension"
+  type_handler_version = "1.10"
+
+  protected_settings = <<SETTINGS
+  {
+    "commandToExecute": "powershell -ExecutionPolicy Unrestricted -File ${path.module}/scripts/install_sentinelone.ps1"
+  }
+  SETTINGS
+
+  depends_on = [azurerm_virtual_machine.windows_vm]
+}
+
+# Local variable to generate NIC configs for all VMs
+locals {
+  linux_nic_configs = flatten([
+    for i in range(var.linux_vm_count) : [
+      for j in range(var.linux_vm_config.nic_count) : {
+        vm_name   = "ubuntu-vm-${i + 1}"
+        nic_index = j
+      }
+    ]
+  ])
+
+  windows_nic_configs = flatten([
+    for i in range(var.windows_vm_count) : [
+      for j in range(var.windows_vm_config.nic_count) : {
+        vm_name   = "win-vm-${i + 1}"
+        nic_index = j
+      }
+    ]
+  ])
+
+  all_nic_configs = concat(local.linux_nic_configs, local.windows_nic_configs)
+}
