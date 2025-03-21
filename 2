@@ -30,4 +30,10 @@ az sig image-definition create --resource-group use1-dr-rgp01 --gallery-name use
 az sig image-version create --resource-group use1-dr-rgp01 --gallery-name use1-drd-GoldenImages --gallery-image-definition WindowsGoldenImage --gallery-image-version 1.0.0 --virtual-machine "/subscriptions/sub-id/resourceGroups/use1-dr-rgp01/providers/Microsoft.Compute/virtualMachines/win-vm-1" --target-regions eastus
 
 
+az vm deallocate --resource-group use1-dr-rgp01 --name ubuntu-vm-1
+az vm generalize --resource-group use1-dr-rgp01 --name ubuntu-vm-1
+
+
+az vm deallocate --resource-group use1-dr-rgp01 --name win-vm-1
+az vm generalize --resource-group use1-dr-rgp01 --name win-vm-1
 
