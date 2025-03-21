@@ -29,3 +29,20 @@ az sig image-definition create --resource-group use1-dr-rgp01 --gallery-name use
 
 az sig image-version create --resource-group use1-dr-rgp01 --gallery-name use1-drd-GoldenImages --gallery-image-definition WindowsGoldenImage --gallery-image-version 1.0.0 --virtual-machine "/subscriptions/sub-id/resourceGroups/use1-dr-rgp01/providers/Microsoft.Compute/virtualMachines/win-vm-1" --target-regions eastus
 
+
+
+ssh sysadmin@<public-ip>
+systemctl status node_exporter
+systemctl status sentinelone
+cat /etc/rsyslog.d/50-default.conf
+dpkg -l | grep -E "nfs-common|sentinelagent|rsyslog"
+ufw status
+cat /etc/passwd | grep -E "syseng_cyberark|devops_cyberark|ems_cyberark|scomadmin|db_cyberark|devadmin|qradarsv_cyberark"
+
+
+mstsc /v:<public-ip>
+Get-Service windows_exporter
+Get-Service SentinelAgent
+Get-Service | Where-Object { $_.Name -like "*WinCollect*" }
+Get-Content "C:\Program Files\IBM\WinCollect\config\config.ini"
+net user
