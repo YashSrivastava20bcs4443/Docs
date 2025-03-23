@@ -1,1 +1,91 @@
+trigger:
+- none
+
+parameters:
+  - name: osType
+    displayName: "OS Type"
+    type: string
+    default: "linux"
+    values:
+      - linux
+      - windows
+
+  - name: vmSize
+    displayName: "VM Size"
+    type: string
+    default: "Standard_D2s_v3"
+
+  - name: nicCount
+    displayName: "Number of NICs"
+    type: number
+    default: 1
+
+  - name: linuxVmCount
+    displayName: "Number of Linux VMs"
+    type: number
+    default: 1
+
+  - name: windowsVmCount
+    displayName: "Number of Windows VMs"
+    type: number
+    default: 0
+
+variables:
+- group: TerraformVars  # ✅ Secure variables (ADMIN_PASSWORD & WIN_SITE_TOKEN)
+- name: terraformVarsFile
+  value: "$(Build.SourcesDirectory)/terraform.tfvars"  # Path to tfvars file
+
+jobs:
+- job: Terraform_Deploy
+  displayName: "Terraform Apply"
+  pool:
+    vmImage: ubuntu-latest  # Microsoft-hosted agent
+
+  steps:
+  - checkout: self  # ✅ Ensures repo is checked out
+
+  # ✅ Step 1: Replace Tokens for Secure Values
+  - task: replacetokens@3
+    displayName: "Replace Tokens in Terraform Files"
+    inputs:
+      rootDirectory: "$(Build.SourcesDirectory)/cloud_deployment"
+      targetFiles: |
+        DRD-TST/terraform.tfvars
+        modules/Vm/main.tf
+      encoding: "utf-8"
+      writeBOM: true
+      actionOnMissing: "warn"
+      keepToken: false
+      tokenPrefix: "#{"
+      tokenSuffix: "}#"
+
+  # ✅ Step 2: Terraform Init using Service Connection
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Init"
+    inputs:
+      provider: "azurerm"
+      command: "init"
+      backendServiceArm: "AzureConnection"
+      backendAzureRmResourceGroupName: "tfstate-resources"
+      backendAzureRmStorageAccountName: "mytfstatesstacc"
+      backendAzureRmContainerName: "tfstate"
+      backendAzureRmKey: "pipelinetst/terraform.tfstate"
+
+  # ✅ Step 3: Terraform Plan
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Plan"
+    inputs:
+      provider: "azurerm"
+      command: "plan"
+      environmentServiceNameAzureRM: "AzureConnection"
+      commandOptions: "-var-file=$(terraformVarsFile) -detailed-exitcode"
+
+  # ✅ Step 4: Terraform Apply
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Apply"
+    inputs:
+      provider: "azurerm"
+      command: "apply"
+      environmentServiceNameAzureRM: "AzureConnection"
+      commandOptions: "-var-file=$(terraformVarsFile) -auto-approve"
 
