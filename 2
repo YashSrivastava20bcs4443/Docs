@@ -1,91 +1,138 @@
-trigger:
-- none
+Slide 1: Title Slide
+Project: Automated VM Deployment in Existing DR Infrastructure
+🚀 Using Terraform & Azure DevOps Release Pipeline
 
-parameters:
-  - name: osType
-    displayName: "OS Type"
-    type: string
-    default: "linux"
-    values:
-      - linux
-      - windows
+Slide 2: Introduction
+We have automated Virtual Machine (VM) deployments in an existing Disaster Recovery (DR) infrastructure using Terraform and Azure DevOps Release Pipeline.
 
-  - name: vmSize
-    displayName: "VM Size"
-    type: string
-    default: "Standard_D2s_v3"
+✅ Golden Images are used for Linux & Windows VMs to ensure faster deployment and consistency.
+✅ Image Management allows us to update Golden Images periodically with the latest software versions.
+✅ Existing VMs that were created using older Golden Images are also updated to ensure they have the latest configurations and software.
+✅ VM Extensions are used for post-deployment tasks when necessary.
 
-  - name: nicCount
-    displayName: "Number of NICs"
-    type: number
-    default: 1
+Slide 3: Existing DR Infrastructure
+Our DR environment includes:
+✅ Virtual Network (VNet)
+✅ Subnet (SNet)
+✅ Network Security Group (NSG)
+✅ Pre-configured DR Policies and Setup
 
-  - name: linuxVmCount
-    displayName: "Number of Linux VMs"
-    type: number
-    default: 1
+Slide 4: Terraform for VM Deployment
+Terraform provisions VMs using pre-built Golden Images, ensuring efficiency and consistency.
 
-  - name: windowsVmCount
-    displayName: "Number of Windows VMs"
-    type: number
-    default: 0
+✅ Linux Golden Image includes:
 
-variables:
-- group: TerraformVars  # ✅ Secure variables (ADMIN_PASSWORD & WIN_SITE_TOKEN)
-- name: terraformVarsFile
-  value: "$(Build.SourcesDirectory)/terraform.tfvars"  # Path to tfvars file
+node_exporter-1.9.0.linux-amd64.tar.gz (Monitoring)
 
-jobs:
-- job: Terraform_Deploy
-  displayName: "Terraform Apply"
-  pool:
-    vmImage: ubuntu-latest  # Microsoft-hosted agent
+SentinelAgent_linux_x86_64_v24_2_2_20.deb (Security)
 
-  steps:
-  - checkout: self  # ✅ Ensures repo is checked out
+NFS support via nfs-common installation
 
-  # ✅ Step 1: Replace Tokens for Secure Values
-  - task: replacetokens@3
-    displayName: "Replace Tokens in Terraform Files"
-    inputs:
-      rootDirectory: "$(Build.SourcesDirectory)/cloud_deployment"
-      targetFiles: |
-        DRD-TST/terraform.tfvars
-        modules/Vm/main.tf
-      encoding: "utf-8"
-      writeBOM: true
-      actionOnMissing: "warn"
-      keepToken: false
-      tokenPrefix: "#{"
-      tokenSuffix: "}#"
+Additional users pre-configured
 
-  # ✅ Step 2: Terraform Init using Service Connection
-  - task: TerraformTaskV3@3
-    displayName: "Terraform Init"
-    inputs:
-      provider: "azurerm"
-      command: "init"
-      backendServiceArm: "AzureConnection"
-      backendAzureRmResourceGroupName: "tfstate-resources"
-      backendAzureRmStorageAccountName: "mytfstatesstacc"
-      backendAzureRmContainerName: "tfstate"
-      backendAzureRmKey: "pipelinetst/terraform.tfstate"
+Firewall disabled for necessary configurations
 
-  # ✅ Step 3: Terraform Plan
-  - task: TerraformTaskV3@3
-    displayName: "Terraform Plan"
-    inputs:
-      provider: "azurerm"
-      command: "plan"
-      environmentServiceNameAzureRM: "AzureConnection"
-      commandOptions: "-var-file=$(terraformVarsFile) -detailed-exitcode"
+✅ Windows Golden Image includes:
 
-  # ✅ Step 4: Terraform Apply
-  - task: TerraformTaskV3@3
-    displayName: "Terraform Apply"
-    inputs:
-      provider: "azurerm"
-      command: "apply"
-      environmentServiceNameAzureRM: "AzureConnection"
-      commandOptions: "-var-file=$(terraformVarsFile) -auto-approve"
+windows_exporter-0.26.1-amd64.msi (Monitoring)
 
+wincollect-10.1.3-24.x64_6_3_(1).msi (Log Collection)
+
+🚀 Golden Image Versioning Strategy:
+
+New updates trigger the creation of a new Golden Image (Version 2, Version 3, etc.).
+
+Existing VMs that were created using older Golden Images are updated first.
+
+New VMs always use the latest Golden Image version automatically.
+
+Slide 5: Golden Image Versioning & VM Updates
+✅ Golden Image Versioning System
+
+Golden Image V1 was used for previous VMs.
+
+When new updates are available, we create Golden Image V2 with updated software.
+
+New VMs will always use the latest version (V2, V3, etc.).
+
+✅ Updating Existing VMs with Older Golden Images
+
+Identify VMs that were created using Golden Image V1.
+
+Apply updates using VM Extensions or direct software installations.
+
+Ensure security patches and configurations match the latest version.
+
+Once all VMs are updated, all deployments will shift to using Golden Image V2.
+
+✅ New VMs Automatically Use the Latest Golden Image
+
+Terraform ensures new VMs are deployed with the latest Golden Image version.
+
+This eliminates the need for manual updates after deployment.
+
+Slide 6: Azure DevOps Release Pipeline Workflow
+📌 Trigger: Manually executed by the user
+📌 Approval Stage: Requires manual approval from Abdul Hamed before deployment
+📌 Terraform Execution:
+1️⃣ Terraform Init – Initializes the backend state
+2️⃣ Terraform Plan – Previews changes
+3️⃣ Terraform Apply – Deploys VMs using Golden Images
+📌 Post-Deployment Tasks:
+
+Use VM Extension to install Sentinel security software on Windows VMs
+
+Update old VMs that were created using older images
+
+Slide 7: Pipeline Flow Diagram
+1️⃣ User manually triggers the pipeline
+⬇️
+2️⃣ Approval required – Abdul Hamed
+⬇️
+3️⃣ Terraform deploys VMs using Golden Images
+⬇️
+4️⃣ VM Extension installs Sentinel on Windows
+⬇️
+5️⃣ Old VMs are updated with new configurations
+⬇️
+✅ Deployment and updates completed successfully
+
+Slide 8: Benefits of This Automation
+🚀 Faster & more consistent VM deployments using Golden Images
+🔄 Automated Image Management ensures VMs are always up to date
+🔄 Existing VMs are updated to match the latest security and software configurations
+🔒 Ensures security compliance with DR policies
+💰 Reduces costs & saves time through automation
+🛠️ Simplifies software installation via pre-configured images & VM Extensions
+📊 Approval-based process ensures controlled execution
+
+Slide 9: Next Steps & Enhancements
+🔹 Automated updates for Golden Images to reduce manual effort
+🔹 Automated update scripts for old VMs to keep them in sync with new Golden Images
+🔹 Support for auto-scaling in future updates
+🔹 Integration with infrastructure monitoring tools
+🔹 Enhancing security policies via Terraform
+
+Slide 10: Conclusion
+✅ Automated, secure, and controlled VM deployment using Golden Images
+✅ Seamless integration with Azure DevOps
+✅ Approval-based deployment ensures governance & compliance
+✅ Image Management ensures all VMs (new & old) have the latest updates
+
+This final version now fully includes the Golden Image versioning system and how new and old VMs are updated. 🚀 Let me know if you need further refinements! 😊
+
+
+
+
+
+
+
+
+
+
+
+
+
+Reason
+
+ChatGPT can make mistakes. Check important info.
