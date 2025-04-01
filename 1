@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TFN Wise Data</title>
+    <title>Detail Data</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <header>
-        <div class="logo">TFN Wise Data</div>
+        <div class="logo">Detail Data</div>
         <nav>
             <ul>
                 <li><a href="index.html">Dashboard</a></li>
@@ -31,22 +31,42 @@
                 <input type="date" id="end-date" name="end-date">
             </div>
             <div class="filter-item">
+                <label for="portal"><i class="fas fa-globe"></i> Portal:</label>
+                <select id="portal" name="portal">
+                    <option value="">All</option>
+                    <option value="CDA">CDA</option>
+                    <option value="VDA">VDA</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="tfn-type"><i class="fas fa-phone"></i> TFN Type:</label>
+                <select id="tfn-type" name="tfn-type">
+                    <option value="">All</option>
+                    <option value="Mkt">Mkt</option>
+                    <option value="Non-Mkt">Non-Mkt</option>
+                </select>
+            </div>
+            <div class="filter-item">
                 <label for="tfn-search"><i class="fas fa-search"></i> TFN Search:</label>
                 <input type="text" id="tfn-search" name="tfn-search" placeholder="Enter TFN...">
             </div>
-            <button onclick="fetchTFNWiseData()" class="apply-filter-btn"><i class="fas fa-filter"></i> Apply Filter</button>
+            <button onclick="fetchDetailData()" class="apply-filter-btn"><i class="fas fa-filter"></i> Apply Filter</button>
+            <button onclick="downloadCSV()" class="download-btn"><i class="fas fa-download"></i> Download CSV</button>
         </div>
 
         <!-- Data Table -->
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Number (toAddress)</th>
-                    <th>Offered Calls</th>
-                    <th>IVR Abandon</th>
-                    <th>Queue Abandon</th>
-                    <th>Polite Disconnect</th>
-                    <th>Answered</th>
+                    <th>TFN</th>
+                    <th>Description</th>
+                    <th>IVR Offered</th>
+                    <th>IVR Abandoned</th>
+                    <th>Queue Abandoned</th>
+                    <th>Closed by IVR</th>
+                    <th>Answered Calls</th>
+                    <th>Portal</th>
+                    <th>TFN Type</th>
                 </tr>
             </thead>
             <tbody id="data-table-body"></tbody>
@@ -54,16 +74,24 @@
     </div>
 
     <script>
-        async function fetchTFNWiseData() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const category = urlParams.get('category');
+
+        async function fetchDetailData() {
             const startDate = document.getElementById('start-date').value;
             const endDate = document.getElementById('end-date').value;
+            const portal = document.getElementById('portal').value;
+            const tfn = document.getElementById('tfn-type').value;
             const tfnSearch = document.getElementById('tfn-search').value;
             const queryParams = new URLSearchParams({
+                category,
                 startDate,
                 endDate,
+                portal,
+                tfn,
                 tfnSearch
             }).toString();
-            const url = `http://localhost:3000/api/tfn-wise?${queryParams}`;
+            const url = `http://localhost:3000/api/detail?${queryParams}`;
 
             try {
                 const response = await fetch(url);
@@ -77,22 +105,46 @@
                 data.forEach(row => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
-                        <td>${row["Number (toAddress)"]}</td>
-                        <td>${row.offered_calls}</td>
-                        <td>${row.ivr_abandon}</td>
-                        <td>${row.queue_abandon}</td>
-                        <td>${row.polite_disconnect}</td>
-                        <td>${row.answered}</td>
+                        <td>${row.TFN}</td>
+                        <td>${row.Description}</td>
+                        <td>${row.ivr_offered}</td>
+                        <td>${row.ivr_abandoned}</td>
+                        <td>${row.queue_abandoned}</td>
+                        <td>${row.closed_by_ivr}</td>
+                        <td>${row.answered_calls}</td>
+                        <td>${row.Portal}</td>
+                        <td>${row["TFN Type"]}</td>
                     `;
                     tbody.appendChild(tr);
                 });
             } catch (error) {
-                console.error('Error fetching TFN-Wise data:', error);
+                console.error('Error fetching detail data:', error);
             }
         }
 
-        // Fetch data on page load
-        window.onload = fetchTFNWiseData;
+        function downloadCSV() {
+            const rows = Array.from(document.querySelectorAll('#data-table-body tr'));
+            const csvContent = [
+                ['TFN', 'Description', 'IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Answered Calls', 'Portal', 'TFN Type'],
+                ...rows.map(row => Array.from(row.cells).map(cell => `"${cell.textContent}"`))
+            ].map(row => row.join(',')).join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'detail_data.csv';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Populate filters from URL and fetch data on load
+        window.onload = function() {
+            document.getElementById('start-date').value = urlParams.get('startDate') || '';
+            document.getElementById('end-date').value = urlParams.get('endDate') || '';
+            document.getElementById('portal').value = urlParams.get('portal') || '';
+            document.getElementById('tfn-type').value = urlParams.get('tfn') || '';
+            fetchDetailData();
+        };
     </script>
 </body>
 </html>
