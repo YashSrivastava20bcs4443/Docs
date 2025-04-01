@@ -1,1 +1,80 @@
+app.get('/api/tfn-wise', async (req, res) => {
+    try {
+        const { startDate, endDate, tfnSearch } = req.query;
+        console.log('TFN-Wise Request Params:', { startDate, endDate, tfnSearch }); // Debug: Log incoming params
 
+        let query = `
+            SELECT 
+                "toAddress" AS "Number (toAddress)",  
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4'
+                ) AS offered_calls,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1
+                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
+                    AND "endReason" = 'Contact Hung Up'
+                ) AS ivr_abandon,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) > 0
+                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 0
+                    AND COALESCE(NULLIF("abandoned", ''), 'True') = 'True'
+                ) AS queue_abandon,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1
+                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
+                    AND "endReason" = 'Contact Hang Up via Script'
+                ) AS polite_disconnect,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0
+                ) AS answered
+            FROM contact_data
+        `;
+
+        const queryParams = [];
+        let paramIndex = 1;
+
+        if (startDate && endDate) {
+            query += ' WHERE to_date("contactStartDate", \'YYYY-MM-DD\') BETWEEN $' + paramIndex++ + ' AND $' + paramIndex++;
+            queryParams.push(startDate, endDate);
+        }
+
+        if (tfnSearch) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "toAddress" ILIKE $' + paramIndex++;
+            queryParams.push(`%${tfnSearch}%`);
+        }
+
+        query += ' GROUP BY "toAddress" ORDER BY offered_calls DESC';
+
+        console.log('Executing Query:', query); // Debug: Log the SQL query
+        console.log('Query Params:', queryParams); // Debug: Log the parameters
+
+        const result = await pool.query(query, queryParams);
+        console.log('Query Result:', result.rows); // Debug: Log the result
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching TFN-Wise data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
