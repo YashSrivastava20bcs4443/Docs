@@ -1,78 +1,34 @@
-diagnose sys session filter dst 10.0.1.5
-diagnose sys session list
-Check MetalLB Speaker Logs for BGP Issues
-kubectl logs -n metallb-system -l component=speaker
+async function applyFilter() {
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+    const portal = document.getElementById('portal').value;
+    const tfn = document.getElementById('tfn-type').value;
 
+    console.log('Filter values:', { startDate, endDate, portal, tfn }); // Debugging
 
- Check if TCP Port 179 (BGP) is Allowed
-BGP runs on TCP port 179. Ensure FortiGate allows traffic on this port:
+    const queryParams = new URLSearchParams({
+        startDate,
+        endDate,
+        portal,
+        tfn
+    });
 
-shell
-Copy
-Edit
-diagnose sys session filter dst 10.0.1.5
-diagnose sys session list
-✅ If no session appears, create a firewall policy:
-
-config firewall policy
-    edit 1
-        set name "Allow BGP"
-        set srcintf "port1"
-        set dstintf "port2"
-        set srcaddr "all"
-        set dstaddr "all"
-        set action accept
-        set service "BGP"
-        set schedule "always"
-    next
-end
-
-kubectl get ipaddresspools -n metallb-system
-kubectl get l2advertisements -n metallb-system
-
-kubectl describe ipaddresspool external-ip-pool -n metallb-system
-kubectl describe l2advertisement 12-advertisement -n metallb-system
-
-
-If You Want to Modify the Existing Configuration
-kubectl edit ipaddresspool external-ip-pool -n metallb-system
-
-
-kubectl edit l2advertisement 12-advertisement -n metallb-system
-
- If You Want to Replace the Configuration
- First, delete the existing resources, then apply the new YAML file.
-
- kubectl delete ipaddresspool external-ip-pool -n metallb-system
-kubectl delete l2advertisement 12-advertisement -n metallb-system
-
-kubectl logs -n metallb-system -l component=speaker
-
-
-kubectl get bgppeers -n metallb-system
-
-ipaddresspool.yaml kubectl apply -f ipaddresspool.yaml
-
-apiVersion: metallb.io/v1beta1
-kind: IPAddressPool
-metadata:
-  name: external-ip-pool
-  namespace: metallb-system
-spec:
-  addresses:
-    - 10.0.2.100-10.0.2.120  
-
-
-kubectl get ipaddresspool -n metallb-system
-kubectl get bgpadvertisement -n metallb-system
-kubectl get bgppeer -n metallb-system
-
-
-
-sudo tcpdump -i any port 179 -nn
-sudo tcpdump -i any -nn port 179
-
-diagnose sniffer packet any 'dst host 18.250.64.5 and port 179' 4
-
-
-The error "OpenSSL/3.0.13: error: 0A00010B:SSL routines::wrong version number" usually indicates that the server is not actually running an SSL/TLS service on port 443 or is using an incompatible TLS version. 
+    try {
+        const response = await fetch(`http://localhost:3000/api/stats?${queryParams}`);
+        if (!response.ok) {
+            throw new Error('Network response is not ok');
+        }
+        const data = await response.json();
+        document.getElementById('ivroffered').textContent = data.ivr_offered || 0;
+        document.getElementById('ivrAbandoned').textContent = data.ivr_abandoned || 0;
+        document.getElementById('queueAbandoned').textContent = data.queue_abandoned || 0;
+        document.getElementById('closedByIvr').textContent = data.closed_by_ivr || 0;
+        document.getElementById('abandonedUnder10').textContent = data.abandoned_in_10_sec || 0;
+        document.getElementById('abandonedOver10').textContent = data.abandoned_in_over_10_sec || 0;
+        document.getElementById('answeredCalls').textContent = data.answered_calls || 0;
+        updateChart(data);
+        updatePieChart(data);
+    } catch (error) {
+        console.error('Error Fetching stats:', error);
+    }
+}
