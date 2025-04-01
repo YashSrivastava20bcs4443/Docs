@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detail Data</title>
+    <title>IVR Bucket</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <header>
-        <div class="logo">Detail Data</div>
+        <div class="logo">IVR Bucket</div>
         <nav>
             <ul>
                 <li><a href="index.html">Dashboard</a></li>
@@ -30,43 +30,21 @@
                 <label for="end-date"><i class="fas fa-calendar-alt"></i> End Date:</label>
                 <input type="date" id="end-date" name="end-date">
             </div>
-            <div class="filter-item">
-                <label for="portal"><i class="fas fa-globe"></i> Portal:</label>
-                <select id="portal" name="portal">
-                    <option value="">All</option>
-                    <option value="CDA">CDA</option>
-                    <option value="VDA">VDA</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label for="tfn-type"><i class="fas fa-phone"></i> TFN Type:</label>
-                <select id="tfn-type" name="tfn-type">
-                    <option value="">All</option>
-                    <option value="Mkt">Mkt</option>
-                    <option value="Non-Mkt">Non-Mkt</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label for="tfn-search"><i class="fas fa-search"></i> TFN Search:</label>
-                <input type="text" id="tfn-search" name="tfn-search" placeholder="Enter TFN...">
-            </div>
-            <button onclick="fetchDetailData()" class="apply-filter-btn"><i class="fas fa-filter"></i> Apply Filter</button>
-            <button onclick="downloadCSV()" class="download-btn"><i class="fas fa-download"></i> Download CSV</button>
+            <button onclick="fetchIVRBucketData()" class="apply-filter-btn"><i class="fas fa-filter"></i> Apply Filter</button>
         </div>
 
         <!-- Data Table -->
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>TFN Number</th> <!-- Changed from "TFN" -->
-                    <th>TFN Description</th> <!-- Changed from "Description" -->
-                    <th>IVR Offered Calls</th> <!-- Changed from "IVR Offered" -->
-                    <th>IVR Abandoned Calls</th> <!-- Changed from "IVR Abandoned" -->
-                    <th>Queue Abandoned Calls</th> <!-- Changed from "Queue Abandoned" -->
-                    <th>Closed by IVR Calls</th> <!-- Changed from "Closed by IVR" -->
-                    <th>Agent Answered Calls</th> <!-- Changed from "Answered Calls" -->
-                    <th>Portal Name</th> <!-- Changed from "Portal" -->
-                    <th>TFN Category</th> <!-- Changed from "TFN Type" -->
+                    <th>Date</th>
+                    <th>Hour</th> <!-- Changed from "Time" -->
+                    <th>Total Offered Calls</th> <!-- Changed from "Offered Calls" -->
+                    <th>Total IVR Abandoned</th> <!-- Changed from "IVR Abandon" -->
+                    <th>Calls in 0-30 Sec</th> <!-- Changed from "0-30 Seconds" -->
+                    <th>Calls in 30-60 Sec</th> <!-- Changed from "30-60 Seconds" -->
+                    <th>Calls in 60-120 Sec</th> <!-- Changed from "60-120 Seconds" -->
+                    <th>Calls Over 120 Sec</th> <!-- Changed from ">120 Seconds" -->
                 </tr>
             </thead>
             <tbody id="data-table-body"></tbody>
@@ -74,24 +52,11 @@
     </div>
 
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const category = urlParams.get('category');
-
-        async function fetchDetailData() {
+        async function fetchIVRBucketData() {
             const startDate = document.getElementById('start-date').value;
             const endDate = document.getElementById('end-date').value;
-            const portal = document.getElementById('portal').value;
-            const tfn = document.getElementById('tfn-type').value;
-            const tfnSearch = document.getElementById('tfn-search').value;
-            const queryParams = new URLSearchParams({
-                category,
-                startDate,
-                endDate,
-                portal,
-                tfn,
-                tfnSearch
-            }).toString();
-            const url = `http://localhost:3000/api/detail?${queryParams}`;
+            const queryParams = new URLSearchParams({ startDate, endDate }).toString();
+            const url = `http://localhost:3000/api/ivr-bucket?${queryParams}`;
 
             try {
                 const response = await fetch(url);
@@ -105,45 +70,25 @@
                 data.forEach(row => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
-                        <td>${row.TFN}</td>
-                        <td>${row.Description}</td>
-                        <td>${row.ivr_offered}</td>
-                        <td>${row.ivr_abandoned}</td>
-                        <td>${row.queue_abandoned}</td>
-                        <td>${row.closed_by_ivr}</td>
-                        <td>${row.answered_calls}</td>
-                        <td>${row.Portal}</td>
-                        <td>${row["TFN Type"]}</td>
+                        <td>${row.date}</td>
+                        <td>${row.time}</td>
+                        <td>${row.offered_calls}</td>
+                        <td>${row.ivr_abandon}</td>
+                        <td>${row["0-30 Seconds"]}</td>
+                        <td>${row["30-60 Seconds"]}</td>
+                        <td>${row["60-120 Seconds"]}</td>
+                        <td>${row[">120 Seconds"]}</td>
                     `;
                     tbody.appendChild(tr);
                 });
             } catch (error) {
-                console.error('Error fetching detail data:', error);
+                console.error('Error fetching IVR Bucket data:', error);
             }
         }
 
-        function downloadCSV() {
-            const rows = Array.from(document.querySelectorAll('#data-table-body tr'));
-            const csvContent = [
-                ['TFN Number', 'TFN Description', 'IVR Offered Calls', 'IVR Abandoned Calls', 'Queue Abandoned Calls', 'Closed by IVR Calls', 'Agent Answered Calls', 'Portal Name', 'TFN Category'],
-                ...rows.map(row => Array.from(row.cells).map(cell => `"${cell.textContent}"`))
-            ].map(row => row.join(',')).join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'detail_data.csv';
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
-
-        // Populate filters from URL and fetch data on load
+        // Fetch data on page load with default values (optional)
         window.onload = function() {
-            document.getElementById('start-date').value = urlParams.get('startDate') || '';
-            document.getElementById('end-date').value = urlParams.get('endDate') || '';
-            document.getElementById('portal').value = urlParams.get('portal') || '';
-            document.getElementById('tfn-type').value = urlParams.get('tfn') || '';
-            fetchDetailData();
+            fetchIVRBucketData();
         };
     </script>
 </body>
