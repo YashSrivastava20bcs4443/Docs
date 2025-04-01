@@ -7,3 +7,9 @@ kubectl get pods -n kube-system | grep flannel
 sudo cat /etc/systemd/system/k3s.service | grep 'ExecStart'
 
 ls /etc/cni/net.d/
+
+
+
+kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+kubectl get pods -n kube-system | grep flannel
+
