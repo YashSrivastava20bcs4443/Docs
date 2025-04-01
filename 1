@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TFN Wise Data</title>
+    <title>Charts & Graphs</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
     <header>
-        <div class="logo">TFN Wise Data</div>
+        <div class="logo">Charts & Graphs</div>
         <nav>
             <ul>
                 <li><a href="index.html">Dashboard</a></li>
@@ -19,81 +19,37 @@
         </nav>
     </header>
     <div class="container">
-        <!-- Filter Panel -->
-        <div class="filter-panel">
-            <h3>Filters</h3>
-            <div class="filter-item">
-                <label for="tfn-search"><i class="fas fa-search"></i> TFN Search:</label>
-                <input type="text" id="tfn-search" name="tfn-search" placeholder="Enter TFN...">
-            </div>
-            <button onclick="fetchTFNWiseData()" class="apply-filter-btn"><i class="fas fa-filter"></i> Apply Filter</button>
-        </div>
+        <!-- Chart Section -->
+        <section class="chart-container">
+            <h3>Queue Status Distribution</h3>
+            <div id="queueStatusDistribution" class="chart"></div>
 
-        <!-- Data Table -->
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>TFN Number</th> <!-- Changed from "Number (toAddress)" -->
-                    <th>Total Offered Calls</th> <!-- Changed from "Offered Calls" -->
-                    <th>IVR Abandoned Calls</th> <!-- Changed from "IVR Abandon" -->
-                    <th>Queue Abandoned Calls</th> <!-- Changed from "Queue Abandon" -->
-                    <th>Polite Disconnect Calls</th> <!-- Changed from "Polite Disconnect" -->
-                    <th>Agent Answered Calls</th> <!-- Changed from "Answered" -->
-                </tr>
-            </thead>
-            <tbody id="data-table-body"></tbody>
-        </table>
+            <h3>Average Queue Time Per Campaign</h3>
+            <div id="averageQueueTimePerCampaign" class="chart"></div>
+
+            <h3>Top 5 Agents By Call Volume</h3>
+            <div id="top5AgentsByCallVolume" class="chart"></div>
+
+            <h3>Agent Average Handle Time</h3>
+            <div id="agentAverageHandleTime" class="chart"></div>
+
+            <h3>Calls By End Reason</h3>
+            <div id="callsByEndReason" class="chart"></div>
+
+            <h3>Short Abandon Vs Completed Calls</h3>
+            <div id="shortAbandonVsCompletedCalls" class="chart"></div>
+
+            <h3>Calls Per Campaign</h3>
+            <div id="callsPerCampaign" class="chart"></div>
+
+            <h3>Transfer Type Breakdown</h3>
+            <div id="transferTypeBreakdown" class="chart"></div>
+
+            <h3>Calls Routed By Skill</h3>
+            <div id="callsRoutedBySkill" class="chart"></div>
+        </section>
     </div>
-
-    <script>
-        async function fetchTFNWiseData() {
-            const tfnSearch = document.getElementById('tfn-search').value;
-            const queryParams = new URLSearchParams({
-                tfnSearch
-            }).toString();
-            const url = `http://localhost:3000/api/tfn-wise?${queryParams}`;
-
-            console.log('Fetching URL:', url);
-
-            try {
-                const response = await fetch(url);
-                console.log('Response status:', response.status);
-                if (!response.ok) {
-                    throw new Error(`Network response was not ok: ${response.statusText}`);
-                }
-                const data = await response.json();
-                console.log('Received data:', data);
-
-                const tbody = document.getElementById('data-table-body');
-                tbody.innerHTML = ''; // Clear existing rows
-
-                if (data.length === 0) {
-                    console.warn('No data returned from the server.');
-                    tbody.innerHTML = '<tr><td colspan="6">No data available</td></tr>';
-                    return;
-                }
-
-                data.forEach(row => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${row["Number (toAddress)"] || 'N/A'}</td>
-                        <td>${row.offered_calls || 0}</td>
-                        <td>${row.ivr_abandon || 0}</td>
-                        <td>${row.queue_abandon || 0}</td>
-                        <td>${row.polite_disconnect || 0}</td>
-                        <td>${row.answered || 0}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (error) {
-                console.error('Error fetching TFN-Wise data:', error);
-                const tbody = document.getElementById('data-table-body');
-                tbody.innerHTML = '<tr><td colspan="6">Error loading data</td></tr>';
-            }
-        }
-
-        // Fetch data on page load
-        window.onload = fetchTFNWiseData;
-    </script>
+    <script src="charts.js"></script>
+    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'92963513bda16764',t:'MTc0MzQ5MDgwMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
