@@ -1,31 +1,95 @@
-ls /etc/cni/net.d/
-cat /etc/cni/net.d/*.conf
+trigger:
+- none
 
-kubectl get pods -n kube-system | grep flannel
+parameters:
+  - name: osType
+    displayName: "OS Type"
+    type: string
+    default: "linux"
+    values:
+      - linux
+      - windows
 
+  - name: vmSize
+    displayName: "VM Size"
+    type: string
+    default: "Standard_D2s_v3"
 
-sudo cat /etc/systemd/system/k3s.service | grep 'ExecStart'
+  - name: nicCount
+    displayName: "Number of NICs"
+    type: number
+    default: 1
 
-ls /etc/cni/net.d/
+  - name: linuxVmCount
+    displayName: "Number of Linux VMs"
+    type: number
+    default: 1
 
+  - name: windowsVmCount
+    displayName: "Number of Windows VMs"
+    type: number
+    default: 0
 
+variables:
+- group: TerraformVars  # Secure variables (ADMIN_PASSWORD & WIN_SITE_TOKEN)
+- name: terraformVarsFile
+  value: "$(Build.SourcesDirectory)/cloud_deployment/DRD-TST/terraform.tfvars"  # Full path to tfvars
+- name: workingDirectory
+  value: "$(Build.SourcesDirectory)/cloud_deployment/DRD-TST"  # Terraform working directory
 
-kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
-kubectl get pods -n kube-system | grep flannel
+jobs:
+- job: Terraform_Deploy
+  displayName: "Terraform Apply"
+  pool:
+    vmImage: 'windows-latest'  # Changed to Windows for PowerShell compatibility
 
+  steps:
+  - checkout: self
 
+  # Step 1: Replace Tokens for Secure Values
+  - task: replacetokens@3
+    displayName: "Replace Tokens in Terraform Files"
+    inputs:
+      rootDirectory: "$(Build.SourcesDirectory)/cloud_deployment"
+      targetFiles: |
+        DRD-TST/terraform.tfvars
+        modules/vm/main.tf  # Fixed case to lowercase 'vm'
+      encoding: "utf-8"
+      writeBOM: true
+      actionOnMissing: "warn"
+      keepToken: false
+      tokenPrefix: "#{"
+      tokenSuffix: "}#"
 
-Sure! Here's a professional yet concise reply:
+  # Step 2: Terraform Init using Service Connection
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Init"
+    inputs:
+      provider: "azurerm"
+      command: "init"
+      workingDirectory: "$(workingDirectory)"  # Added
+      backendServiceArm: "AzureConnection"
+      backendAzureRmResourceGroupName: "tfstate-resources"
+      backendAzureRmStorageAccountName: "mytfstatesstacc"
+      backendAzureRmContainerName: "tfstate"
+      backendAzureRmKey: "pipelinetst/terraform.tfstate"
 
+  # Step 3: Terraform Plan
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Plan"
+    inputs:
+      provider: "azurerm"
+      command: "plan"
+      workingDirectory: "$(workingDirectory)"  # Added
+      environmentServiceNameAzureRM: "AzureConnection"
+      commandOptions: "-var-file=$(terraformVarsFile) -detailed-exitcode"
 
----
-
-Subject: Re: Kubernetes Cluster Document
-
-Hi [Sender's Name],
-
-I don’t have the right to share the documents that Abdul Sir has. Also, we haven’t documented the Kubernetes cluster setup—only the MetalLB configuration is documented. Let me know if you need any specific details regarding that.
-
-Best,
-Yash
-
+  # Step 4: Terraform Apply
+  - task: TerraformTaskV3@3
+    displayName: "Terraform Apply"
+    inputs:
+      provider: "azurerm"
+      command: "apply"
+      workingDirectory: "$(workingDirectory)"  # Added
+      environmentServiceNameAzureRM: "AzureConnection"
+      commandOptions: "-var-file=$(terraformVarsFile) -auto-approve"
