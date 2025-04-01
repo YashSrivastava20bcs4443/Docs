@@ -1,88 +1,120 @@
-document.addEventListener('DOMContentLoaded', async () => {
+app.get('/api/charts', async (req, res) => {
     try {
-        const response = await fetch('http://localhost:3000/api/charts');
-        if (!response.ok) {
-            throw new Error(`Network response was not ok: ${response.statusText}`);
-        }
-        const data = await response.json();
-        console.log('Charts Data:', data); // Debug: Log the data received
+        const chartsData = {};
 
-        // Queue Status Distribution (Pie Chart)
-        const queueStatusData = [{
-            values: data.queueStatus.map(row => parseFloat(row.count) || 0),
-            labels: data.queueStatus.map(row => row.status || 'Unknown'),
-            type: 'pie'
-        }];
-        Plotly.newPlot('queueStatusDistribution', queueStatusData, { title: 'Queue Status Distribution' });
+        // Queue Status Distribution
+        const queueStatusQuery = `
+            SELECT 
+                CASE 
+                    WHEN COALESCE(NULLIF("abandoned", ''), 'False') = 'True' THEN 'Abandoned'
+                    WHEN COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0 THEN 'Answered'
+                    ELSE 'IVR Completed'
+                END AS status,
+                COUNT(*) AS count
+            FROM contact_mapped_data
+            WHERE "mediaTypeId" = '4'
+            GROUP BY status
+        `;
+        chartsData.queueStatus = (await pool.query(queueStatusQuery)).rows;
 
-        // Average Queue Time Per Campaign (Bar Chart)
-        const avgQueueTimeData = [{
-            x: data.avgQueueTime.map(row => row.campaign || 'Unknown'),
-            y: data.avgQueueTime.map(row => parseFloat(row.avg_queue_time) || 0),
-            type: 'bar'
-        }];
-        Plotly.newPlot('averageQueueTimePerCampaign', avgQueueTimeData, { title: 'Average Queue Time Per Campaign' });
+        // Average Queue Time Per Campaign
+        const avgQueueTimeQuery = `
+            SELECT 
+                COALESCE("campaign", 'Unknown') AS campaign,
+                AVG(COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0)) AS avg_queue_time
+            FROM contact_mapped_data
+            WHERE "mediaTypeId" = '4'
+            GROUP BY "campaign"
+        `;
+        chartsData.avgQueueTime = (await pool.query(avgQueueTimeQuery)).rows;
 
-        // Top 5 Agents By Call Volume (Bar Chart)
-        const topAgentsData = [{
-            x: data.topAgents.map(row => row.agent || 'Unknown'),
-            y: data.topAgents.map(row => parseFloat(row.call_volume) || 0),
-            type: 'bar'
-        }];
-        Plotly.newPlot('top5AgentsByCallVolume', topAgentsData, { title: 'Top 5 Agents By Call Volume' });
+        // Top 5 Agents By Call Volume
+        const topAgentsQuery = `
+            SELECT 
+                COALESCE("agent", 'Unknown') AS agent,
+                COUNT(*) AS call_volume
+            FROM contact_mapped_data
+            WHERE "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0
+            GROUP BY "agent"
+            ORDER BY call_volume DESC
+            LIMIT 5
+        `;
+        chartsData.topAgents = (await pool.query(topAgentsQuery)).rows;
 
-        // Agent Average Handle Time (Bar Chart)
-        const avgHandleTimeData = [{
-            x: data.avgHandleTime.map(row => row.agent || 'Unknown'),
-            y: data.avgHandleTime.map(row => parseFloat(row.avg_handle_time) || 0),
-            type: 'bar'
-        }];
-        Plotly.newPlot('agentAverageHandleTime', avgHandleTimeData, { title: 'Agent Average Handle Time' });
+        // Agent Average Handle Time
+        const avgHandleTimeQuery = `
+            SELECT 
+                COALESCE("agent", 'Unknown') AS agent,
+                AVG(COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0)) AS avg_handle_time
+            FROM contact_mapped_data
+            WHERE "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0
+            GROUP BY "agent"
+        `;
+        chartsData.avgHandleTime = (await pool.query(avgHandleTimeQuery)).rows;
 
-        // Calls By End Reason (Pie Chart)
-        const endReasonData = [{
-            values: data.endReason.map(row => parseFloat(row.count) || 0),
-            labels: data.endReason.map(row => row.end_reason || 'Unknown'),
-            type: 'pie'
-        }];
-        Plotly.newPlot('callsByEndReason', endReasonData, { title: 'Calls By End Reason' });
+        // Calls By End Reason
+        const endReasonQuery = `
+            SELECT 
+                COALESCE("endReason", 'Unknown') AS end_reason,
+                COUNT(*) AS count
+            FROM contact_mapped_data
+            WHERE "mediaTypeId" = '4'
+            GROUP BY "endReason"
+        `;
+        chartsData.endReason = (await pool.query(endReasonQuery)).rows;
 
-        // Short Abandon Vs Completed Calls (Pie Chart)
-        const shortVsCompletedData = [{
-            values: data.shortVsCompleted.map(row => parseFloat(row.count) || 0),
-            labels: data.shortVsCompleted.map(row => row.status || 'Unknown'),
-            type: 'pie'
-        }];
-        Plotly.newPlot('shortAbandonVsCompletedCalls', shortVsCompletedData, { title: 'Short Abandon Vs Completed Calls' });
+        // Short Abandon Vs Completed Calls
+        const shortVsCompletedQuery = `
+            SELECT 
+                CASE 
+                    WHEN COALESCE(NULLIF("abandoned", ''), 'False') = 'True' AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) < 10 THEN 'Short Abandon'
+                    WHEN COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0 THEN 'Completed'
+                    ELSE 'Other'
+                END AS status,
+                COUNT(*) AS count
+            FROM contact_mapped_data
+            WHERE "mediaTypeId" = '4'
+            GROUP BY status
+        `;
+        chartsData.shortVsCompleted = (await pool.query(shortVsCompletedQuery)).rows;
 
-        // Calls Per Campaign (Bar Chart)
-        const callsPerCampaignData = [{
-            x: data.callsPerCampaign.map(row => row.campaign || 'Unknown'),
-            y: data.callsPerCampaign.map(row => parseFloat(row.count) || 0),
-            type: 'bar'
-        }];
-        Plotly.newPlot('callsPerCampaign', callsPerCampaignData, { title: 'Calls Per Campaign' });
+        // Calls Per Campaign
+        const callsPerCampaignQuery = `
+            SELECT 
+                COALESCE("campaign", 'Unknown') AS campaign,
+                COUNT(*) AS count
+            FROM contact_mapped_data
+            WHERE "mediaTypeId" = '4'
+            GROUP BY "campaign"
+        `;
+        chartsData.callsPerCampaign = (await pool.query(callsPerCampaignQuery)).rows;
 
-        // Transfer Type Breakdown (Pie Chart)
-        const transferTypeData = [{
-            values: data.transferType.map(row => parseFloat(row.count) || 0),
-            labels: data.transferType.map(row => row.transfer_type || 'Unknown'),
-            type: 'pie'
-        }];
-        Plotly.newPlot('transferTypeBreakdown', transferTypeData, { title: 'Transfer Type Breakdown' });
+        // Transfer Type Breakdown
+        const transferTypeQuery = `
+            SELECT 
+                COALESCE("transferType", 'No Transfer') AS transfer_type,
+                COUNT(*) AS count
+            FROM contact_mapped_data
+            WHERE "mediaTypeId" = '4'
+            GROUP BY "transferType"
+        `;
+        chartsData.transferType = (await pool.query(transferTypeQuery)).rows;
 
-        // Calls Routed By Skill (Bar Chart)
-        const callsBySkillData = [{
-            x: data.callsBySkill.map(row => row.skill || 'Unknown'),
-            y: data.callsBySkill.map(row => parseFloat(row.count) || 0),
-            type: 'bar'
-        }];
-        Plotly.newPlot('callsRoutedBySkill', callsBySkillData, { title: 'Calls Routed By Skill' });
+        // Calls Routed By Skill
+        const callsBySkillQuery = `
+            SELECT 
+                COALESCE("skill", 'Unknown') AS skill,
+                COUNT(*) AS count
+            FROM contact_mapped_data
+            WHERE "mediaTypeId" = '4'
+            GROUP BY "skill"
+        `;
+        chartsData.callsBySkill = (await pool.query(callsBySkillQuery)).rows;
 
-    } catch (error) {
-        console.error('Error rendering charts:', error);
-        document.querySelectorAll('.chart').forEach(chart => {
-            chart.innerHTML = '<p>Error loading chart</p>';
-        });
+        console.log('Charts API Response:', chartsData); // Debug: Log the response
+        res.json(chartsData);
+    } catch (err) {
+        console.error('Error fetching charts data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
