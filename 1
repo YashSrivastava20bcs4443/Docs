@@ -1,150 +1,169 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detail Data</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
-</head>
-<body>
-    <header>
-        <div class="logo">Detail Data</div>
-        <nav>
-            <ul>
-                <li><a href="index.html">Dashboard</a></li>
-                <li><a href="charts.html">Charts & Graphs</a></li>
-            </ul>
-        </nav>
-    </header>
-    <div class="container">
-        <!-- Filter Panel -->
-        <div class="filter-panel">
-            <h3>Filters</h3>
-            <div class="filter-item">
-                <label for="start-date"><i class="fas fa-calendar-alt"></i> Start Date:</label>
-                <input type="date" id="start-date" name="start-date">
-            </div>
-            <div class="filter-item">
-                <label for="end-date"><i class="fas fa-calendar-alt"></i> End Date:</label>
-                <input type="date" id="end-date" name="end-date">
-            </div>
-            <div class="filter-item">
-                <label for="portal"><i class="fas fa-globe"></i> Portal:</label>
-                <select id="portal" name="portal">
-                    <option value="">All</option>
-                    <option value="CDA">CDA</option>
-                    <option value="VDA">VDA</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label for="tfn-type"><i class="fas fa-phone"></i> TFN Type:</label>
-                <select id="tfn-type" name="tfn-type">
-                    <option value="">All</option>
-                    <option value="Mkt">Mkt</option>
-                    <option value="Non-Mkt">Non-Mkt</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label for="tfn-search"><i class="fas fa-search"></i> TFN Search:</label>
-                <input type="text" id="tfn-search" name="tfn-search" placeholder="Enter TFN...">
-            </div>
-            <button onclick="fetchDetailData()" class="apply-filter-btn"><i class="fas fa-filter"></i> Apply Filter</button>
-            <button onclick="downloadCSV()" class="download-btn"><i class="fas fa-download"></i> Download CSV</button>
-        </div>
+app.get('/api/detail', async (req, res) => {
+    try {
+        const { category, startDate, endDate, portal, tfn, tfnSearch } = req.query;
+        let query = `
+            SELECT "toAddress" AS "TFN", "Description", 
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4') AS ivr_offered,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1  AND "endReason" = 'Contact Hung Up') AS ivr_abandoned,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 AND "abandoned" = 'True' AND "preQueueSeconds"::numeric > 0) AS queue_abandoned,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1 AND "endReason" = 'Contact Hang Up via Script') AS closed_by_ivr,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'False' AND "agentSeconds"::numeric > 0) AS answered_calls,
+            "Portal", "TFN Type"
+            FROM contact_mapped_data
+        `;
 
-        <!-- Data Table -->
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>TFN</th>
-                    <th>Description</th>
-                    <th>IVR Offered</th>
-                    <th>IVR Abandoned</th>
-                    <th>Queue Abandoned</th>
-                    <th>Closed by IVR</th>
-                    <th>Answered Calls</th>
-                    <th>Portal</th>
-                    <th>TFN Type</th>
-                </tr>
-            </thead>
-            <tbody id="data-table-body"></tbody>
-        </table>
-    </div>
+        const queryParams = [];
+        let paramIndex = 1;
 
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const category = urlParams.get('category');
-
-        async function fetchDetailData() {
-            const startDate = document.getElementById('start-date').value;
-            const endDate = document.getElementById('end-date').value;
-            const portal = document.getElementById('portal').value;
-            const tfn = document.getElementById('tfn-type').value;
-            const tfnSearch = document.getElementById('tfn-search').value;
-            const queryParams = new URLSearchParams({
-                category,
-                startDate,
-                endDate,
-                portal,
-                tfn,
-                tfnSearch
-            }).toString();
-            const url = `http://localhost:3000/api/detail?${queryParams}`;
-
-            try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                const data = await response.json();
-                const tbody = document.getElementById('data-table-body');
-                tbody.innerHTML = ''; // Clear existing rows
-
-                data.forEach(row => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${row.TFN}</td>
-                        <td>${row.Description}</td>
-                        <td>${row.ivr_offered}</td>
-                        <td>${row.ivr_abandoned}</td>
-                        <td>${row.queue_abandoned}</td>
-                        <td>${row.closed_by_ivr}</td>
-                        <td>${row.answered_calls}</td>
-                        <td>${row.Portal}</td>
-                        <td>${row["TFN Type"]}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (error) {
-                console.error('Error fetching detail data:', error);
-            }
+        if (startDate && endDate) {
+            query += ' WHERE to_date("contactStartDate", \'YYYY-MM-DD\') BETWEEN $' + paramIndex++ + ' AND $' + paramIndex++;
+            queryParams.push(startDate, endDate);
         }
 
-        function downloadCSV() {
-            const rows = Array.from(document.querySelectorAll('#data-table-body tr'));
-            const csvContent = [
-                ['TFN', 'Description', 'IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Answered Calls', 'Portal', 'TFN Type'],
-                ...rows.map(row => Array.from(row.cells).map(cell => `"${cell.textContent}"`))
-            ].map(row => row.join(',')).join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'detail_data.csv';
-            a.click();
-            window.URL.revokeObjectURL(url);
+        if (portal) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "Portal" = $' + paramIndex++;
+            queryParams.push(portal);
         }
 
-        // Populate filters from URL and fetch data on load
-        window.onload = function() {
-            document.getElementById('start-date').value = urlParams.get('startDate') || '';
-            document.getElementById('end-date').value = urlParams.get('endDate') || '';
-            document.getElementById('portal').value = urlParams.get('portal') || '';
-            document.getElementById('tfn-type').value = urlParams.get('tfn') || '';
-            fetchDetailData();
-        };
-    </script>
-</body>
-</html>
+        if (tfn) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "TFN Type" = $' + paramIndex++;
+            queryParams.push(tfn);
+        }
+
+        // Apply TFN Search only for specified categories
+        const validCategories = [
+            'ivr_offered',
+            'ivr_abandoned',
+            'queue_abandoned',
+            'closed_by_ivr',
+            'abandoned_under_10',
+            'abandoned_over_10',
+            'answered_calls'
+        ];
+        if (tfnSearch && validCategories.includes(category)) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "toAddress" ILIKE $' + paramIndex++;
+            queryParams.push(`%${tfnSearch}%`);
+        }
+
+        switch(category) {
+            case 'ivr_offered':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\'';
+                break;
+            case 'ivr_abandoned':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = \'False\' AND "preQueueSeconds"::numeric > 1 AND "endReason" = \'Contact Hung Up\'';
+                break;
+            case 'queue_abandoned':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric > 0';
+                break;
+            case 'closed_by_ivr':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = \'False\' AND "preQueueSeconds"::numeric > 1 AND "endReason" = \'Contact Hang Up via Script\'';
+                break;
+            case 'abandoned_under_10':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric < 10';
+                break;
+            case 'abandoned_over_10':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric > 10';
+                break;
+            case 'answered_calls':
+                query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' AND "abandoned" = \'False\' AND "agentSeconds"::numeric > 0';
+                break;
+            default:
+                return res.status(400).json({ error: 'Invalid category' });
+        }
+
+        query += ' GROUP BY "toAddress", "Description", "Portal", "TFN Type"';
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching detail data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.get('/api/tfn-wise', async (req, res) => {
+    try {
+        const { startDate, endDate, tfnSearch } = req.query;
+        let query = `
+            SELECT 
+                "toAddress" AS "Number (toAddress)",  
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4'
+                ) AS offered_calls,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$' 
+                    AND NULLIF("agentSeconds", '')::FLOAT = 0
+                    AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                    AND NULLIF("inQueueSeconds", '')::FLOAT = 0
+                    AND NULLIF("preQueueSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                    AND NULLIF("preQueueSeconds", '')::FLOAT > 1
+                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
+                    AND "endReason" = 'Contact Hung Up'
+                ) AS ivr_abandon,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                    AND NULLIF("agentSeconds", '')::FLOAT = 0
+                    AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                    AND NULLIF("inQueueSeconds", '')::FLOAT > 0
+                    AND NULLIF("preQueueSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                    AND NULLIF("preQueueSeconds", '')::FLOAT > 0
+                    AND COALESCE(NULLIF("abandoned", ''), 'True') = 'True'
+                ) AS queue_abandon,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                    AND NULLIF("agentSeconds", '')::FLOAT = 0
+                    AND NULLIF("inQueueSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                    AND NULLIF("inQueueSeconds", '')::FLOAT = 0
+                    AND NULLIF("preQueueSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                    AND NULLIF("preQueueSeconds", '')::FLOAT > 1
+                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
+                    AND "endReason" = 'Contact Hang Up via Script'
+                ) AS polite_disconnect,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False' 
+                    AND NULLIF("agentSeconds", '') ~ '^[0-9]+(\\.[0-9]+)?$'  
+                    AND NULLIF("agentSeconds", '')::FLOAT > 0
+                ) AS answered
+            FROM contact_mapped_data
+        `;
+
+        const queryParams = [];
+        let paramIndex = 1;
+
+        if (startDate && endDate) {
+            query += ' WHERE to_date("contactStartDate", \'YYYY-MM-DD\') BETWEEN $' + paramIndex++ + ' AND $' + paramIndex++;
+            queryParams.push(startDate, endDate);
+        }
+
+        if (tfnSearch) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "toAddress" ILIKE $' + paramIndex++;
+            queryParams.push(`%${tfnSearch}%`);
+        }
+
+        query += ' GROUP BY "toAddress" ORDER BY offered_calls DESC';
+
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching TFN-Wise data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
