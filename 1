@@ -1,54 +1,88 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Charts & Graphs</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-</head>
-<body>
-    <header>
-        <div class="logo">Charts & Graphs</div>
-        <nav>
-            <ul>
-                <li><a href="index.html">Dashboard</a></li>
-                <li><a href="charts.html">Charts & Graphs</a></li>
-            </ul>
-        </nav>
-    </header>
-    <div class="container">
-        <!-- Chart Section -->
-        <section class="chart-container">
-            <h3>Queue Status Distribution</h3>
-            <div id="queueStatusDistribution" class="chart"></div>
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const response = await fetch('http://localhost:3000/api/charts');
+        if (!response.ok) {
+            throw new Error(`Network response was not ok: ${response.statusText}`);
+        }
+        const data = await response.json();
+        console.log('Charts Data:', data); // Debug: Log the data received
 
-            <h3>Average Queue Time Per Campaign</h3>
-            <div id="averageQueueTimePerCampaign" class="chart"></div>
+        // Queue Status Distribution (Pie Chart)
+        const queueStatusData = [{
+            values: data.queueStatus.map(row => parseFloat(row.count) || 0),
+            labels: data.queueStatus.map(row => row.status || 'Unknown'),
+            type: 'pie'
+        }];
+        Plotly.newPlot('queueStatusDistribution', queueStatusData, { title: 'Queue Status Distribution' });
 
-            <h3>Top 5 Agents By Call Volume</h3>
-            <div id="top5AgentsByCallVolume" class="chart"></div>
+        // Average Queue Time Per Campaign (Bar Chart)
+        const avgQueueTimeData = [{
+            x: data.avgQueueTime.map(row => row.campaign || 'Unknown'),
+            y: data.avgQueueTime.map(row => parseFloat(row.avg_queue_time) || 0),
+            type: 'bar'
+        }];
+        Plotly.newPlot('averageQueueTimePerCampaign', avgQueueTimeData, { title: 'Average Queue Time Per Campaign' });
 
-            <h3>Agent Average Handle Time</h3>
-            <div id="agentAverageHandleTime" class="chart"></div>
+        // Top 5 Agents By Call Volume (Bar Chart)
+        const topAgentsData = [{
+            x: data.topAgents.map(row => row.agent || 'Unknown'),
+            y: data.topAgents.map(row => parseFloat(row.call_volume) || 0),
+            type: 'bar'
+        }];
+        Plotly.newPlot('top5AgentsByCallVolume', topAgentsData, { title: 'Top 5 Agents By Call Volume' });
 
-            <h3>Calls By End Reason</h3>
-            <div id="callsByEndReason" class="chart"></div>
+        // Agent Average Handle Time (Bar Chart)
+        const avgHandleTimeData = [{
+            x: data.avgHandleTime.map(row => row.agent || 'Unknown'),
+            y: data.avgHandleTime.map(row => parseFloat(row.avg_handle_time) || 0),
+            type: 'bar'
+        }];
+        Plotly.newPlot('agentAverageHandleTime', avgHandleTimeData, { title: 'Agent Average Handle Time' });
 
-            <h3>Short Abandon Vs Completed Calls</h3>
-            <div id="shortAbandonVsCompletedCalls" class="chart"></div>
+        // Calls By End Reason (Pie Chart)
+        const endReasonData = [{
+            values: data.endReason.map(row => parseFloat(row.count) || 0),
+            labels: data.endReason.map(row => row.end_reason || 'Unknown'),
+            type: 'pie'
+        }];
+        Plotly.newPlot('callsByEndReason', endReasonData, { title: 'Calls By End Reason' });
 
-            <h3>Calls Per Campaign</h3>
-            <div id="callsPerCampaign" class="chart"></div>
+        // Short Abandon Vs Completed Calls (Pie Chart)
+        const shortVsCompletedData = [{
+            values: data.shortVsCompleted.map(row => parseFloat(row.count) || 0),
+            labels: data.shortVsCompleted.map(row => row.status || 'Unknown'),
+            type: 'pie'
+        }];
+        Plotly.newPlot('shortAbandonVsCompletedCalls', shortVsCompletedData, { title: 'Short Abandon Vs Completed Calls' });
 
-            <h3>Transfer Type Breakdown</h3>
-            <div id="transferTypeBreakdown" class="chart"></div>
+        // Calls Per Campaign (Bar Chart)
+        const callsPerCampaignData = [{
+            x: data.callsPerCampaign.map(row => row.campaign || 'Unknown'),
+            y: data.callsPerCampaign.map(row => parseFloat(row.count) || 0),
+            type: 'bar'
+        }];
+        Plotly.newPlot('callsPerCampaign', callsPerCampaignData, { title: 'Calls Per Campaign' });
 
-            <h3>Calls Routed By Skill</h3>
-            <div id="callsRoutedBySkill" class="chart"></div>
-        </section>
-    </div>
-    <script src="charts.js"></script>
-</body>
-</html>
+        // Transfer Type Breakdown (Pie Chart)
+        const transferTypeData = [{
+            values: data.transferType.map(row => parseFloat(row.count) || 0),
+            labels: data.transferType.map(row => row.transfer_type || 'Unknown'),
+            type: 'pie'
+        }];
+        Plotly.newPlot('transferTypeBreakdown', transferTypeData, { title: 'Transfer Type Breakdown' });
+
+        // Calls Routed By Skill (Bar Chart)
+        const callsBySkillData = [{
+            x: data.callsBySkill.map(row => row.skill || 'Unknown'),
+            y: data.callsBySkill.map(row => parseFloat(row.count) || 0),
+            type: 'bar'
+        }];
+        Plotly.newPlot('callsRoutedBySkill', callsBySkillData, { title: 'Calls Routed By Skill' });
+
+    } catch (error) {
+        console.error('Error rendering charts:', error);
+        document.querySelectorAll('.chart').forEach(chart => {
+            chart.innerHTML = '<p>Error loading chart</p>';
+        });
+    }
+});
