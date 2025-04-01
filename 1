@@ -1,80 +1,99 @@
-app.get('/api/tfn-wise', async (req, res) => {
-    try {
-        const { startDate, endDate, tfnSearch } = req.query;
-        console.log('TFN-Wise Request Params:', { startDate, endDate, tfnSearch }); // Debug: Log incoming params
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TFN Wise Data</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <header>
+        <div class="logo">TFN Wise Data</div>
+        <nav>
+            <ul>
+                <li><a href="index.html">Dashboard</a></li>
+                <li><a href="charts.html">Charts & Graphs</a></li>
+            </ul>
+        </nav>
+    </header>
+    <div class="container">
+        <!-- Filter Panel -->
+        <div class="filter-panel">
+            <h3>Filters</h3>
+            <div class="filter-item">
+                <label for="tfn-search"><i class="fas fa-search"></i> TFN Search:</label>
+                <input type="text" id="tfn-search" name="tfn-search" placeholder="Enter TFN...">
+            </div>
+            <button onclick="fetchTFNWiseData()" class="apply-filter-btn"><i class="fas fa-filter"></i> Apply Filter</button>
+        </div>
 
-        let query = `
-            SELECT 
-                "toAddress" AS "Number (toAddress)",  
-                COUNT(*) FILTER (WHERE 
-                    "masterContactId" = "contactId" 
-                    AND "isOutbound" = 'False' 
-                    AND "mediaTypeId" = '4'
-                ) AS offered_calls,
-                COUNT(*) FILTER (WHERE 
-                    "masterContactId" = "contactId" 
-                    AND "isOutbound" = 'False' 
-                    AND "mediaTypeId" = '4' 
-                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
-                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0
-                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1
-                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
-                    AND "endReason" = 'Contact Hung Up'
-                ) AS ivr_abandon,
-                COUNT(*) FILTER (WHERE 
-                    "masterContactId" = "contactId" 
-                    AND "isOutbound" = 'False' 
-                    AND "mediaTypeId" = '4' 
-                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
-                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) > 0
-                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 0
-                    AND COALESCE(NULLIF("abandoned", ''), 'True') = 'True'
-                ) AS queue_abandon,
-                COUNT(*) FILTER (WHERE 
-                    "masterContactId" = "contactId" 
-                    AND "isOutbound" = 'False' 
-                    AND "mediaTypeId" = '4' 
-                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
-                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0
-                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1
-                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
-                    AND "endReason" = 'Contact Hang Up via Script'
-                ) AS polite_disconnect,
-                COUNT(*) FILTER (WHERE 
-                    "masterContactId" = "contactId" 
-                    AND "isOutbound" = 'False' 
-                    AND "mediaTypeId" = '4' 
-                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False' 
-                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0
-                ) AS answered
-            FROM contact_data
-        `;
+        <!-- Data Table -->
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Number (toAddress)</th>
+                    <th>Offered Calls</th>
+                    <th>IVR Abandon</th>
+                    <th>Queue Abandon</th>
+                    <th>Polite Disconnect</th>
+                    <th>Answered</th>
+                </tr>
+            </thead>
+            <tbody id="data-table-body"></tbody>
+        </table>
+    </div>
 
-        const queryParams = [];
-        let paramIndex = 1;
+    <script>
+        async function fetchTFNWiseData() {
+            const tfnSearch = document.getElementById('tfn-search').value;
+            const queryParams = new URLSearchParams({
+                tfnSearch
+            }).toString();
+            const url = `http://localhost:3000/api/tfn-wise?${queryParams}`;
 
-        if (startDate && endDate) {
-            query += ' WHERE to_date("contactStartDate", \'YYYY-MM-DD\') BETWEEN $' + paramIndex++ + ' AND $' + paramIndex++;
-            queryParams.push(startDate, endDate);
+            console.log('Fetching URL:', url); // Debug: Check the constructed URL
+
+            try {
+                const response = await fetch(url);
+                console.log('Response status:', response.status); // Debug: Check HTTP status
+                if (!response.ok) {
+                    throw new Error(`Network response was not ok: ${response.statusText}`);
+                }
+                const data = await response.json();
+                console.log('Received data:', data); // Debug: Check the data returned
+
+                const tbody = document.getElementById('data-table-body');
+                tbody.innerHTML = ''; // Clear existing rows
+
+                if (data.length === 0) {
+                    console.warn('No data returned from the server.');
+                    tbody.innerHTML = '<tr><td colspan="6">No data available</td></tr>';
+                    return;
+                }
+
+                data.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${row["Number (toAddress)"] || 'N/A'}</td>
+                        <td>${row.offered_calls || 0}</td>
+                        <td>${row.ivr_abandon || 0}</td>
+                        <td>${row.queue_abandon || 0}</td>
+                        <td>${row.polite_disconnect || 0}</td>
+                        <td>${row.answered || 0}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                console.error('Error fetching TFN-Wise data:', error);
+                const tbody = document.getElementById('data-table-body');
+                tbody.innerHTML = '<tr><td colspan="6">Error loading data</td></tr>';
+            }
         }
 
-        if (tfnSearch) {
-            query += queryParams.length ? ' AND' : ' WHERE';
-            query += ' "toAddress" ILIKE $' + paramIndex++;
-            queryParams.push(`%${tfnSearch}%`);
-        }
-
-        query += ' GROUP BY "toAddress" ORDER BY offered_calls DESC';
-
-        console.log('Executing Query:', query); // Debug: Log the SQL query
-        console.log('Query Params:', queryParams); // Debug: Log the parameters
-
-        const result = await pool.query(query, queryParams);
-        console.log('Query Result:', result.rows); // Debug: Log the result
-
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Error fetching TFN-Wise data:', err);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-});
+        // Fetch data on page load
+        window.onload = fetchTFNWiseData;
+    </script>
+</body>
+</html>
