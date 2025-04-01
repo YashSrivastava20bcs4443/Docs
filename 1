@@ -1,1 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Charts & Graphs</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="logo">Charts & Graphs</div>
+        <nav>
+            <ul>
+                <li><a href="index.html">Dashboard</a></li>
+                <li><a href="charts.html">Charts & Graphs</a></li>
+            </ul>
+        </nav>
+    </header>
+    <div class="container">
+        <!-- Chart Section -->
+        <section class="chart-container">
+            <h3>Queue Status Distribution</h3>
+            <div id="queueStatusDistribution" class="chart"></div>
 
+            <h3>Average Queue Time Per Campaign</h3>
+            <div id="averageQueueTimePerCampaign" class="chart"></div>
+
+            <h3>Top 5 Agents By Call Volume</h3>
+            <div id="top5AgentsByCallVolume" class="chart"></div>
+
+            <h3>Agent Average Handle Time</h3>
+            <div id="agentAverageHandleTime" class="chart"></div>
+
+            <h3>Calls By End Reason</h3>
+            <div id="callsByEndReason" class="chart"></div>
+
+            <h3>Short Abandon Vs Completed Calls</h3>
+            <div id="shortAbandonVsCompletedCalls" class="chart"></div>
+
+            <h3>Calls Per Campaign</h3>
+            <div id="callsPerCampaign" class="chart"></div>
+
+            <h3>Transfer Type Breakdown</h3>
+            <div id="transferTypeBreakdown" class="chart"></div>
+
+            <h3>Calls Routed By Skill</h3>
+            <div id="callsRoutedBySkill" class="chart"></div>
+        </section>
+    </div>
+    <script src="charts.js"></script>
+</body>
+</html>
