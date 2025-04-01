@@ -17,14 +17,14 @@ app.get('/api/charts', async (req, res) => {
         `;
         chartsData.queueStatus = (await pool.query(queueStatusQuery)).rows;
 
-        // Average Queue Time Per Campaign
+        // Average Queue Time Per Campaign (Using "campaignId")
         const avgQueueTimeQuery = `
             SELECT 
-                COALESCE("campaign", 'Unknown') AS campaign,
+                COALESCE("campaignId", 'Unknown') AS campaign,
                 AVG(COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0)) AS avg_queue_time
             FROM contact_mapped_data
             WHERE "mediaTypeId" = '4'
-            GROUP BY "campaign"
+            GROUP BY "campaignId"
         `;
         chartsData.avgQueueTime = (await pool.query(avgQueueTimeQuery)).rows;
 
@@ -78,14 +78,14 @@ app.get('/api/charts', async (req, res) => {
         `;
         chartsData.shortVsCompleted = (await pool.query(shortVsCompletedQuery)).rows;
 
-        // Calls Per Campaign
+        // Calls Per Campaign (Using "campaignId")
         const callsPerCampaignQuery = `
             SELECT 
-                COALESCE("campaign", 'Unknown') AS campaign,
+                COALESCE("campaignId", 'Unknown') AS campaign,
                 COUNT(*) AS count
             FROM contact_mapped_data
             WHERE "mediaTypeId" = '4'
-            GROUP BY "campaign"
+            GROUP BY "campaignId"
         `;
         chartsData.callsPerCampaign = (await pool.query(callsPerCampaignQuery)).rows;
 
