@@ -28,27 +28,27 @@ app.get('/api/charts', async (req, res) => {
         `;
         chartsData.avgQueueTime = (await pool.query(avgQueueTimeQuery)).rows;
 
-        // Top 5 Agents By Call Volume
+        // Top 5 Agents By Call Volume (Using "agentId")
         const topAgentsQuery = `
             SELECT 
-                COALESCE("agent", 'Unknown') AS agent,
+                COALESCE("agentId", 'Unknown') AS agent,
                 COUNT(*) AS call_volume
             FROM contact_mapped_data
             WHERE "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0
-            GROUP BY "agent"
+            GROUP BY "agentId"
             ORDER BY call_volume DESC
             LIMIT 5
         `;
         chartsData.topAgents = (await pool.query(topAgentsQuery)).rows;
 
-        // Agent Average Handle Time
+        // Agent Average Handle Time (Using "agentId")
         const avgHandleTimeQuery = `
             SELECT 
-                COALESCE("agent", 'Unknown') AS agent,
+                COALESCE("agentId", 'Unknown') AS agent,
                 AVG(COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0)) AS avg_handle_time
             FROM contact_mapped_data
             WHERE "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0
-            GROUP BY "agent"
+            GROUP BY "agentId"
         `;
         chartsData.avgHandleTime = (await pool.query(avgHandleTimeQuery)).rows;
 
@@ -89,25 +89,25 @@ app.get('/api/charts', async (req, res) => {
         `;
         chartsData.callsPerCampaign = (await pool.query(callsPerCampaignQuery)).rows;
 
-        // Transfer Type Breakdown
+        // Transfer Type Breakdown (Using "transferIndicatorId")
         const transferTypeQuery = `
             SELECT 
-                COALESCE("transferType", 'No Transfer') AS transfer_type,
+                COALESCE("transferIndicatorId", 'No Transfer') AS transfer_type,
                 COUNT(*) AS count
             FROM contact_mapped_data
             WHERE "mediaTypeId" = '4'
-            GROUP BY "transferType"
+            GROUP BY "transferIndicatorId"
         `;
         chartsData.transferType = (await pool.query(transferTypeQuery)).rows;
 
-        // Calls Routed By Skill
+        // Calls Routed By Skill (Using "skillId")
         const callsBySkillQuery = `
             SELECT 
-                COALESCE("skill", 'Unknown') AS skill,
+                COALESCE("skillId", 'Unknown') AS skill,
                 COUNT(*) AS count
             FROM contact_mapped_data
             WHERE "mediaTypeId" = '4'
-            GROUP BY "skill"
+            GROUP BY "skillId"
         `;
         chartsData.callsBySkill = (await pool.query(callsBySkillQuery)).rows;
 
