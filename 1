@@ -1,1 +1,143 @@
 
+import paramiko
+import winrm
+import azure.storage.blob as blob
+from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import os
+
+# Configuration
+LINUX_VMS = ["192.168.1.10", "192.168.1.11"]  # Replace with your Linux VM IPs
+WINDOWS_VMS = ["192.168.1.20", "192.168.1.21"]  # Replace with your Windows VM IPs
+AZURE_STORAGE_CONNECTION_STRING = "your_azure_storage_connection_string"  # Replace with your connection string
+CONTAINER_NAME = "software-container"  # Replace with your container name
+SSH_USER = "your_linux_username"  # Replace with SSH username
+SSH_PASSWORD = "your_linux_password"  # Replace with SSH password or use key
+WINRM_USER = "your_windows_username"  # Replace with Windows username
+WINRM_PASSWORD = "your_windows_password"  # Replace with Windows password
+SMTP_SERVER = "smtp.gmail.com"  # Replace with your SMTP server
+SMTP_PORT = 587
+SMTP_USER = "your_email@gmail.com"  # Replace with your email
+SMTP_PASSWORD = "your_app_specific_password"  # Replace with your password or app-specific password
+TO_EMAILS = ["team1@example.com", "team2@example.com"]  # Replace with recipient emails
+CC_EMAILS = ["manager@example.com"]  # Replace with CC emails
+
+# Commands to check versions
+LINUX_COMMANDS = {
+    "node_exporter": "node_exporter --version 2>&1 | grep -oP 'version \K\S+' || echo 'Not Installed'",
+    "SentinelAgent": "dpkg -l | grep sentinelagent | awk '{print $3}' || echo 'Not Installed'",
+    "nfs-common": "dpkg -l | grep nfs-common | awk '{print $3}' || echo 'Not Installed'"
+}
+
+WINDOWS_COMMANDS = {
+    "windows_exporter": "wmic product where \"Name like '%windows_exporter%'\" get Version | findstr /r \"^[0-9]\"",
+    "SentinelInstaller": "wmic product where \"Name like '%Sentinel%'\" get Version | findstr /r \"^[0-9]\"",
+    "wincollect": "wmic product where \"Name like '%wincollect%'" get Version | findstr /r \"^[0-9]\""
+}
+
+# Function to check Linux VM
+def check_linux_vm(ip):
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        ssh.connect(ip, username=SSH_USER, password=SSH_PASSWORD)
+        result = {}
+        for software, cmd in LINUX_COMMANDS.items():
+            stdin, stdout, stderr = ssh.exec_command(cmd)
+            version = stdout.read().decode().strip() or "Not Installed"
+            result[software] = version
+        ssh.close()
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+# Function to check Windows VM
+def check_windows_vm(ip):
+    session = winrm.Session(f"http://{ip}:5985/wsman", auth=(WINRM_USER, WINRM_PASSWORD))
+    try:
+        result = {}
+        for software, cmd in WINDOWS_COMMANDS.items():
+            response = session.run_cmd("powershell", ["-Command", cmd])
+            version = response.std_out.decode().strip() or "Not Installed"
+            result[software] = version
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+# Function to check Azure Blob Storage
+def check_blob_storage():
+    blob_service_client = blob.BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+    container_client = blob_service_client.get_container_client(CONTAINER_NAME)
+    blobs = container_client.list_blobs()
+    blob_versions = {}
+    for b in blobs:
+        name = b.name
+        if "node_exporter" in name:
+            blob_versions["node_exporter"] = name.split("-")[1]
+        elif "SentinelAgent_linux" in name:
+            blob_versions["SentinelAgent"] = name.split("_v")[1].replace(".deb", "")
+        elif "windows_exporter" in name:
+            blob_versions["windows_exporter"] = name.split("-")[1].replace("-amd64.msi", "")
+        elif "SentinelInstaller" in name:
+            blob_versions["SentinelInstaller"] = name.split("_v")[1].replace(".msi", "")
+        elif "wincollect" in name:
+            blob_versions["wincollect"] = name.split("-")[1].replace(".msi", "")
+    return blob_versions
+
+# Generate report
+def generate_report(linux_results, windows_results, blob_versions):
+    report = f"Software Version Comparison Report - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    
+    report += "## Linux VMs\n"
+    for ip, result in linux_results.items():
+        report += f"VM IP: {ip}\n"
+        if "error" in result:
+            report += f"  Error: {result['error']}\n"
+        else:
+            for sw, ver in result.items():
+                blob_ver = blob_versions.get(sw, "N/A")
+                report += f"  {sw}: Installed Version: {ver}, Blob Version: {blob_ver}\n"
+        report += "\n"
+    
+    report += "## Windows VMs\n"
+    for ip, result in windows_results.items():
+        report += f"VM IP: {ip}\n"
+        if "error" in result:
+            report += f"  Error: {result['error']}\n"
+        else:
+            for sw, ver in result.items():
+                blob_ver = blob_versions.get(sw, "N/A")
+                report += f"  {sw}: Installed Version: {ver}, Blob Version: {blob_ver}\n"
+        report += "\n"
+    
+    return report
+
+# Send email
+def send_email(report):
+    msg = MIMEMultipart()
+    msg['From'] = SMTP_USER
+    msg['To'] = ", ".join(TO_EMAILS)
+    msg['Cc'] = ", ".join(CC_EMAILS)
+    msg['Subject'] = "VM Software Version Comparison Report"
+    msg.attach(MIMEText(report, 'plain'))
+    
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(SMTP_USER, TO_EMAILS + CC_EMAILS, msg.as_string())
+
+# Main execution
+def main():
+    linux_results = {ip: check_linux_vm(ip) for ip in LINUX_VMS}
+    windows_results = {ip: check_windows_vm(ip) for ip in WINDOWS_VMS}
+    blob_versions = check_blob_storage()
+    report = generate_report(linux_results, windows_results, blob_versions)
+    print(report)  # For debugging
+    send_email(report)
+    with open("software_comparison_report.txt", "w") as f:
+        f.write(report)
+
+if __name__ == "__main__":
+    main()
