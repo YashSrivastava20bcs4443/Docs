@@ -1,1 +1,1 @@
-
+Total Time for Traditional MethodOverlapped Execution: VM creation (~0.9 hours) + Windows SCCM (~0.78 hours) + Linux Ansible (~0.36 hours) can overlap partially. Total time is driven by VM creation plus the longest software step, adjusted for concurrency:Minimum: ~0.9 hours (VMs) + 0.78 hours (SCCM) = ~1.68 hours, with Ansible finishing within this window.Pipeline Total: Add Terraform + SCCM prep (~0.25-0.5 hours) = ~7-8 hours (assuming full pipeline execution and network latency).Range: ~7.25-8.25 hours.
