@@ -3,75 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Charts & Graphs</title>
+    <title>Chart Details</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
     <header>
-        <div class="logo">Charts & Graphs</div>
+        <div class="logo" id="chart-title">Chart Details</div>
         <nav>
             <ul>
                 <li><a href="index.html">Dashboard</a></li>
-                <li><a href="charts.html">Charts & Graphs</a></li>
+                <li><a href="charts.html">Back to Charts</a></li>
             </ul>
         </nav>
     </header>
     <div class="container">
-        <section class="chart-icons">
-            <h2>Explore Charts</h2>
-            <div class="icon-grid">
-                <a href="chart_detail.html?type=queueStatus" target="_blank" class="chart-icon">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/pie-chart.png" alt="Pie Chart Icon" class="square-icon" onerror="this.style.display='none'; this.nextSibling.style.display='block';">
-                    <span class="icon-fallback">Pie</span>
-                    <p>Queue Status Distribution</p>
-                </a>
-                <a href="chart_detail.html?type=avgQueueTime" target="_blank" class="chart-icon">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/bar-chart.png" alt="Bar Chart Icon" class="square-icon" onerror="this.style.display='none'; this.nextSibling.style.display='block';">
-                    <span class="icon-fallback">Bar</span>
-                    <p>Average Queue Time Per Campaign</p>
-                </a>
-                <a href="chart_detail.html?type=topAgents" target="_blank" class="chart-icon">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/bar-chart.png" alt="Bar Chart Icon" class="square-icon" onerror="this.style.display='none'; this.nextSibling.style.display='block';">
-                    <span class="icon-fallback">Bar</span>
-                    <p>Top 5 Agents By Call Volume</p>
-                </a>
-                <a href="chart_detail.html?type=avgHandleTime" target="_blank" class="chart-icon">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/bar-chart.png" alt="Bar Chart Icon" class="square-icon" onerror="this.style.display='none'; this.nextSibling.style.display='block';">
-                    <span class="icon-fallback">Bar</span>
-                    <p>Agent Average Handle Time</p>
-                </a>
-                <a href="chart_detail.html?type=endReason" target="_blank" class="chart-icon">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/pie-chart.png" alt="Pie Chart Icon" class="square-icon" onerror="this.style.display='none'; this.nextSibling.style.display='block';">
-                    <span class="icon-fallback">Pie</span>
-                    <p>Calls By End Reason</p>
-                </a>
-                <a href="chart_detail.html?type=shortVsCompleted" target="_blank" class="chart-icon">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/pie-chart.png" alt="Pie Chart Icon" class="square-icon" onerror="this.style.display='none'; this.nextSibling.style.display='block';">
-                    <span class="icon-fallback">Pie</span>
-                    <p>Short Abandon Vs Completed Calls</p>
-                </a>
-                <a href="chart_detail.html?type=callsPerCampaign" target="_blank" class="chart-icon">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/bar-chart.png" alt="Bar Chart Icon" class="square-icon" onerror="this.style.display='none'; this.nextSibling.style.display='block';">
-                    <span class="icon-fallback">Bar</span>
-                    <p>Calls Per Campaign</p>
-                </a>
-                <a href="chart_detail.html?type=transferType" target="_blank" class="chart-icon">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/pie-chart.png" alt="Pie Chart Icon" class="square-icon" onerror="this.style.display='none'; this.nextSibling.style.display='block';">
-                    <span class="icon-fallback">Pie</span>
-                    <p>Transfer Type Breakdown</p>
-                </a>
-                <a href="chart_detail.html?type=callsBySkill" target="_blank" class="chart-icon">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/bar-chart.png" alt="Bar Chart Icon" class="square-icon" onerror="this.style.display='none'; this.nextSibling.style.display='block';">
-                    <span class="icon-fallback">Bar</span>
-                    <p>Calls Routed By Skill</p>
-                </a>
-            </div>
-        </section>
+        <div id="chart" class="chart"></div>
     </div>
-    <!-- Attribution for Icons8 (optional, recommended for free use) -->
-    <footer>
-        <p>Icons by <a href="https://icons8.com" target="_blank">Icons8</a></p>
-    </footer>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const chartType = urlParams.get('type');
+            const chartDiv = document.getElementById('chart');
+            const titleDiv = document.getElementById('chart-title');
+
+            if (!chartType) {
+                chartDiv.innerHTML = '<p>No chart type specified</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3000/api/charts');
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+                console.log('Chart Data:', data); // Debug: Log the data
+
+                const chartConfigs = {
+                    queueStatus: {
+                        title: 'Queue Status Distribution',
+                        type: 'pie',
+                        data: {
+                            values: data.queueStatus.map(row => parseFloat(row.count) || 0),
+                            labels: data.queueStatus.map(row => row.status || 'Unknown'),
+                            textinfo: 'label+percent',
+                            hoverinfo: 'label+percent+value',
+                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56'] }
+                        },
+                        annotation: 'Shows the percentage of calls Abandoned, Answered, or Completed in IVR'
+                    },
+                    avgQueueTime: {
+                        title: 'Average Queue Time Per Campaign',
+                        type: 'bar',
+                        data: {
+                            x: data.avgQueueTime.map(row => row.campaign || 'Unknown'),
+                            y: data.avgQueueTime.map(row => parseFloat(row.avg_queue_time) || 0),
+                            type: 'bar'
+                        },
+                        yAxis: 'Time (seconds)',
+                        annotation: 'Average time spent in queue per campaign'
+                    },
+                    topAgents: {
+                        title: 'Top 5 Agents By Call Volume',
+                        type: 'bar',
+                        data: {
+                            x: data.topAgents.map(row => row.agent || 'Unknown'),
+                            y: data.topAgents.map(row => parseFloat(row.call_volume) || 0),
+                            type: 'bar'
+                        },
+                        yAxis: 'Call Count',
+                        annotation: 'Top 5 agents with highest call volumes'
+                    },
+                    avgHandleTime: {
+                        title: 'Agent Average Handle Time',
+                        type: 'bar',
+                        data: {
+                            x: data.avgHandleTime.map(row => row.agent || 'Unknown'),
+                            y: data.avgHandleTime.map(row => parseFloat(row.avg_handle_time) || 0),
+                            type: 'bar'
+                        },
+                        yAxis: 'Time (seconds)',
+                        annotation: 'Average call handling time per agent'
+                    },
+                    endReason: {
+                        title: 'Calls By End Reason',
+                        type: 'pie',
+                        data: {
+                            values: data.endReason.map(row => parseFloat(row.count) || 0),
+                            labels: data.endReason.map(row => row.end_reason || 'Unknown'),
+                            textinfo: 'label+percent',
+                            hoverinfo: 'label+percent+value',
+                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'] }
+                        },
+                        annotation: 'Distribution of call end reasons'
+                    },
+                    shortVsCompleted: {
+                        title: 'Short Abandon Vs Completed Calls',
+                        type: 'pie',
+                        data: {
+                            values: data.shortVsCompleted.map(row => parseFloat(row.count) || 0),
+                            labels: data.shortVsCompleted.map(row => row.status || 'Unknown'),
+                            textinfo: 'label+percent',
+                            hoverinfo: 'label+percent+value',
+                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56'] }
+                        },
+                        annotation: 'Compares short abandons (<10s) to completed calls'
+                    },
+                    callsPerCampaign: {
+                        title: 'Calls Per Campaign',
+                        type: 'bar',
+                        data: {
+                            x: data.callsPerCampaign.map(row => row.campaign || 'Unknown'),
+                            y: data.callsPerCampaign.map(row => parseFloat(row.count) || 0),
+                            type: 'bar'
+                        },
+                        yAxis: 'Call Count',
+                        annotation: 'Total calls per campaign'
+                    },
+                    transferType: {
+                        title: 'Transfer Type Breakdown',
+                        type: 'pie',
+                        data: {
+                            values: data.transferType.map(row => parseFloat(row.count) || 0),
+                            labels: data.transferType.map(row => row.transfer_type || 'Unknown'),
+                            textinfo: 'label+percent',
+                            hoverinfo: 'label+percent+value',
+                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'] }
+                        },
+                        annotation: 'Distribution of transfer types'
+                    },
+                    callsBySkill: {
+                        title: 'Calls Routed By Skill',
+                        type: 'bar',
+                        data: {
+                            x: data.callsBySkill.map(row => row.skill || 'Unknown'),
+                            y: data.callsBySkill.map(row => parseFloat(row.count) || 0),
+                            type: 'bar'
+                        },
+                        yAxis: 'Call Count',
+                        annotation: 'Total calls routed per skill'
+                    }
+                };
+
+                const config = chartConfigs[chartType];
+                if (!config) {
+                    chartDiv.innerHTML = '<p>Invalid chart type</p>';
+                    return;
+                }
+
+                titleDiv.textContent = config.title;
+                const layout = {
+                    title: config.title,
+                    showlegend: true,
+                    legend: { x: 1, y: 0.5 },
+                    yaxis: config.yAxis ? { title: config.yAxis } : {},
+                    annotations: [{
+                        x: 0.5,
+                        y: -0.1,
+                        xref: 'paper',
+                        yref: 'paper',
+                        text: config.annotation,
+                        showarrow: false
+                    }]
+                };
+
+                Plotly.newPlot('chart', [config.data], layout);
+            } catch (error) {
+                console.error('Error rendering chart:', error);
+                chartDiv.innerHTML = '<p>Error loading chart</p>';
+            }
+        });
+    </script>
 </body>
 </html>
