@@ -1,31 +1,144 @@
+// 3D Bar Chart
+function updateChart(data) {
+    const barData = [{
+        x: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in >10 Sec', 'Answered Calls'],
+        y: [
+            data.ivr_offered || 0,
+            data.ivr_abandoned || 0,
+            data.queue_abandoned || 0,
+            data.closed_by_ivr || 0,
+            data.abandoned_in_10_sec || 0,
+            data.abandoned_in_over_10_sec || 0,
+            data.answered_calls || 0
+        ],
+        z: [0, 0, 0, 0, 0, 0, 0], // Base at z=0 for 3D effect
+        type: 'bar',
+        marker: {
+            color: 'rgba(75, 192, 192, 0.6)', // Slightly opaque for 3D depth
+            line: {
+                color: 'rgba(75, 192, 192, 1)',
+                width: 1
+            }
+        },
+        text: [
+            data.ivr_offered || 0,
+            data.ivr_abandoned || 0,
+            data.queue_abandoned || 0,
+            data.closed_by_ivr || 0,
+            data.abandoned_in_10_sec || 0,
+            data.abandoned_in_over_10_sec || 0,
+            data.answered_calls || 0
+        ],
+        textposition: 'auto'
+    }];
+
+    const layout = {
+        title: 'Call Statistics (3D Bar)',
+        scene: {
+            xaxis: { title: 'Categories' },
+            yaxis: { title: 'Count', rangemode: 'tozero' },
+            zaxis: { title: 'Depth', range: [-1, 1] } // Minimal z-axis for 3D effect
+        },
+        width: 800,  // Approx 16:9 ratio (width)
+        height: 450, // Approx 16:9 ratio (height)
+        margin: {
+            l: 50,
+            r: 30,
+            t: 50,
+            b: 50
+        }
+    };
+
+    Plotly.newPlot('summaryChart', barData, layout);
+}
+
+// 3D-like Pie Chart (Donut style with depth effect)
+function updatePieChart(data) {
+    const pieData = [{
+        labels: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in > 10 Sec', 'Answered Calls'],
+        values: [
+            data.ivr_offered || 0,
+            data.ivr_abandoned || 0,
+            data.queue_abandoned || 0,
+            data.closed_by_ivr || 0,
+            data.abandoned_in_10_sec || 0,
+            data.abandoned_in_over_10_sec || 0,
+            data.answered_calls || 0
+        ],
+        type: 'pie',
+        hole: 0.4, // Donut style for 3D-like depth
+        marker: {
+            colors: [
+                'rgba(75, 192, 192, 0.6)',
+                'rgba(255, 99, 132, 0.6)',
+                'rgba(255, 206, 86, 0.6)',
+                'rgba(54, 162, 235, 0.6)',
+                'rgba(153, 102, 255, 0.6)',
+                'rgba(201, 203, 207, 0.6)',
+                'rgba(255, 159, 64, 0.6)'
+            ],
+            line: {
+                color: [
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(201, 203, 207, 1)',
+                    'rgba(255, 159, 64, 1)'
+                ],
+                width: 2 // Thicker border for depth
+            }
+        },
+        textinfo: 'percent+label',
+        hoverinfo: 'label+percent+value',
+        rotation: 45, // Slight rotation for 3D effect
+        direction: 'clockwise'
+    }];
+
+    const layout = {
+        title: 'Call Statistics (3D-like Pie)',
+        showlegend: true,
+        legend: {
+            x: 1,
+            y: 0.5,
+            traceorder: 'normal',
+            font: {
+                family: 'sans-serif',
+                size: 12,
+                color: '#000'
+            },
+            bgcolor: '#E2E2E2',
+            bordercolor: '#FFFFFF',
+            borderwidth: 2
+        },
+        width: 800,  // Approx 16:9 ratio (width)
+        height: 450, // Approx 16:9 ratio (height)
+        margin: {
+            l: 40,
+            r: 30,
+            t: 50,
+            b: 50
+        }
+    };
+
+    Plotly.newPlot('pieChart', pieData, layout);
+}
+
+-------------------------------------------\
+
 .chart-container {
     padding: 20px;
-    width: 100%;
 }
 
 .side-by-side-charts {
     display: flex;
     justify-content: center;
-    gap: 20px;
-    flex-wrap: nowrap;
-    width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
+    gap: 20px; /* Space between charts */
+    flex-wrap: wrap; /* Wrap to next line on small screens */
 }
 
 .chart {
-    flex: 1;
-    max-width: 50%;
-    height: 0;
-    padding-bottom: 50%;
-    position: relative;
-    overflow: hidden;
-}
-
-.chart > div {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    width: 400px; /* Matches Plotly width */
+    height: 225px; /* Matches Plotly height */
 }
