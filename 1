@@ -1,31 +1,141 @@
-.chart-container {
-    padding: 20px;
-    width: 100%;
+function updateChart(data) {
+    const barData = [{
+        x: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in >10 Sec', 'Answered Calls'],
+        y: [
+            data.ivr_offered,
+            data.ivr_abandoned,
+            data.queue_abandoned,
+            data.closed_by_ivr,
+            data.abandoned_in_10_sec,
+            data.abandoned_in_over_10_sec,
+            data.answered_calls
+        ],
+        z: [0, 0, 0, 0, 0, 0, 0],
+        type: 'bar',
+        marker: {
+            color: 'rgba(75, 192, 192, 0.6)',
+            line: {
+                color: 'rgba(75, 192, 192, 1)',
+                width: 1
+            }
+        },
+        text: [
+            data.ivr_offered,
+            data.ivr_abandoned,
+            data.queue_abandoned,
+            data.closed_by_ivr,
+            data.abandoned_in_10_sec,
+            data.abandoned_in_over_10_sec,
+            data.answered_calls
+        ],
+        textposition: 'auto'
+    }];
+
+    const layout = {
+        title: 'Call Statistics (3D Bar)',
+        scene: {
+            xaxis: { title: 'Categories' },
+            yaxis: { title: 'Count', rangemode: 'tozero' },
+            zaxis: { title: 'Depth', range: [-1, 1] }
+        },
+        margin: {
+            l: 50,
+            r: 20,
+            t: 50,
+            b: 50
+        }
+    };
+
+    Plotly.newPlot('summaryChart', barData, layout);
 }
 
-.side-by-side-charts {
-    display: flex;
-    justify-content: center;
-    gap: 20px; /* Space between charts */
-    flex-wrap: nowrap; /* Prevent wrapping, keep side by side */
-    width: 100%;
-    max-width: 1200px; /* Optional: Limit total width on large screens */
-    margin: 0 auto;
+function updatePieChart(data) {
+    const pieData = [{
+        labels: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in > 10 Sec', 'Answered Calls'],
+        values: [
+            data.ivr_offered,
+            data.ivr_abandoned,
+            data.queue_abandoned,
+            data.closed_by_ivr,
+            data.abandoned_in_10_sec,
+            data.abandoned_in_over_10_sec,
+            data.answered_calls
+        ],
+        type: 'pie',
+        hole: 0.4,
+        marker: {
+            colors: [
+                'rgba(75, 192, 192, 0.6)',
+                'rgba(255, 99, 132, 0.6)',
+                'rgba(255, 206, 86, 0.6)',
+                'rgba(54, 162, 235, 0.6)',
+                'rgba(153, 102, 255, 0.6)',
+                'rgba(201, 203, 207, 0.6)',
+                'rgba(255, 159, 64, 0.6)'
+            ],
+            line: {
+                color: [
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(153, 102, 255, 1)',
+                    'rgba(201, 203, 207, 1)',
+                    'rgba(255, 159, 64, 1)'
+                ],
+                width: 2
+            }
+        },
+        textinfo: 'percent+label',
+        hoverinfo: 'label+percent+value',
+        rotation: 45,
+        direction: 'clockwise'
+    }];
+
+    const layout = {
+        title: 'Call Statistics (3D-like Pie)',
+        showlegend: true,
+        legend: {
+            x: 1,
+            y: 0.5,
+            traceorder: 'normal',
+            font: {
+                family: 'sans-serif',
+                size: 12,
+                color: '#000'
+            },
+            bgcolor: '#E2E2E2',
+            bordercolor: '#FFFFFF',
+            borderwidth: 2
+        },
+        margin: {
+            l: 40,
+            r: 20,
+            t: 50,
+            b: 50
+        }
+    };
+
+    Plotly.newPlot('pieChart', pieData, layout);
 }
 
-.chart {
-    flex: 1; /* Equal width for both charts */
-    max-width: 50%; /* Ensure they don’t exceed half the container */
-    height: 0; /* Start with zero height */
-    padding-bottom: 50%; /* Maintain square aspect ratio (height = width) */
-    position: relative; /* For absolute positioning of Plotly content */
-    overflow: hidden; /* Prevent overflow */
+function resizeCharts() {
+    const charts = ['summaryChart', 'pieChart'];
+    charts.forEach(chartId => {
+        const chartDiv = document.getElementById(chartId);
+        const size = Math.min(chartDiv.clientWidth, chartDiv.clientHeight);
+        Plotly.relayout(chartId, {
+            width: size,
+            height: size
+        });
+    });
 }
 
-.chart > div {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-}
+document.addEventListener('DOMContentLoaded', async () => {
+    const response = await fetch('http://localhost:3000/api/summary');
+    const data = await response.json();
+    updateChart(data);
+    updatePieChart(data);
+    resizeCharts();
+    window.addEventListener('resize', resizeCharts);
+});
