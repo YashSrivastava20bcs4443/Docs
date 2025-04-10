@@ -1,36 +1,32 @@
-app.get('/api/charts', async (req, res) => {
-    try {
-        const { startDate, endDate } = req.query; // Get date parameters from query
-        const chartsData = {};
-        
-        // Base WHERE clause with date filter if provided
-        let dateFilter = '';
-        const queryParams = [];
-        if (startDate && endDate) {
-            dateFilter = ' AND "contactStartDate" BETWEEN $1 AND $2';
-            queryParams.push(startDate, endDate);
-        }
+.filter-section {
+    padding: 20px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    justify-content: center;
+}
 
-        const queries = {
-            queueStatus: `SELECT CASE WHEN COALESCE(NULLIF("abandoned", ''), 'False') = 'True' THEN 'Abandoned' WHEN COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0 THEN 'Answered' ELSE 'IVR Completed' END AS status, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY status`,
-            avgQueueTime: `SELECT COALESCE("campaignId", 'Unknown') AS campaign, AVG(COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0)) AS avg_queue_time FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "campaignId"`,
-            topAgents: `SELECT COALESCE("agentId", 'Unknown') AS agent, COUNT(*) AS call_volume FROM contact_data WHERE "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0${dateFilter} GROUP BY "agentId" ORDER BY call_volume DESC LIMIT 5`,
-            avgHandleTime: `SELECT COALESCE("agentId", 'Unknown') AS agent, AVG(COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0)) AS avg_handle_time FROM contact_data WHERE "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0${dateFilter} GROUP BY "agentId"`,
-            endReason: `SELECT COALESCE("endReason", 'Unknown') AS end_reason, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "endReason"`,
-            shortVsCompleted: `SELECT CASE WHEN COALESCE(NULLIF("abandoned", ''), 'False') = 'True' AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) < 10 THEN 'Short Abandon' WHEN COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0 THEN 'Completed' ELSE 'Other' END AS status, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY status`,
-            callsPerCampaign: `SELECT COALESCE("campaignId", 'Unknown') AS campaign, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "campaignId"`,
-            transferType: `SELECT COALESCE("transferIndicatorId", 'No Transfer') AS transfer_type, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "transferIndicatorId"`,
-            callsBySkill: `SELECT COALESCE("skillId", 'Unknown') AS skill, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "skillId"`
-        };
+.filter-section label {
+    font-weight: 500;
+    color: #003366;
+}
 
-        for (const [key, query] of Object.entries(queries)) {
-            chartsData[key] = (await pool.query(query, queryParams)).rows;
-        }
+.filter-section input[type="date"] {
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
 
-        console.log('Charts API Response:', chartsData); // Debug: Log on server
-        res.json(chartsData);
-    } catch (err) {
-        console.error('Error fetching charts data:', err);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-});
+.filter-section button {
+    padding: 8px 15px;
+    background-color: #003366;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.filter-section button:hover {
+    background-color: #0056b3;
+}
