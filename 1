@@ -1,144 +1,214 @@
-// 3D Bar Chart
-function updateChart(data) {
-    const barData = [{
-        x: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in >10 Sec', 'Answered Calls'],
-        y: [
-            data.ivr_offered || 0,
-            data.ivr_abandoned || 0,
-            data.queue_abandoned || 0,
-            data.closed_by_ivr || 0,
-            data.abandoned_in_10_sec || 0,
-            data.abandoned_in_over_10_sec || 0,
-            data.answered_calls || 0
-        ],
-        z: [0, 0, 0, 0, 0, 0, 0], // Base at z=0 for 3D effect
-        type: 'bar',
-        marker: {
-            color: 'rgba(75, 192, 192, 0.6)', // Slightly opaque for 3D depth
-            line: {
-                color: 'rgba(75, 192, 192, 1)',
-                width: 1
-            }
-        },
-        text: [
-            data.ivr_offered || 0,
-            data.ivr_abandoned || 0,
-            data.queue_abandoned || 0,
-            data.closed_by_ivr || 0,
-            data.abandoned_in_10_sec || 0,
-            data.abandoned_in_over_10_sec || 0,
-            data.answered_calls || 0
-        ],
-        textposition: 'auto'
-    }];
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Details</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="logo" id="chart-title">Chart Details</div>
+        <nav>
+            <ul>
+                <li><a href="index.html">Dashboard</a></li>
+                <li><a href="charts.html">Back to Charts</a></li>
+            </ul>
+        </nav>
+    </header>
+    <div class="container">
+        <div class="filter-section">
+            <label for="startDate">Start Date:</label>
+            <input type="date" id="startDate" name="startDate">
+            <label for="endDate">End Date:</label>
+            <input type="date" id="endDate" name="endDate">
+            <button onclick="updateChart()">Apply Filter</button>
+        </div>
+        <div id="chart" class="chart"></div>
+    </div>
+    <script>
+        let chartType;
 
-    const layout = {
-        title: 'Call Statistics (3D Bar)',
-        scene: {
-            xaxis: { title: 'Categories' },
-            yaxis: { title: 'Count', rangemode: 'tozero' },
-            zaxis: { title: 'Depth', range: [-1, 1] } // Minimal z-axis for 3D effect
-        },
-        width: 800,  // Approx 16:9 ratio (width)
-        height: 450, // Approx 16:9 ratio (height)
-        margin: {
-            l: 50,
-            r: 30,
-            t: 50,
-            b: 50
+        async function fetchChartData(startDate = '', endDate = '') {
+            const url = startDate && endDate 
+                ? `http://localhost:3000/api/charts?startDate=${startDate}&endDate=${endDate}`
+                : 'http://localhost:3000/api/charts';
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Network response failed: ${response.status}`);
+            const data = await response.json();
+            console.log('Fetched Data:', data);
+            return data;
         }
-    };
 
-    Plotly.newPlot('summaryChart', barData, layout);
-}
+        async function renderChart() {
+            const chartDiv = document.getElementById('chart');
+            const titleDiv = document.getElementById('chart-title');
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
 
-// 3D-like Pie Chart (Donut style with depth effect)
-function updatePieChart(data) {
-    const pieData = [{
-        labels: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in > 10 Sec', 'Answered Calls'],
-        values: [
-            data.ivr_offered || 0,
-            data.ivr_abandoned || 0,
-            data.queue_abandoned || 0,
-            data.closed_by_ivr || 0,
-            data.abandoned_in_10_sec || 0,
-            data.abandoned_in_over_10_sec || 0,
-            data.answered_calls || 0
-        ],
-        type: 'pie',
-        hole: 0.4, // Donut style for 3D-like depth
-        marker: {
-            colors: [
-                'rgba(75, 192, 192, 0.6)',
-                'rgba(255, 99, 132, 0.6)',
-                'rgba(255, 206, 86, 0.6)',
-                'rgba(54, 162, 235, 0.6)',
-                'rgba(153, 102, 255, 0.6)',
-                'rgba(201, 203, 207, 0.6)',
-                'rgba(255, 159, 64, 0.6)'
-            ],
-            line: {
-                color: [
-                    'rgba(75, 192, 192, 1)',
-                    'rgba(255, 99, 132, 1)',
-                    'rgba(255, 206, 86, 1)',
-                    'rgba(54, 162, 235, 1)',
-                    'rgba(153, 102, 255, 1)',
-                    'rgba(201, 203, 207, 1)',
-                    'rgba(255, 159, 64, 1)'
-                ],
-                width: 2 // Thicker border for depth
+            try {
+                const data = await fetchChartData(startDate, endDate);
+
+                const chartConfigs = {
+                    queueStatus: {
+                        title: 'Queue Status Distribution',
+                        type: 'pie',
+                        data: {
+                            values: data.queueStatus?.map(row => parseFloat(row.count) || 0) || [],
+                            labels: data.queueStatus?.map(row => row.status || 'Unknown') || [],
+                            textinfo: 'label+percent+value',
+                            hoverinfo: 'label+percent+value',
+                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56'] }
+                        },
+                        annotation: 'Percentage of calls: Abandoned, Answered, or IVR Completed'
+                    },
+                    avgQueueTime: {
+                        title: 'Average Queue Time Per Campaign',
+                        type: 'bar',
+                        data: {
+                            x: data.avgQueueTime?.map(row => row.campaign || 'Unknown') || [],
+                            y: data.avgQueueTime?.map(row => parseFloat(row.avg_queue_time) || 0) || [],
+                            type: 'bar',
+                            marker: { color: '#36A2EB' }
+                        },
+                        yAxis: 'Time (seconds)',
+                        annotation: 'Average queue time per campaign in seconds'
+                    },
+                    topAgents: {
+                        title: 'Top 5 Agents By Call Volume',
+                        type: 'bar',
+                        data: {
+                            x: data.topAgents?.map(row => row.agent || 'Unknown') || [],
+                            y: data.topAgents?.map(row => parseFloat(row.call_volume) || 0) || [],
+                            type: 'bar',
+                            marker: { color: '#FF6384' }
+                        },
+                        yAxis: 'Call Count',
+                        annotation: 'Top 5 agents with highest number of calls'
+                    },
+                    avgHandleTime: {
+                        title: 'Agent Average Handle Time',
+                        type: 'bar',
+                        data: {
+                            x: data.avgHandleTime?.map(row => row.agent || 'Unknown') || [],
+                            y: data.avgHandleTime?.map(row => parseFloat(row.avg_handle_time) || 0) || [],
+                            type: 'bar',
+                            marker: { color: '#FFCE56' }
+                        },
+                        yAxis: 'Time (seconds)',
+                        annotation: 'Average call handling time per agent in seconds'
+                    },
+                    endReason: {
+                        title: 'Calls By End Reason',
+                        type: 'pie',
+                        data: {
+                            values: data.endReason?.map(row => parseFloat(row.count) || 0) || [],
+                            labels: data.endReason?.map(row => row.end_reason || 'Unknown') || [],
+                            textinfo: 'label+percent+value',
+                            hoverinfo: 'label+percent+value',
+                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'] }
+                        },
+                        annotation: 'Distribution of reasons why calls ended'
+                    },
+                    shortVsCompleted: {
+                        title: 'Short Abandon Vs Completed Calls',
+                        type: 'pie',
+                        data: {
+                            values: data.shortVsCompleted?.map(row => parseFloat(row.count) || 0) || [],
+                            labels: data.shortVsCompleted?.map(row => row.status || 'Unknown') || [],
+                            textinfo: 'label+percent+value',
+                            hoverinfo: 'label+percent+value',
+                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56'] }
+                        },
+                        annotation: 'Short abandons (<10s) vs completed calls'
+                    },
+                    callsPerCampaign: {
+                        title: 'Calls Per Campaign',
+                        type: 'bar',
+                        data: {
+                            x: data.callsPerCampaign?.map(row => row.campaign || 'Unknown') || [],
+                            y: data.callsPerCampaign?.map(row => parseFloat(row.count) || 0) || [],
+                            type: 'bar',
+                            marker: { color: '#4BC0C0' }
+                        },
+                        yAxis: 'Call Count',
+                        annotation: 'Total number of calls per campaign'
+                    },
+                    transferType: {
+                        title: 'Transfer Type Breakdown',
+                        type: 'pie',
+                        data: {
+                            values: data.transferType?.map(row => parseFloat(row.count) || 0) || [],
+                            labels: data.transferType?.map(row => row.transfer_type || 'Unknown') || [],
+                            textinfo: 'label+percent+value',
+                            hoverinfo: 'label+percent+value',
+                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'] }
+                        },
+                        annotation: 'Distribution of call transfer types'
+                    },
+                    callsBySkill: {
+                        title: 'Calls Routed By Skill',
+                        type: 'bar',
+                        data: {
+                            x: data.callsBySkill?.map(row => row.skill || 'Unknown') || [],
+                            y: data.callsBySkill?.map(row => parseFloat(row.count) || 0) || [],
+                            type: 'bar',
+                            marker: { color: '#9966FF' }
+                        },
+                        yAxis: 'Call Count',
+                        annotation: 'Total calls routed per skill'
+                    }
+                };
+
+                const config = chartConfigs[chartType];
+                if (!config) {
+                    chartDiv.innerHTML = '<p>Invalid chart type</p>';
+                    return;
+                }
+
+                titleDiv.textContent = config.title;
+                const layout = {
+                    title: { text: config.title, font: { size: 20 } },
+                    showlegend: true,
+                    legend: { x: 1, y: 0.5, font: { size: 12 } },
+                    yaxis: config.yAxis ? { title: config.yAxis, titlefont: { size: 14 } } : {},
+                    annotations: [{
+                        x: 0.5,
+                        y: -0.15,
+                        xref: 'paper',
+                        yref: 'paper',
+                        text: config.annotation,
+                        showarrow: false,
+                        font: { size: 12, color: '#333' }
+                    }],
+                    margin: { b: 100, t: 50, l: 50, r: 50 },
+                    autosize: true
+                };
+
+                // Optimize rendering with responsive config
+                const plotlyConfig = { responsive: true, displayModeBar: false };
+
+                Plotly.newPlot('chart', [config.data], layout, plotlyConfig);
+            } catch (error) {
+                console.error('Error rendering chart:', error);
+                chartDiv.innerHTML = '<p>Error loading chart: ' + error.message + '</p>';
             }
-        },
-        textinfo: 'percent+label',
-        hoverinfo: 'label+percent+value',
-        rotation: 45, // Slight rotation for 3D effect
-        direction: 'clockwise'
-    }];
-
-    const layout = {
-        title: 'Call Statistics (3D-like Pie)',
-        showlegend: true,
-        legend: {
-            x: 1,
-            y: 0.5,
-            traceorder: 'normal',
-            font: {
-                family: 'sans-serif',
-                size: 12,
-                color: '#000'
-            },
-            bgcolor: '#E2E2E2',
-            bordercolor: '#FFFFFF',
-            borderwidth: 2
-        },
-        width: 800,  // Approx 16:9 ratio (width)
-        height: 450, // Approx 16:9 ratio (height)
-        margin: {
-            l: 40,
-            r: 30,
-            t: 50,
-            b: 50
         }
-    };
 
-    Plotly.newPlot('pieChart', pieData, layout);
-}
+        // Initial render
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            chartType = urlParams.get('type');
+            console.log('Chart Type:', chartType);
+            renderChart();
+        });
 
--------------------------------------------\
-
-.chart-container {
-    padding: 20px;
-}
-
-.side-by-side-charts {
-    display: flex;
-    justify-content: center;
-    gap: 20px; /* Space between charts */
-    flex-wrap: wrap; /* Wrap to next line on small screens */
-}
-
-.chart {
-    width: 400px; /* Matches Plotly width */
-    height: 225px; /* Matches Plotly height */
-}
+        // Update chart on filter apply
+        function updateChart() {
+            renderChart();
+        }
+    </script>
+</body>
+</html>
