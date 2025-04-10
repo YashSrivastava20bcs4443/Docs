@@ -1,244 +1,41 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chart Details</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-</head>
-<body>
-    <header>
-        <div class="logo" id="chart-title">Chart Details</div>
-        <nav>
-            <ul>
-                <li><a href="index.html">Dashboard</a></li>
-                <li><a href="charts.html">Back to Charts</a></li>
-            </ul>
-        </nav>
-    </header>
-    <div class="container">
-        <div class="filter-section">
-            <label for="startDate">Start Date:</label>
-            <input type="date" id="startDate" name="startDate">
-            <label for="endDate">End Date:</label>
-            <input type="date" id="endDate" name="endDate">
-            <button onclick="updateChart()">Apply Filter</button>
-        </div>
-        <div id="chart" class="chart"></div>
-    </div>
-    <script>
-        let chartType;
 
-        async function fetchChartData(startDate = '', endDate = '') {
-            const url = startDate && endDate 
-                ? `http://localhost:3000/api/charts?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
-                : 'http://localhost:3000/api/charts';
-            console.log('Fetching URL:', url); // Debug: Log the URL
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`Network response failed: ${response.status} - ${response.statusText}`);
-                const data = await response.json();
-                console.log('Fetched Data:', data); // Debug: Log the data
-                return data;
-            } catch (error) {
-                console.error('Fetch Error:', error);
-                throw error;
-            }
+app.get('/api/charts', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        console.log('Received Query Params:', { startDate, endDate }); // Debug: Log parameters
+        const chartsData = {};
+        
+        let dateFilter = '';
+        const queryParams = [];
+        if (startDate && endDate) {
+            dateFilter = ' AND "contactStartDate" BETWEEN $1 AND $2';
+            queryParams.push(startDate, endDate);
+        } else {
+            console.log('No date filter applied');
         }
 
-        async function renderChart() {
-            const chartDiv = document.getElementById('chart');
-            const titleDiv = document.getElementById('chart-title');
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
+        const queries = {
+            queueStatus: `SELECT CASE WHEN COALESCE(NULLIF("abandoned", ''), 'False') = 'True' THEN 'Abandoned' WHEN COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0 THEN 'Answered' ELSE 'IVR Completed' END AS status, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY status`,
+            avgQueueTime: `SELECT COALESCE("campaignId", 'Unknown') AS campaign, AVG(COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0)) AS avg_queue_time FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "campaignId"`,
+            topAgents: `SELECT COALESCE("agentId", 'Unknown') AS agent, COUNT(*) AS call_volume FROM contact_data WHERE "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0${dateFilter} GROUP BY "agentId" ORDER BY call_volume DESC LIMIT 5`,
+            avgHandleTime: `SELECT COALESCE("agentId", 'Unknown') AS agent, AVG(COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0)) AS avg_handle_time FROM contact_data WHERE "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0${dateFilter} GROUP BY "agentId"`,
+            endReason: `SELECT COALESCE("endReason", 'Unknown') AS end_reason, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "endReason"`,
+            shortVsCompleted: `SELECT CASE WHEN COALESCE(NULLIF("abandoned", ''), 'False') = 'True' AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) < 10 THEN 'Short Abandon' WHEN COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0 THEN 'Completed' ELSE 'Other' END AS status, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY status`,
+            callsPerCampaign: `SELECT COALESCE("campaignId", 'Unknown') AS campaign, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "campaignId"`,
+            transferType: `SELECT COALESCE("transferIndicatorId", 'No Transfer') AS transfer_type, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "transferIndicatorId"`,
+            callsBySkill: `SELECT COALESCE("skillId", 'Unknown') AS skill, COUNT(*) AS count FROM contact_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "skillId"`
+        };
 
-            try {
-                const data = await fetchChartData(startDate, endDate);
-
-                if (!data || Object.keys(data).length === 0) {
-                    chartDiv.innerHTML = '<p>No data available for the selected date range</p>';
-                    return;
-                }
-
-                const chartConfigs = {
-                    queueStatus: {
-                        title: 'Queue Status Distribution',
-                        type: 'pie',
-                        data: {
-                            type: 'pie',
-                            values: data.queueStatus?.map(row => parseFloat(row.count) || 0) || [],
-                            labels: data.queueStatus?.map(row => row.status || 'Unknown') || [],
-                            textinfo: 'label+percent+value',
-                            hoverinfo: 'label+percent+value',
-                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56'] }
-                        },
-                        annotation: 'Percentage and count of calls: Abandoned, Answered, or IVR Completed'
-                    },
-                    avgQueueTime: {
-                        title: 'Average Queue Time Per Campaign',
-                        type: 'bar',
-                        data: {
-                            x: data.avgQueueTime?.map(row => row.campaign || 'Unknown') || [],
-                            y: data.avgQueueTime?.map(row => parseFloat(row.avg_queue_time) || 0) || [],
-                            type: 'bar',
-                            marker: { color: '#36A2EB' },
-                            text: data.avgQueueTime?.map(row => `${parseFloat(row.avg_queue_time || 0).toFixed(2)}s`) || [],
-                            textposition: 'auto'
-                        },
-                        yAxis: 'Average Queue Time (seconds)',
-                        annotation: 'Average time calls spent in queue per campaign'
-                    },
-                    topAgents: {
-                        title: 'Top 5 Agents By Call Volume',
-                        type: 'bar',
-                        data: {
-                            x: data.topAgents?.map(row => row.agent || 'Unknown') || [],
-                            y: data.topAgents?.map(row => parseFloat(row.call_volume) || 0) || [],
-                            type: 'bar',
-                            marker: { color: '#FF6384' },
-                            text: data.topAgents?.map(row => row.call_volume) || [],
-                            textposition: 'auto'
-                        },
-                        yAxis: 'Call Count',
-                        annotation: 'Top 5 agents with the highest number of calls handled'
-                    },
-                    avgHandleTime: {
-                        title: 'Agent Average Handle Time',
-                        type: 'bar',
-                        data: {
-                            x: data.avgHandleTime?.map(row => row.agent || 'Unknown') || [],
-                            y: data.avgHandleTime?.map(row => parseFloat(row.avg_handle_time) || 0) || [],
-                            type: 'bar',
-                            marker: { color: '#FFCE56' },
-                            text: data.avgHandleTime?.map(row => `${parseFloat(row.avg_handle_time || 0).toFixed(2)}s`) || [],
-                            textposition: 'auto'
-                        },
-                        yAxis: 'Average Handle Time (seconds)',
-                        annotation: 'Average time agents spend handling calls'
-                    },
-                    endReason: {
-                        title: 'Calls By End Reason',
-                        type: 'pie',
-                        data: {
-                            type: 'pie',
-                            values: data.endReason?.map(row => parseFloat(row.count) || 0) || [],
-                            labels: data.endReason?.map(row => row.end_reason || 'Unknown') || [],
-                            textinfo: 'label+percent+value',
-                            hoverinfo: 'label+percent+value',
-                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'] }
-                        },
-                        annotation: 'Distribution of reasons why calls ended'
-                    },
-                    shortVsCompleted: {
-                        title: 'Short Abandon Vs Completed Calls',
-                        type: 'pie',
-                        data: {
-                            type: 'pie',
-                            values: data.shortVsCompleted?.map(row => parseFloat(row.count) || 0) || [],
-                            labels: data.shortVsCompleted?.map(row => row.status || 'Unknown') || [],
-                            textinfo: 'label+percent+value',
-                            hoverinfo: 'label+percent+value',
-                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56'] }
-                        },
-                        annotation: 'Short abandons (<10s) vs completed calls'
-                    },
-                    callsPerCampaign: {
-                        title: 'Calls Per Campaign',
-                        type: 'bar',
-                        data: {
-                            x: data.callsPerCampaign?.map(row => row.campaign || 'Unknown') || [],
-                            y: data.callsPerCampaign?.map(row => parseFloat(row.count) || 0) || [],
-                            type: 'bar',
-                            marker: { color: '#4BC0C0' },
-                            text: data.callsPerCampaign?.map(row => row.count) || [],
-                            textposition: 'auto'
-                        },
-                        yAxis: 'Call Count',
-                        annotation: 'Total number of calls per campaign'
-                    },
-                    transferType: {
-                        title: 'Transfer Type Breakdown',
-                        type: 'pie',
-                        data: {
-                            type: 'pie',
-                            values: data.transferType?.map(row => parseFloat(row.count) || 0) || [],
-                            labels: data.transferType?.map(row => row.transfer_type || 'Unknown') || [],
-                            textinfo: 'label+percent+value',
-                            hoverinfo: 'label+percent+value',
-                            marker: { colors: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'] }
-                        },
-                        annotation: 'Distribution of call transfer types'
-                    },
-                    callsBySkill: {
-                        title: 'Calls Routed By Skill',
-                        type: 'bar',
-                        data: {
-                            x: data.callsBySkill?.map(row => row.skill || 'Unknown') || [],
-                            y: data.callsBySkill?.map(row => parseFloat(row.count) || 0) || [],
-                            type: 'bar',
-                            marker: { color: '#9966FF' },
-                            text: data.callsBySkill?.map(row => row.count) || [],
-                            textposition: 'auto'
-                        },
-                        yAxis: 'Call Count',
-                        annotation: 'Total calls routed per skill'
-                    }
-                };
-
-                const config = chartConfigs[chartType];
-                if (!config) {
-                    chartDiv.innerHTML = '<p>Invalid chart type</p>';
-                    return;
-                }
-
-                console.log('Chart Config Data:', config.data); // Debug: Log chart data
-
-                titleDiv.textContent = config.title;
-                const layout = {
-                    title: { text: config.title, font: { size: 20 } },
-                    showlegend: true,
-                    legend: { x: 1, y: 0.5, font: { size: 12 } },
-                    yaxis: config.yAxis ? { title: config.yAxis, titlefont: { size: 14 } } : {},
-                    annotations: [{
-                        x: 0.5,
-                        y: -0.15,
-                        xref: 'paper',
-                        yref: 'paper',
-                        text: config.annotation,
-                        showarrow: false,
-                        font: { size: 12, color: '#333' }
-                    }],
-                    margin: { b: 100, t: 50, l: 50, r: 50 },
-                    autosize: true,
-                    plot_bgcolor: '#f9f9f9',
-                    paper_bgcolor: '#f9f9f9'
-                };
-
-                const plotlyConfig = { responsive: true, displayModeBar: false };
-
-                Plotly.purge('chart');
-                Plotly.newPlot('chart', [config.data], layout, plotlyConfig);
-            } catch (error) {
-                console.error('Render Error:', error);
-                chartDiv.innerHTML = '<p>Error loading chart: ' + error.message + '</p>';
-            }
+        for (const [key, query] of Object.entries(queries)) {
+            const result = await pool.query(query, queryParams);
+            chartsData[key] = result.rows;
+            console.log(`Query Result for ${key}:`, result.rows); // Debug: Log each query result
         }
 
-        // Initial render
-        document.addEventListener('DOMContentLoaded', () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            chartType = urlParams.get('type');
-            console.log('Chart Type:', chartType);
-            renderChart();
-        });
-
-        // Update chart on filter apply
-        function updateChart() {
-            console.log('Filter Applied - Start Date:', document.getElementById('startDate').value, 'End Date:', document.getElementById('endDate').value);
-            renderChart();
-        }
-    </script>
-</body>
-</html>
+        console.log('Charts API Response:', chartsData);
+        res.json(chartsData);
+    } catch (err) {
+        console.error('Error fetching charts data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
