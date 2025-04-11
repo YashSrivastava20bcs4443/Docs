@@ -1,1 +1,54 @@
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TFN Wise Data</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <header>
+        <div class="logo">TFN Wise Data</div>
+        <nav>
+            <ul>
+                <li><a href="dashboard.html">Dashboard</a></li>
+                <li><a href="charts.html">Charts</a></li>
+            </ul>
+        </nav>
+    </header>
+    <div class="container">
+        <div class="filter-panel">
+            <h3>Filters</h3>
+            <div class="filter-item">
+                <label for="start-date"><i class="fas fa-calendar-alt"></i> Start Date:</label>
+                <input type="date" id="start-date">
+            </div>
+            <div class="filter-item">
+                <label for="end-date"><i class="fas fa-calendar-alt"></i> End Date:</label>
+                <input type="date" id="end-date">
+            </div>
+            <div class="filter-item">
+                <label for="tfn-search"><i class="fas fa-search"></i> TFN Search:</label>
+                <input type="text" id="tfn-search" placeholder="Enter TFN...">
+            </div>
+            <button class="apply-filter-btn" onclick="applyFilter()">Apply Filter</button>
+        </div>
+        <table class="data-table" id="tfnWiseTable">
+            <thead>
+                <tr>
+                    <th>TFN Number</th>
+                    <th>Total Offered Calls</th>
+                    <th>IVR Abandoned Calls</th>
+                    <th>Queue Abandoned Calls</th>
+                    <th>Polite Disconnect Calls</th>
+                    <th>Agent Answered Calls</th>
+                </tr>
+            </thead>
+            <tbody id="tfnWiseTableBody"></tbody>
+        </table>
+        <div id="loading" class="loading" style="display: none;">Loading...</div>
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+</body>
+</html>
