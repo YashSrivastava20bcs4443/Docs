@@ -1,1 +1,109 @@
+app.get('/api/detail', async (req, res) => {
+    try {
+        const { category, startDate, endDate, portal, tfn, tfnSearch } = req.query;
+        console.log('Detail Request Params:', { category, startDate, endDate, portal, tfn, tfnSearch }); // Debug
 
+        let query = `
+            SELECT 
+                "toAddress" AS TFN,
+                'Description Placeholder' AS Description, -- Replace with actual column if exists
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4') AS ivr_offered,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1
+                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
+                    AND "endReason" = 'Contact Hung Up') AS ivr_abandoned,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) > 0
+                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 0
+                    AND COALESCE(NULLIF("abandoned", ''), 'True') = 'True') AS queue_abandoned,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1
+                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
+                    AND "endReason" = 'Contact Hang Up via Script') AS closed_by_ivr,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0) AS answered_calls,
+                'Portal Placeholder' AS Portal, -- Replace with actual column if exists
+                'TFN Type Placeholder' AS "TFN Type" -- Replace with actual column if exists
+            FROM contact_mapped_data
+        `;
+
+        const queryParams = [];
+        let paramIndex = 1;
+
+        // Add WHERE clause for non-aggregate conditions
+        let whereClause = 'WHERE "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\'';
+
+        // Add category-specific conditions to WHERE (non-aggregate)
+        if (category) {
+            if (category === 'ivr_offered') {
+                // No additional condition needed beyond base WHERE
+            } else if (category === 'ivr_abandoned') {
+                whereClause += ' AND "agentSeconds" IS NULL AND "inQueueSeconds" IS NULL AND "preQueueSeconds" > 0 ' +
+                    'AND "abandoned" = \'False\' AND "endReason" = \'Contact Hung Up\'';
+            } else if (category === 'queue_abandoned') {
+                whereClause += ' AND "agentSeconds" IS NULL AND "inQueueSeconds" > 0 AND "preQueueSeconds" > 0 ' +
+                    'AND "abandoned" = \'True\'';
+            } else if (category === 'closed_by_ivr') {
+                whereClause += ' AND "agentSeconds" IS NULL AND "inQueueSeconds" IS NULL AND "preQueueSeconds" > 0 ' +
+                    'AND "abandoned" = \'False\' AND "endReason" = \'Contact Hang Up via Script\'';
+            } else if (category === 'abandoned_in_10') {
+                whereClause += ' AND COALESCE(NULLIF("totalCallDuration", \'\')::FLOAT, 0) <= 10 AND "abandoned" = \'True\'';
+                // Adjust 'totalCallDuration' to your actual column name
+            } else if (category === 'abandoned_in_over_10_sec') {
+                whereClause += ' AND COALESCE(NULLIF("totalCallDuration", \'\')::FLOAT, 0) > 10 AND "abandoned" = \'True\'';
+                // Adjust 'totalCallDuration' to your actual column name
+            } else if (category === 'answered_calls') {
+                whereClause += ' AND "agentSeconds" > 0';
+            }
+            query += ' ' + whereClause;
+        }
+
+        // Add date range filter
+        if (startDate && endDate) {
+            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + 'DATE("contactStartDate") BETWEEN $' + paramIndex++ + ' AND $' + paramIndex++;
+            queryParams.push(startDate, endDate);
+        } else if (startDate) {
+            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + 'DATE("contactStartDate") >= $' + paramIndex++;
+            queryParams.push(startDate);
+        } else if (endDate) {
+            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + 'DATE("contactStartDate") <= $' + paramIndex++;
+            queryParams.push(endDate);
+        }
+
+        // Add portal filter
+        if (portal) {
+            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + '"portal" = $' + paramIndex++;
+            queryParams.push(portal);
+        }
+
+        // Add TFN filter
+        if (tfn) {
+            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + '"tfnType" = $' + paramIndex++; // Adjust column name if different
+            queryParams.push(tfn);
+        }
+
+        // Add TFN search filter
+        if (tfnSearch) {
+            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + '"toAddress" ILIKE $' + paramIndex++;
+            queryParams.push(`%${tfnSearch}%`);
+        }
+
+        query += ' GROUP BY "toAddress"';
+
+        console.log('Executing Detail Query:', query); // Debug the full query
+        console.log('Query Params:', queryParams); // Debug parameters
+
+        const result = await pool.query(query, queryParams);
+        console.log('Query Result:', result.rows); // Debug result
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching detail data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
