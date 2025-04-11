@@ -29,7 +29,196 @@ function Write-FileWithoutBom {
     [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
 }
 
-# 1. Fix App.js
+# 1. Update style.css with responsive design
+$styleCssContent = @'
+/* C:\Users\y.s.va22\Downloads\react-app\client\src\style.css */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background-color: #333;
+    color: white;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+nav ul {
+    list-style: none;
+    display: flex;
+    margin: 0;
+    padding: 0;
+}
+
+nav ul li {
+    margin-right: 20px;
+}
+
+nav ul li a {
+    color: white;
+    text-decoration: none;
+}
+
+.container {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.filter-panel, .filter-section {
+    background-color: white;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+.filter-item {
+    margin-bottom: 10px;
+}
+
+.filter-item label {
+    margin-right: 10px;
+}
+
+.btn, .apply-filter-btn, .download-btn {
+    padding: 5px 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.btn:hover, .apply-filter-btn:hover, .download-btn:hover {
+    background-color: #0056b3;
+}
+
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.card {
+    background-color: white;
+    padding: 15px;
+    border-radius: 5px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: scale(1.05);
+}
+
+.chart-container {
+    display: flex;
+    gap: 20px;
+}
+
+.chart {
+    flex: 1;
+    height: 400px;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+}
+
+.data-table th, .data-table td {
+    padding: 10px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+.footer-content {
+    text-align: center;
+    padding: 10px;
+    background-color: #333;
+    color: white;
+}
+
+.footer-content ul {
+    list-style: none;
+    padding: 0;
+}
+
+.footer-content ul li {
+    display: inline;
+    margin-right: 10px;
+}
+
+.footer-content ul li a {
+    color: white;
+    text-decoration: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    header {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    nav ul {
+        flex-direction: column;
+        margin-top: 10px;
+    }
+
+    nav ul li {
+        margin: 5px 0;
+    }
+
+    .container {
+        padding: 10px;
+    }
+
+    .summary-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-container {
+        flex-direction: column;
+    }
+
+    .chart {
+        height: 300px;
+    }
+}
+
+@media (max-width: 480px) {
+    .filter-item {
+        display: block;
+        margin-bottom: 15px;
+    }
+
+    .filter-item label, .filter-item input, .filter-item select {
+        display: block;
+        width: 100%;
+    }
+
+    .btn, .apply-filter-btn, .download-btn {
+        width: 100%;
+    }
+}
+'@
+Write-FileWithoutBom -Path $styleCssPath -Content $styleCssContent
+Write-Host "Updated style.css with responsive design."
+
+# 2. Fix App.js
 $appJsPath = Join-Path $srcDir "App.js"
 $appJsContent = @'
 import React from 'react';
@@ -62,7 +251,7 @@ export default App;
 Write-FileWithoutBom -Path $appJsPath -Content $appJsContent
 Write-Host "Updated App.js with corrected imports and style.css import."
 
-# 2. Fix Dashboard.js
+# 3. Fix Dashboard.js
 $dashboardJsPath = Join-Path $srcDir "Dashboard.js"
 $dashboardJsContent = @'
 import React, { useState, useEffect } from 'react';
@@ -300,7 +489,7 @@ export default Dashboard;
 Write-FileWithoutBom -Path $dashboardJsPath -Content $dashboardJsContent
 Write-Host "Updated Dashboard.js with corrected syntax and style.css import."
 
-# 3. Fix ChartDetail.js
+# 4. Fix ChartDetail.js (Fix overlap and bold title)
 $chartDetailJsPath = Join-Path $srcDir "ChartDetail.js"
 $chartDetailJsContent = @'
 import React, { useState, useEffect } from 'react';
@@ -463,7 +652,7 @@ const ChartDetail = () => {
     if (chartData && chartConfigs[type]) {
       const config = chartConfigs[type];
       const layout = {
-        title: { text: config.title, font: { size: 20 } },
+        title: { text: config.title, font: { size: 20, weight: 'bold' } }, // Bold title
         showlegend: true,
         legend: { x: 1, y: 0.5, font: { size: 12 } },
         yaxis: config.yAxis ? { title: config.yAxis, titlefont: { size: 14 } } : {},
@@ -480,7 +669,7 @@ const ChartDetail = () => {
   return (
     <div>
       <header>
-        <div class="logo" id="chart-title">{chartConfigs[type]?.title || 'Chart Details'}</div>
+        <div class="logo" id="chart-title"><strong>{chartConfigs[type]?.title || 'Chart Details'}</strong></div> {/* Bold title */}
         <nav>
           <ul>
             <li><Link to="/">Dashboard</Link></li>
@@ -489,14 +678,14 @@ const ChartDetail = () => {
         </nav>
       </header>
       <div class="container">
-        <div class="filter-section">
+        <div class="filter-section" style={{ marginBottom: '20px' }}> {/* Added spacing */}
           <label for="startDate">Start Date:</label>
           <input type="date" id="startDate" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           <label for="endDate">End Date:</label>
           <input type="date" id="endDate" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           <button onClick={handleFilter}>Apply Filter</button>
         </div>
-        <div id="chart" class="chart"></div>
+        <div id="chart" class="chart"></div> {/* Chart should now have space below filter */}
       </div>
     </div>
   );
@@ -505,9 +694,9 @@ const ChartDetail = () => {
 export default ChartDetail;
 '@
 Write-FileWithoutBom -Path $chartDetailJsPath -Content $chartDetailJsContent
-Write-Host "Updated ChartDetail.js with corrected syntax and style.css import."
+Write-Host "Updated ChartDetail.js with corrected overlap and bold title."
 
-# 4. Fix Detail.js
+# 5. Fix Detail.js
 $detailJsPath = Join-Path $srcDir "Detail.js"
 $detailJsContent = @'
 import React, { useState, useEffect } from 'react';
@@ -662,7 +851,7 @@ export default Detail;
 Write-FileWithoutBom -Path $detailJsPath -Content $detailJsContent
 Write-Host "Updated Detail.js with corrected syntax and style.css import."
 
-# 5. Fix IvrBucket.js
+# 6. Fix IvrBucket.js
 $ivrBucketJsPath = Join-Path $srcDir "IvrBucket.js"
 $ivrBucketJsContent = @'
 import React, { useState, useEffect } from 'react';
@@ -755,7 +944,7 @@ export default IvrBucket;
 Write-FileWithoutBom -Path $ivrBucketJsPath -Content $ivrBucketJsContent
 Write-Host "Updated IvrBucket.js with corrected syntax and style.css import."
 
-# 6. Fix TfnWise.js
+# 7. Fix TfnWise.js (Default to current date with date range filter)
 $tfnWiseJsPath = Join-Path $srcDir "TfnWise.js"
 $tfnWiseJsContent = @'
 import React, { useState, useEffect } from 'react';
@@ -764,10 +953,12 @@ import './style.css';
 
 const TfnWise = () => {
   const [data, setData] = useState([]);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [tfnSearch, setTfnSearch] = useState('');
 
   const fetchTFNWiseData = async () => {
-    const queryParams = new URLSearchParams({ tfnSearch }).toString();
+    const queryParams = new URLSearchParams({ startDate, endDate, tfnSearch }).toString();
     const url = `/api/tfn-wise?${queryParams}`;
     try {
       const response = await fetch(url);
@@ -780,6 +971,13 @@ const TfnWise = () => {
   };
 
   useEffect(() => {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    const currentDate = `${year}-${month}-${day}`;
+    setStartDate(currentDate);
+    setEndDate(currentDate);
     fetchTFNWiseData();
   }, []);
 
@@ -799,6 +997,14 @@ const TfnWise = () => {
       <div class="container">
         <div class="filter-panel">
           <h3>Filters</h3>
+          <div class="filter-item">
+            <label for="start-date"><i class="fas fa-calendar-alt"></i> Start Date:</label>
+            <input type="date" id="start-date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+          <div class="filter-item">
+            <label for="end-date"><i class="fas fa-calendar-alt"></i> End Date:</label>
+            <input type="date" id="end-date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
           <div class="filter-item">
             <label for="tfn-search"><i class="fas fa-search"></i> TFN Search:</label>
             <input type="text" id="tfn-search" value={tfnSearch} onChange={(e) => setTfnSearch(e.target.value)} placeholder="Enter TFN..." />
@@ -837,9 +1043,9 @@ const TfnWise = () => {
 export default TfnWise;
 '@
 Write-FileWithoutBom -Path $tfnWiseJsPath -Content $tfnWiseJsContent
-Write-Host "Updated TfnWise.js with corrected syntax and style.css import."
+Write-Host "Updated TfnWise.js with default current date and date range filter."
 
-# 7. Fix charts.js
+# 8. Fix charts.js
 $chartsJsPath = Join-Path $srcDir "charts.js"
 $chartsJsContent = @'
 import React from 'react';
