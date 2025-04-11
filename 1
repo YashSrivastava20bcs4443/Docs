@@ -1,1 +1,128 @@
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import './style.css';
 
+const TfnWise = () => {
+  const [data, setData] = useState([]);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [tfnSearch, setTfnSearch] = useState('');
+  const [loading, setLoading] = useState(true); // Add loading state
+  const [error, setError] = useState(null); // Add error state
+
+  const fetchTFNWiseData = async () => {
+    setLoading(true); // Start loading
+    setError(null); // Reset error
+    const queryParams = new URLSearchParams({ startDate, endDate, tfnSearch }).toString();
+    const url = `/api/tfn-wise?${queryParams}`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Network response was not ok');
+      const result = await response.json();
+      console.log('Fetched TFN Wise Data:', result); // Log the data
+      setData(result || []); // Ensure data is an array
+    } catch (error) {
+      console.error('Error fetching TFN-Wise data:', error);
+      setError('Failed to load data. Check console for details.');
+    } finally {
+      setLoading(false); // Stop loading
+    }
+  };
+
+  useEffect(() => {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    const currentDate = `${year}-${month}-${day}`;
+    setStartDate(currentDate);
+    setEndDate(currentDate);
+    fetchTFNWiseData(); // Fetch data on mount
+  }, []); // Empty dependency array to run only on mount
+
+  const handleFilter = () => {
+    fetchTFNWiseData();
+  };
+
+  return (
+    <div>
+      <header>
+        <div class="logo">TFN Wise Data</div>
+        <nav>
+          <ul>
+            <li><Link to="/">Dashboard</Link></li>
+            <li><Link to="/charts">Charts</Link></li>
+          </ul>
+        </nav>
+      </header>
+      <div class="container">
+        <div class="filter-panel">
+          <h3>Filters</h3>
+          <div class="filter-item">
+            <label htmlFor="start-date"><i class="fas fa-calendar-alt"></i> Start Date:</label>
+            <input
+              type="date"
+              id="start-date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+          <div class="filter-item">
+            <label htmlFor="end-date"><i class="fas fa-calendar-alt"></i> End Date:</label>
+            <input
+              type="date"
+              id="end-date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+          <div class="filter-item">
+            <label htmlFor="tfn-search"><i class="fas fa-search"></i> TFN Search:</label>
+            <input
+              type="text"
+              id="tfn-search"
+              value={tfnSearch}
+              onChange={(e) => setTfnSearch(e.target.value)}
+              placeholder="Enter TFN..."
+            />
+          </div>
+          <button class="apply-filter-btn" onClick={handleFilter}>
+            <i class="fas fa-filter"></i> Apply Filter
+          </button>
+        </div>
+        {loading && <div class="loading">Loading...</div>} {/* Loading indicator */}
+        {error && <div class="error">{error}</div>} {/* Error message */}
+        <table class="data-table" id="tfnWiseTable">
+          <thead>
+            <tr>
+              <th>TFN Number</th>
+              <th>Total Offered Calls</th>
+              <th>IVR Abandoned Calls</th>
+              <th>Queue Abandoned Calls</th>
+              <th>Polite Disconnect Calls</th>
+              <th>Agent Answered Calls</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.length > 0 ? (
+              data.map((row, index) => (
+                <tr key={index}>
+                  <td>{row["Number (toAddress)"] || 'N/A'}</td>
+                  <td>{row.offered_calls || 0}</td>
+                  <td>{row.ivr_abandon || 0}</td>
+                  <td>{row.queue_abandon || 0}</td>
+                  <td>{row.polite_disconnect || 0}</td>
+                  <td>{row.answered || 0}</td>
+                </tr>
+              ))
+            ) : (
+              !loading && <tr><td colSpan="6">No data available</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+export default TfnWise;
