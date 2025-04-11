@@ -6,47 +6,52 @@ app.get('/api/detail', async (req, res) => {
         let query = `
             SELECT 
                 "toAddress" AS "TFN",
-                COALESCE("description", 'No Description') AS "Description", -- Replace with actual column if different
+                COALESCE("description", 'No Description') AS "Description",
                 COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4') AS ivr_offered,
-                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
-                    AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 
-                    AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1 
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4'
+                    AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0
+                    AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1
                     AND "endReason" = 'Contact Hung Up') AS ivr_abandoned,
-                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
-                    AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4'
+                    AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0
                     AND "abandoned" = 'True' AND "preQueueSeconds"::numeric > 0) AS queue_abandoned,
-                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
-                    AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 
-                    AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1 
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4'
+                    AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0
+                    AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1
                     AND "endReason" = 'Contact Hang Up via Script') AS closed_by_ivr,
-                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4'
                     AND "abandoned" = 'False' AND "agentSeconds"::numeric > 0) AS answered_calls,
-                COALESCE("Portal", 'Unknown Portal') AS "Portal", -- Replace with actual column if different
-                COALESCE("TFN Type", 'Unknown Type') AS "TFN Type" -- Replace with actual column if different
+                COALESCE("Portal", 'Unknown Portal') AS "Portal",
+                COALESCE("TFN Type", 'Unknown Type') AS "TFN Type"
             FROM contact_mapped_data
         `;
 
         const queryParams = [];
         let paramIndex = 1;
+        const conditions = [];
 
-        // Initialize WHERE clause
-        let whereClause = '';
+        // Add date range condition
         if (startDate && endDate) {
-            whereClause += 'to_date("contactStartDate", \'YYYY-MM-DD\') BETWEEN $' + paramIndex++ + ' AND $' + paramIndex++;
+            conditions.push(`to_date("contactStartDate", 'YYYY-MM-DD') BETWEEN $${paramIndex} AND $${paramIndex + 1}`);
             queryParams.push(startDate, endDate);
+            paramIndex += 2;
         }
 
+        // Add portal condition
         if (portal) {
-            whereClause += (whereClause ? ' AND ' : '') + '"Portal" = $' + paramIndex++;
+            conditions.push(`"Portal" = $${paramIndex}`);
             queryParams.push(portal);
+            paramIndex++;
         }
 
+        // Add TFN condition
         if (tfn) {
-            whereClause += (whereClause ? ' AND ' : '') + '"TFN Type" = $' + paramIndex++;
+            conditions.push(`"TFN Type" = $${paramIndex}`);
             queryParams.push(tfn);
+            paramIndex++;
         }
 
-        // Apply TFN Search only for specified categories
+        // Add TFN search condition for valid categories
         const validCategories = [
             'ivr_offered',
             'ivr_abandoned',
@@ -57,51 +62,54 @@ app.get('/api/detail', async (req, res) => {
             'answered_calls'
         ];
         if (tfnSearch && validCategories.includes(category)) {
-            whereClause += (whereClause ? ' AND ' : '') + '"toAddress" ILIKE $' + paramIndex++;
+            conditions.push(`"toAddress" ILIKE $${paramIndex}`);
             queryParams.push(`%${tfnSearch}%`);
+            paramIndex++;
         }
 
-        // Add base conditions and category-specific conditions
-        if (whereClause) {
-            query += ' WHERE ' + whereClause;
-        }
+        // Add category-specific conditions
         if (category) {
             switch (category) {
                 case 'ivr_offered':
-                    query += (whereClause ? ' AND ' : ' WHERE ') + '"masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\'';
+                    conditions.push(`"masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4'`);
                     break;
                 case 'ivr_abandoned':
-                    query += (whereClause ? ' AND ' : ' WHERE ') + '"masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                        'AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 ' +
-                        'AND "abandoned" = \'False\' AND "preQueueSeconds"::numeric > 1 ' +
-                        'AND "endReason" = \'Contact Hung Up\'';
+                    conditions.push(`"masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
+                        AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 
+                        AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1 
+                        AND "endReason" = 'Contact Hung Up'`);
                     break;
                 case 'queue_abandoned':
-                    query += (whereClause ? ' AND ' : ' WHERE ') + '"masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                        'AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 ' +
-                        'AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric > 0';
+                    conditions.push(`"masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
+                        AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 
+                        AND "abandoned" = 'True' AND "preQueueSeconds"::numeric > 0`);
                     break;
                 case 'closed_by_ivr':
-                    query += (whereClause ? ' AND ' : ' WHERE ') + '"masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                        'AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 ' +
-                        'AND "abandoned" = \'False\' AND "preQueueSeconds"::numeric > 1 ' +
-                        'AND "endReason" = \'Contact Hang Up via Script\'';
+                    conditions.push(`"masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
+                        AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 
+                        AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1 
+                        AND "endReason" = 'Contact Hang Up via Script'`);
                     break;
                 case 'abandoned_under_10':
-                    query += (whereClause ? ' AND ' : ' WHERE ') + '"masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                        'AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric < 10';
+                    conditions.push(`"masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
+                        AND "abandoned" = 'True' AND "preQueueSeconds"::numeric < 10`);
                     break;
                 case 'abandoned_over_10':
-                    query += (whereClause ? ' AND ' : ' WHERE ') + '"masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                        'AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric > 10';
+                    conditions.push(`"masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
+                        AND "abandoned" = 'True' AND "preQueueSeconds"::numeric > 10`);
                     break;
                 case 'answered_calls':
-                    query += (whereClause ? ' AND ' : ' WHERE ') + '"masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                        'AND "abandoned" = \'False\' AND "agentSeconds"::numeric > 0';
+                    conditions.push(`"masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
+                        AND "abandoned" = 'False' AND "agentSeconds"::numeric > 0`);
                     break;
                 default:
                     return res.status(400).json({ error: 'Invalid category' });
             }
+        }
+
+        // Append WHERE clause if conditions exist
+        if (conditions.length > 0) {
+            query += ' WHERE ' + conditions.join(' AND ');
         }
 
         query += ' GROUP BY "toAddress", "Description", "Portal", "TFN Type"';
