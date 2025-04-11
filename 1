@@ -35,43 +35,32 @@ app.get('/api/detail', async (req, res) => {
         const queryParams = [];
         let paramIndex = 1;
 
-        // Add dynamic conditions based on category
+        // Add WHERE clause for non-aggregate conditions
+        let whereClause = 'WHERE "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\'';
+
+        // Add category-specific conditions to WHERE (non-aggregate)
         if (category) {
-            query += ' WHERE 1=1'; // Ensure WHERE clause exists
             if (category === 'ivr_offered') {
-                query += ' AND COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\') > 0';
+                // No additional condition needed beyond base WHERE
             } else if (category === 'ivr_abandoned') {
-                query += ' AND COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                    'AND COALESCE(NULLIF("agentSeconds", \'\')::FLOAT, 0) = 0 ' +
-                    'AND COALESCE(NULLIF("inQueueSeconds", \'\')::FLOAT, 0) = 0 ' +
-                    'AND COALESCE(NULLIF("preQueueSeconds", \'\')::FLOAT, 0) > 1 ' +
-                    'AND COALESCE(NULLIF("abandoned", \'\'), \'False\') = \'False\' ' +
-                    'AND "endReason" = \'Contact Hung Up\') > 0';
+                whereClause += ' AND "agentSeconds" IS NULL AND "inQueueSeconds" IS NULL AND "preQueueSeconds" > 0 ' +
+                    'AND "abandoned" = \'False\' AND "endReason" = \'Contact Hung Up\'';
             } else if (category === 'queue_abandoned') {
-                query += ' AND COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                    'AND COALESCE(NULLIF("agentSeconds", \'\')::FLOAT, 0) = 0 ' +
-                    'AND COALESCE(NULLIF("inQueueSeconds", \'\')::FLOAT, 0) > 0 ' +
-                    'AND COALESCE(NULLIF("preQueueSeconds", \'\')::FLOAT, 0) > 0 ' +
-                    'AND COALESCE(NULLIF("abandoned", \'\'), \'True\') = \'True\') > 0';
+                whereClause += ' AND "agentSeconds" IS NULL AND "inQueueSeconds" > 0 AND "preQueueSeconds" > 0 ' +
+                    'AND "abandoned" = \'True\'';
             } else if (category === 'closed_by_ivr') {
-                query += ' AND COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                    'AND COALESCE(NULLIF("agentSeconds", \'\')::FLOAT, 0) = 0 ' +
-                    'AND COALESCE(NULLIF("inQueueSeconds", \'\')::FLOAT, 0) = 0 ' +
-                    'AND COALESCE(NULLIF("preQueueSeconds", \'\')::FLOAT, 0) > 1 ' +
-                    'AND COALESCE(NULLIF("abandoned", \'\'), \'False\') = \'False\' ' +
-                    'AND "endReason" = \'Contact Hang Up via Script\') > 0';
+                whereClause += ' AND "agentSeconds" IS NULL AND "inQueueSeconds" IS NULL AND "preQueueSeconds" > 0 ' +
+                    'AND "abandoned" = \'False\' AND "endReason" = \'Contact Hang Up via Script\'';
             } else if (category === 'abandoned_in_10') {
-                query += ' AND COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                    'AND COALESCE(NULLIF("totalCallDuration", \'\')::FLOAT, 0) <= 10 ' +
-                    'AND COALESCE(NULLIF("abandoned", \'\'), \'True\') = \'True\') > 0'; // Adjust condition if needed
+                whereClause += ' AND COALESCE(NULLIF("totalCallDuration", \'\')::FLOAT, 0) <= 10 AND "abandoned" = \'True\'';
+                // Adjust 'totalCallDuration' to your actual column name
             } else if (category === 'abandoned_in_over_10_sec') {
-                query += ' AND COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                    'AND COALESCE(NULLIF("totalCallDuration", \'\')::FLOAT, 0) > 10 ' +
-                    'AND COALESCE(NULLIF("abandoned", \'\'), \'True\') = \'True\') > 0'; // Adjust condition if needed
+                whereClause += ' AND COALESCE(NULLIF("totalCallDuration", \'\')::FLOAT, 0) > 10 AND "abandoned" = \'True\'';
+                // Adjust 'totalCallDuration' to your actual column name
             } else if (category === 'answered_calls') {
-                query += ' AND COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                    'AND COALESCE(NULLIF("agentSeconds", \'\')::FLOAT, 0) > 0) > 0';
+                whereClause += ' AND "agentSeconds" > 0';
             }
+            query += ' ' + whereClause;
         }
 
         // Add date range filter
