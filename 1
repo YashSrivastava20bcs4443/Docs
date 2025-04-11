@@ -1,109 +1,150 @@
-app.get('/api/detail', async (req, res) => {
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import './style.css';
+
+const Detail = () => {
+  const [data, setData] = useState([]);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [portal, setPortal] = useState('');
+  const [tfn, setTfn] = useState('');
+  const [tfnSearch, setTfnSearch] = useState('');
+  const urlParams = new URLSearchParams(window.location.search);
+  const category = urlParams.get('category');
+
+  const fetchDetailData = async () => {
+    const queryParams = new URLSearchParams({
+      category,
+      startDate,
+      endDate,
+      portal,
+      tfn,
+      tfnSearch
+    }).toString();
+    const url = `/api/detail?${queryParams}`;
     try {
-        const { category, startDate, endDate, portal, tfn, tfnSearch } = req.query;
-        console.log('Detail Request Params:', { category, startDate, endDate, portal, tfn, tfnSearch }); // Debug
-
-        let query = `
-            SELECT 
-                "toAddress" AS TFN,
-                'Description Placeholder' AS Description, -- Replace with actual column if exists
-                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4') AS ivr_offered,
-                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
-                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
-                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0
-                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1
-                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
-                    AND "endReason" = 'Contact Hung Up') AS ivr_abandoned,
-                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
-                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
-                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) > 0
-                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 0
-                    AND COALESCE(NULLIF("abandoned", ''), 'True') = 'True') AS queue_abandoned,
-                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
-                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
-                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0
-                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1
-                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
-                    AND "endReason" = 'Contact Hang Up via Script') AS closed_by_ivr,
-                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
-                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0) AS answered_calls,
-                'Portal Placeholder' AS Portal, -- Replace with actual column if exists
-                'TFN Type Placeholder' AS "TFN Type" -- Replace with actual column if exists
-            FROM contact_mapped_data
-        `;
-
-        const queryParams = [];
-        let paramIndex = 1;
-
-        // Add WHERE clause for non-aggregate conditions
-        let whereClause = 'WHERE "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\'';
-
-        // Add category-specific conditions to WHERE (non-aggregate)
-        if (category) {
-            if (category === 'ivr_offered') {
-                // No additional condition needed beyond base WHERE
-            } else if (category === 'ivr_abandoned') {
-                whereClause += ' AND "agentSeconds" IS NULL AND "inQueueSeconds" IS NULL AND "preQueueSeconds" > 0 ' +
-                    'AND "abandoned" = \'False\' AND "endReason" = \'Contact Hung Up\'';
-            } else if (category === 'queue_abandoned') {
-                whereClause += ' AND "agentSeconds" IS NULL AND "inQueueSeconds" > 0 AND "preQueueSeconds" > 0 ' +
-                    'AND "abandoned" = \'True\'';
-            } else if (category === 'closed_by_ivr') {
-                whereClause += ' AND "agentSeconds" IS NULL AND "inQueueSeconds" IS NULL AND "preQueueSeconds" > 0 ' +
-                    'AND "abandoned" = \'False\' AND "endReason" = \'Contact Hang Up via Script\'';
-            } else if (category === 'abandoned_in_10') {
-                whereClause += ' AND COALESCE(NULLIF("totalCallDuration", \'\')::FLOAT, 0) <= 10 AND "abandoned" = \'True\'';
-                // Adjust 'totalCallDuration' to your actual column name
-            } else if (category === 'abandoned_in_over_10_sec') {
-                whereClause += ' AND COALESCE(NULLIF("totalCallDuration", \'\')::FLOAT, 0) > 10 AND "abandoned" = \'True\'';
-                // Adjust 'totalCallDuration' to your actual column name
-            } else if (category === 'answered_calls') {
-                whereClause += ' AND "agentSeconds" > 0';
-            }
-            query += ' ' + whereClause;
-        }
-
-        // Add date range filter
-        if (startDate && endDate) {
-            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + 'DATE("contactStartDate") BETWEEN $' + paramIndex++ + ' AND $' + paramIndex++;
-            queryParams.push(startDate, endDate);
-        } else if (startDate) {
-            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + 'DATE("contactStartDate") >= $' + paramIndex++;
-            queryParams.push(startDate);
-        } else if (endDate) {
-            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + 'DATE("contactStartDate") <= $' + paramIndex++;
-            queryParams.push(endDate);
-        }
-
-        // Add portal filter
-        if (portal) {
-            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + '"portal" = $' + paramIndex++;
-            queryParams.push(portal);
-        }
-
-        // Add TFN filter
-        if (tfn) {
-            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + '"tfnType" = $' + paramIndex++; // Adjust column name if different
-            queryParams.push(tfn);
-        }
-
-        // Add TFN search filter
-        if (tfnSearch) {
-            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + '"toAddress" ILIKE $' + paramIndex++;
-            queryParams.push(`%${tfnSearch}%`);
-        }
-
-        query += ' GROUP BY "toAddress"';
-
-        console.log('Executing Detail Query:', query); // Debug the full query
-        console.log('Query Params:', queryParams); // Debug parameters
-
-        const result = await pool.query(query, queryParams);
-        console.log('Query Result:', result.rows); // Debug result
-
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Error fetching detail data:', err);
-        res.status(500).json({ error: 'Internal Server Error' });
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Network response was not ok');
+      const data = await response.json();
+      console.log('Fetched Detail Data:', data); // Debug
+      setData(data || []);
+    } catch (error) {
+      console.error('Error fetching detail data:', error);
     }
-});
+  };
+
+  useEffect(() => {
+    fetchDetailData();
+  }, [category]); // Re-fetch when category changes
+
+  const handleFilter = () => fetchDetailData();
+
+  const downloadCSV = () => {
+    const rows = data.map(row => [
+      row.TFN || 'N/A',
+      row.Description || 'N/A',
+      row.ivr_offered || 0,
+      row.ivr_abandoned || 0,
+      row.queue_abandoned || 0,
+      row.closed_by_ivr || 0,
+      row.answered_calls || 0,
+      row.Portal || 'N/A',
+      row["TFN Type"] || 'N/A'
+    ]);
+    const csvContent = [
+      ['TFN Number', 'TFN Description', 'IVR Offered Calls', 'IVR Abandoned Calls', 'Queue Abandoned Calls', 'Closed by IVR Calls', 'Agent Answered Calls', 'Portal Name', 'TFN Category'],
+      ...rows
+    ].map(row => row.join(',').replace(/"/g, '""')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'detail_data.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div>
+      <header>
+        <div class="logo">Detail Data</div>
+        <nav>
+          <ul>
+            <li><Link to="/">Dashboard</Link></li>
+            <li><Link to="/charts">Charts</Link></li>
+          </ul>
+        </nav>
+      </header>
+      <div class="container">
+        <div class="filter-panel">
+          <h3>Filters</h3>
+          <div class="filter-item">
+            <label htmlFor="start-date"><i class="fas fa-calendar-alt"></i> Start Date:</label>
+            <input type="date" id="start-date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+          <div class="filter-item">
+            <label htmlFor="end-date"><i class="fas fa-calendar-alt"></i> End Date:</label>
+            <input type="date" id="end-date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+          <div class="filter-item">
+            <label htmlFor="portal"><i class="fas fa-globe"></i> Portal:</label>
+            <select id="portal" value={portal} onChange={(e) => setPortal(e.target.value)}>
+              <option value="">All</option>
+              <option value="CDA">CDA</option>
+              <option value="VDA">VDA</option>
+            </select>
+          </div>
+          <div class="filter-item">
+            <label htmlFor="tfn-type"><i class="fas fa-phone"></i> TFN Type:</label>
+            <select id="tfn-type" value={tfn} onChange={(e) => setTfn(e.target.value)}>
+              <option value="">All</option>
+              <option value="Mkt">Mkt</option>
+              <option value="Non-Mkt">Non-Mkt</option>
+            </select>
+          </div>
+          <div class="filter-item">
+            <label htmlFor="tfn-search"><i class="fas fa-search"></i> TFN Search:</label>
+            <input type="text" id="tfn-search" value={tfnSearch} onChange={(e) => setTfnSearch(e.target.value)} placeholder="Enter TFN..." />
+          </div>
+          <button class="apply-filter-btn" onClick={handleFilter}><i class="fas fa-filter"></i> Apply Filter</button>
+          <button class="download-btn" onClick={downloadCSV}><i class="fas fa-download"></i> Download CSV</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>TFN Number</th>
+              <th>TFN Description</th>
+              <th>IVR Offered Calls</th>
+              <th>IVR Abandoned Calls</th>
+              <th>Queue Abandoned Calls</th>
+              <th>Closed by IVR Calls</th>
+              <th>Agent Answered Calls</th>
+              <th>Portal Name</th>
+              <th>TFN Category</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((row, index) => (
+              <tr key={index}>
+                <td>{row.TFN || 'N/A'}</td>
+                <td>{row.Description || 'N/A'}</td>
+                <td>{row.ivr_offered || 0}</td>
+                <td>{row.ivr_abandoned || 0}</td>
+                <td>{row.queue_abandoned || 0}</td>
+                <td>{row.closed_by_ivr || 0}</td>
+                <td>{row.answered_calls || 0}</td>
+                <td>{row.Portal || 'N/A'}</td>
+                <td>{row["TFN Type"] || 'N/A'}</td>
+              </tr>
+            ))}
+            {data.length === 0 && <tr><td colSpan="9">No data available</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+export default Detail;
