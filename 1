@@ -1,121 +1,87 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TFN Wise Data</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
-</head>
-<body>
-    <header>
-        <div class="logo">TFN Wise Data</div>
-        <nav>
-            <ul>
-                <li><a href="index.html">Dashboard</a></li>
-                <li><a href="charts.html">Charts & Graphs</a></li>
-            </ul>
-        </nav>
-    </header>
-    <div class="container">
-        <!-- Filter Panel -->
-        <div class="filter-panel">
-            <h3>Filters</h3>
-            <div class="filter-item">
-                <label for="start-date"><i class="fas fa-calendar-alt"></i> Start Date:</label>
-                <input type="date" id="start-date" name="start-date">
-            </div>
-            <div class="filter-item">
-                <label for="end-date"><i class="fas fa-calendar-alt"></i> End Date:</label>
-                <input type="date" id="end-date" name="end-date">
-            </div>
-            <div class="filter-item">
-                <label for="tfn-search"><i class="fas fa-search"></i> TFN Search:</label>
-                <input type="text" id="tfn-search" name="tfn-search" placeholder="Enter TFN...">
-            </div>
-            <button onclick="fetchTFNWiseData()" class="apply-filter-btn"><i class="fas fa-filter"></i> Apply Filter</button>
-        </div>
+app.get('/api/tfn-wise', async (req, res) => {
+    try {
+        const { tfnSearch, startDate, endDate } = req.query;
+        console.log('TFN-Wise Request Params:', { tfnSearch, startDate, endDate }); // Debug: Log incoming params
 
-        <!-- Data Table -->
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>TFN Number</th>
-                    <th>Total Offered Calls</th>
-                    <th>IVR Abandoned Calls</th>
-                    <th>Queue Abandoned Calls</th>
-                    <th>Polite Disconnect Calls</th>
-                    <th>Agent Answered Calls</th>
-                </tr>
-            </thead>
-            <tbody id="data-table-body"></tbody>
-        </table>
-    </div>
+        let query = `
+            SELECT 
+                "toAddress" AS "Number (toAddress)",  
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4'
+                ) AS offered_calls,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1
+                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
+                    AND "endReason" = 'Contact Hung Up'
+                ) AS ivr_abandon,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) > 0
+                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 0
+                    AND COALESCE(NULLIF("abandoned", ''), 'True') = 'True'
+                ) AS queue_abandon,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0
+                    AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1
+                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False'
+                    AND "endReason" = 'Contact Hang Up via Script'
+                ) AS polite_disconnect,
+                COUNT(*) FILTER (WHERE 
+                    "masterContactId" = "contactId" 
+                    AND "isOutbound" = 'False' 
+                    AND "mediaTypeId" = '4' 
+                    AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False' 
+                    AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0
+                ) AS answered
+            FROM contact_mapped_data
+        `;
 
-    <script>
-        // Function to fetch TFN Wise data
-        async function fetchTFNWiseData() {
-            const startDate = document.getElementById('start-date').value;
-            const endDate = document.getElementById('end-date').value;
-            const tfnSearch = document.getElementById('tfn-search').value;
-            const queryParams = new URLSearchParams({
-                startDate: startDate || '',
-                endDate: endDate || '',
-                tfnSearch: tfnSearch || ''
-            }).toString();
-            const url = `http://localhost:3000/api/tfn-wise?${queryParams}`;
+        const queryParams = [];
+        let paramIndex = 1;
 
-            console.log('Fetching URL:', url);
-
-            try {
-                const response = await fetch(url);
-                console.log('Response status:', response.status);
-                if (!response.ok) {
-                    throw new Error(`Network response was not ok: ${response.statusText}`);
-                }
-                const data = await response.json();
-                console.log('Received data:', data);
-
-                const tbody = document.getElementById('data-table-body');
-                tbody.innerHTML = ''; // Clear existing rows
-
-                if (data.length === 0) {
-                    console.warn('No data returned from the server.');
-                    tbody.innerHTML = '<tr><td colspan="6">No data available</td></tr>';
-                    return;
-                }
-
-                data.forEach(row => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${row["Number (toAddress)"] || 'N/A'}</td>
-                        <td>${row.offered_calls || 0}</td>
-                        <td>${row.ivr_abandon || 0}</td>
-                        <td>${row.queue_abandon || 0}</td>
-                        <td>${row.polite_disconnect || 0}</td>
-                        <td>${row.answered || 0}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (error) {
-                console.error('Error fetching TFN-Wise data:', error);
-                const tbody = document.getElementById('data-table-body');
-                tbody.innerHTML = '<tr><td colspan="6">Error loading data</td></tr>';
-            }
+        // Add date range filter using DATE(contactStartDate)
+        if (startDate && endDate) {
+            query += ` WHERE DATE("contactStartDate") BETWEEN $${paramIndex++} AND $${paramIndex++}`;
+            queryParams.push(startDate, endDate);
+        } else if (startDate) {
+            query += ` WHERE DATE("contactStartDate") >= $${paramIndex++}`;
+            queryParams.push(startDate);
+        } else if (endDate) {
+            query += ` WHERE DATE("contactStartDate") <= $${paramIndex++}`;
+            queryParams.push(endDate);
         }
 
-        // Fetch data for current date on page load
-        window.onload = function() {
-            const today = new Date();
-            const day = String(today.getDate()).padStart(2, '0');
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const year = today.getFullYear();
-            const currentDate = `${year}-${month}-${day}`;
-            document.getElementById('start-date').value = currentDate;
-            document.getElementById('end-date').value = currentDate;
-            fetchTFNWiseData(); // Fetch data for current date by default
-        };
-    </script>
-</body>
-</html>
+        // Add TFN search filter
+        if (tfnSearch) {
+            query += (query.includes('WHERE') ? ' AND ' : ' WHERE ') + '"toAddress" ILIKE $' + paramIndex++;
+            queryParams.push(`%${tfnSearch}%`);
+        }
+
+        query += ' GROUP BY "toAddress" ORDER BY offered_calls DESC';
+
+        console.log('Executing Query:', query); // Debug: Log the SQL query
+        console.log('Query Params:', queryParams); // Debug: Log the parameters
+
+        const result = await pool.query(query, queryParams);
+        console.log('Query Result:', result.rows); // Debug: Log the result
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching TFN-Wise data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
