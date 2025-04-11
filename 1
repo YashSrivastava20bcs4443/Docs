@@ -1,1 +1,218 @@
+# Step 5: Update script.js to serve React build
+Set-Location ..
+Write-Host "Updating script.js..."
+@"
+const express = require('express');
+const { Pool } = require('pg');
+const cors = require('cors');
+const path = require('path');
+const app = express();
 
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'client', 'build')));
+
+const pool = new Pool({
+    host: '10.7.32.134',
+    user: 'postgres',
+    password: 'automation@123',
+    database: 'postgres',
+    port: 5432
+});
+
+app.get('/api/stats', async (req, res) => {
+    try {
+        const { startDate, endDate, portal, tfn } = req.query;
+        let query = `
+            SELECT
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4') AS ivr_offered,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1 AND "endReason" = 'Contact Hung Up') AS ivr_abandoned,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 AND "abandoned" = 'True' AND "preQueueSeconds"::numeric > 0) AS queue_abandoned,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1 AND "endReason" = 'Contact Hang Up via Script') AS closed_by_ivr,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'True' AND "preQueueSeconds"::numeric < 10) AS abandoned_in_10_sec,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'True' AND "preQueueSeconds"::numeric > 10) AS abandoned_in_over_10_sec,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'False' AND "agentSeconds"::numeric > 0) AS answered_calls
+            FROM contact_mapped_data
+        `;
+        const queryParams = [];
+        if (startDate && endDate) {
+            query += ' WHERE to_date("contactStartDate", \'YYYY-MM-DD\') BETWEEN $1 AND $2';
+            queryParams.push(startDate, endDate);
+        }
+        if (portal) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "Portal" ILIKE $' + (queryParams.length + 1);
+            queryParams.push(portal);
+        }
+        if (tfn) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "TFN Type" ILIKE $' + (queryParams.length + 1);
+            queryParams.push(tfn);
+        }
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows[0] || {});
+    } catch (err) {
+        console.error('Error fetching stats:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.get('/api/detail', async (req, res) => {
+    try {
+        const { category, startDate, endDate, portal, tfn, tfnSearch } = req.query;
+        let query = `
+            SELECT "toAddress" AS "TFN", "Description",
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4') AS ivr_offered,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1 AND "endReason" = 'Contact Hung Up') AS ivr_abandoned,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 AND "abandoned" = 'True' AND "preQueueSeconds"::numeric > 0) AS queue_abandoned,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = 'False' AND "preQueueSeconds"::numeric > 1 AND "endReason" = 'Contact Hang Up via Script') AS closed_by_ivr,
+            COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND "abandoned" = 'False' AND "agentSeconds"::numeric > 0) AS answered_calls,
+            "Portal", "TFN Type"
+            FROM contact_mapped_data
+        `;
+        const queryParams = [];
+        if (startDate && endDate) {
+            query += ' WHERE to_date("contactStartDate", \'YYYY-MM-DD\') BETWEEN $1 AND $2';
+            queryParams.push(startDate, endDate);
+        }
+        if (portal) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "Portal" = $' + (queryParams.length + 1);
+            queryParams.push(portal);
+        }
+        if (tfn) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "TFN Type" = $' + (queryParams.length + 1);
+            queryParams.push(tfn);
+        }
+        if (tfnSearch && ['ivr_offered', 'ivr_abandoned', 'queue_abandoned', 'closed_by_ivr', 'abandoned_in_10', 'abandoned_over_10', 'answered_calls'].includes(category)) {
+            query += queryParams.length ? ' AND' : ' WHERE';
+            query += ' "toAddress" ILIKE $' + (queryParams.length + 1);
+            queryParams.push(`%${tfnSearch}%`);
+        }
+        if (category) {
+            query += ' AND "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\'';
+            switch (category) {
+                case 'ivr_abandoned': query += ' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = \'False\' AND "preQueueSeconds"::numeric > 1 AND "endReason" = \'Contact Hung Up\''; break;
+                case 'queue_abandoned': query += ' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric > 0 AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric > 0'; break;
+                case 'closed_by_ivr': query += ' AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 AND "abandoned" = \'False\' AND "preQueueSeconds"::numeric > 1 AND "endReason" = \'Contact Hang Up via Script\''; break;
+                case 'abandoned_in_10': query += ' AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric < 10'; break;
+                case 'abandoned_over_10': query += ' AND "abandoned" = \'True\' AND "preQueueSeconds"::numeric > 10'; break;
+                case 'answered_calls': query += ' AND "abandoned" = \'False\' AND "agentSeconds"::numeric > 0'; break;
+            }
+        }
+        query += ' GROUP BY "toAddress", "Description", "Portal", "TFN Type"';
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows || []);
+    } catch (err) {
+        console.error('Error fetching detail data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.get('/api/tfn-wise', async (req, res) => {
+    try {
+        const { tfnSearch } = req.query;
+        let query = `
+            SELECT 
+                "toAddress" AS "Number (toAddress)",
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4') AS offered_calls,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0 AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0 AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1 AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False' AND "endReason" = 'Contact Hung Up') AS ivr_abandon,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0 AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) > 0 AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 0 AND COALESCE(NULLIF("abandoned", ''), 'True') = 'True') AS queue_abandon,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) = 0 AND COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0) = 0 AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) > 1 AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False' AND "endReason" = 'Contact Hang Up via Script') AS polite_disconnect,
+                COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' AND COALESCE(NULLIF("abandoned", ''), 'False') = 'False' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0) AS answered
+            FROM contact_mapped_data
+        `;
+        const queryParams = [];
+        if (tfnSearch) {
+            query += ' WHERE "toAddress" ILIKE $1';
+            queryParams.push(`%${tfnSearch}%`);
+        }
+        query += ' GROUP BY "toAddress" ORDER BY offered_calls DESC';
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows || []);
+    } catch (err) {
+        console.error('Error fetching TFN-Wise data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.get('/api/ivr-bucket', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        let query = `
+            WITH processed_data AS (
+                SELECT 
+                    TO_TIMESTAMP("contactStartDate", 'YYYY-MM-DD HH24:MI:SS') AS contact_start_time,
+                    "toAddress",
+                    "abandoned",
+                    COALESCE(NULLIF("preQueueSeconds", '')::FLOAT::INTEGER, 0) AS ivr_duration
+                FROM contact_mapped_data
+                WHERE "contactStartDate" IS NOT NULL
+            )
+            SELECT 
+                TO_CHAR(DATE_TRUNC('hour', contact_start_time), 'YYYY-MM-DD') AS date,
+                TO_CHAR(DATE_TRUNC('hour', contact_start_time), 'HH24:MI') AS time,
+                COUNT(*) AS offered_calls,
+                SUM(CASE WHEN abandoned = 'true' THEN 1 ELSE 0 END) AS ivr_abandon,
+                SUM(CASE WHEN ivr_duration BETWEEN 0 AND 30 THEN 1 ELSE 0 END) AS "0-30 Seconds",
+                SUM(CASE WHEN ivr_duration BETWEEN 31 AND 60 THEN 1 ELSE 0 END) AS "30-60 Seconds",
+                SUM(CASE WHEN ivr_duration BETWEEN 61 AND 120 THEN 1 ELSE 0 END) AS "60-120 Seconds",
+                SUM(CASE WHEN ivr_duration > 120 THEN 1 ELSE 0 END) AS ">120 Seconds"
+            FROM processed_data
+        `;
+        const queryParams = [];
+        if (startDate && endDate) {
+            query += ' WHERE to_date(contact_start_time::TEXT, \'YYYY-MM-DD\') BETWEEN $1 AND $2';
+            queryParams.push(startDate, endDate);
+        }
+        query += ' GROUP BY date, time ORDER BY date, time';
+        const result = await pool.query(query, queryParams);
+        res.json(result.rows || []);
+    } catch (err) {
+        console.error('Error fetching IVR Bucket data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.get('/api/charts', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const chartsData = {};
+        let dateFilter = '';
+        const queryParams = [];
+        if (startDate && endDate) {
+            dateFilter = ' AND DATE("contactStartDate") BETWEEN $1 AND $2';
+            queryParams.push(startDate, endDate);
+        }
+        const queries = {
+            queueStatus: `SELECT CASE WHEN COALESCE(NULLIF("abandoned", ''), 'False') = 'True' THEN 'Abandoned' WHEN COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0 THEN 'Answered' ELSE 'IVR Completed' END AS status, COUNT(*) AS count FROM contact_mapped_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY status`,
+            avgQueueTime: `SELECT COALESCE("campaignId", 'Unknown') AS campaign, AVG(COALESCE(NULLIF("inQueueSeconds", '')::FLOAT, 0)) AS avg_queue_time FROM contact_mapped_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "campaignId"`,
+            topAgents: `SELECT COALESCE("agentId", 'Unknown') AS agent, COUNT(*) AS call_volume FROM contact_mapped_data WHERE "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0${dateFilter} GROUP BY "agentId" ORDER BY call_volume DESC LIMIT 5`,
+            avgHandleTime: `SELECT COALESCE("agentId", 'Unknown') AS agent, AVG(COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0)) AS avg_handle_time FROM contact_mapped_data WHERE "mediaTypeId" = '4' AND COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0${dateFilter} GROUP BY "agentId"`,
+            endReason: `SELECT COALESCE("endReason", 'Unknown') AS end_reason, COUNT(*) AS count FROM contact_mapped_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "endReason"`,
+            shortVsCompleted: `SELECT CASE WHEN COALESCE(NULLIF("abandoned", ''), 'False') = 'True' AND COALESCE(NULLIF("preQueueSeconds", '')::FLOAT, 0) < 10 THEN 'Short Abandon' WHEN COALESCE(NULLIF("agentSeconds", '')::FLOAT, 0) > 0 THEN 'Completed' ELSE 'Other' END AS status, COUNT(*) AS count FROM contact_mapped_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY status`,
+            callsPerCampaign: `SELECT COALESCE("campaignId", 'Unknown') AS campaign, COUNT(*) AS count FROM contact_mapped_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "campaignId"`,
+            transferType: `SELECT COALESCE("transferIndicatorId", 'No Transfer') AS transfer_type, COUNT(*) AS count FROM contact_mapped_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "transferIndicatorId"`,
+            callsBySkill: `SELECT COALESCE("skillId", 'Unknown') AS skill, COUNT(*) AS count FROM contact_mapped_data WHERE "mediaTypeId" = '4'${dateFilter} GROUP BY "skillId"`
+        };
+        for (const [key, query] of Object.entries(queries)) {
+            const result = await pool.query(query, queryParams);
+            chartsData[key] = result.rows || [];
+        }
+        res.json(chartsData);
+    } catch (err) {
+        console.error('Error fetching charts data:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
+});
+
+const PORT = 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+"@ | Out-File -FilePath "script.js" -Encoding UTF8
