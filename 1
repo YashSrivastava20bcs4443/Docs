@@ -10,10 +10,14 @@ const TfnWise = () => {
   const [loading, setLoading] = useState(true); // Add loading state
   const [error, setError] = useState(null); // Add error state
 
-  const fetchTFNWiseData = async () => {
+  const fetchTFNWiseData = async (start = '', end = '') => {
     setLoading(true); // Start loading
     setError(null); // Reset error
-    const queryParams = new URLSearchParams({ startDate, endDate, tfnSearch }).toString();
+    const queryParams = new URLSearchParams({
+      startDate: start || '', // Use provided start date or empty
+      endDate: end || '', // Use provided end date or empty
+      tfnSearch: tfnSearch || ''
+    }).toString();
     const url = `/api/tfn-wise?${queryParams}`;
     try {
       const response = await fetch(url);
@@ -37,11 +41,16 @@ const TfnWise = () => {
     const currentDate = `${year}-${month}-${day}`;
     setStartDate(currentDate);
     setEndDate(currentDate);
-    fetchTFNWiseData(); // Fetch data on mount
+    fetchTFNWiseData(currentDate, currentDate); // Fetch only current date by default
   }, []); // Empty dependency array to run only on mount
 
   const handleFilter = () => {
-    fetchTFNWiseData();
+    if (startDate && endDate) {
+      fetchTFNWiseData(startDate, endDate); // Fetch data for the selected range
+    } else {
+      setError('Please select both Start Date and End Date.');
+      setLoading(false);
+    }
   };
 
   return (
