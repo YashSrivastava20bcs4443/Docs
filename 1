@@ -8,3 +8,10 @@ git config -f .git/config --remove-section submodule.client
 git add client
 git commit -m "Re-added client as a normal folder"
 git push
+
+
+Remove-Item -Recurse -Force .\client\.git
+Get-ChildItem .\client -Force
+git add client
+git commit -m "Converted client from submodule to folder"
+git push
