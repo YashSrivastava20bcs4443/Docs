@@ -6,7 +6,7 @@ app.get('/api/detail', async (req, res) => {
         let query = `
             SELECT 
                 "toAddress" AS "TFN",
-                COALESCE("description", 'No Description') AS "Description", -- Verify column name
+                COALESCE("Description", 'No Description') AS "Description", -- Corrected to match database
                 COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4') AS ivr_offered,
                 COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
                     AND "agentSeconds"::numeric = 0 AND "inQueueSeconds"::numeric = 0 
@@ -21,8 +21,8 @@ app.get('/api/detail', async (req, res) => {
                     AND "endReason" = 'Contact Hang Up via Script') AS closed_by_ivr,
                 COUNT(*) FILTER (WHERE "masterContactId" = "contactId" AND "isOutbound" = 'False' AND "mediaTypeId" = '4' 
                     AND "abandoned" = 'False' AND "agentSeconds"::numeric > 0) AS answered_calls,
-                COALESCE("Portal", 'Unknown Portal') AS "Portal", -- Verify column name
-                COALESCE("TFN Type", 'Unknown Type') AS "TFN Type" -- Verify column name
+                COALESCE("Portal", 'Unknown Portal') AS "Portal", -- Matches database
+                COALESCE("TFN Type", 'Unknown Type') AS "TFN Type" -- Matches database
             FROM contact_mapped_data
         `;
 
