@@ -1,50 +1,5 @@
-git init
-git add .
-git commit -m "Initial commit of React app"
-
-
-# Server-side node_modules (if separate from client)
-node_modules/
-
-# Logs and temp files
-*.log
-
-# Client build (already ignored in client/.gitignore, but explicit for clarity)
-client/build/
-
-# Optional: Ignore other root-level temp files
-*.tmp
-
-git rm -r --cached node_modules
-git add .
-git commit -m "Added .gitignore and removed node_modules"
-
-git rm -r --cached node_modules
-git rm -r --cached client/node_modules  # Ensure client node_modules is untracked
-git add .
-git commit -m "Removed node_modules from tracking per .gitignore"
-
-
-git remote -v
-
-
-git push -u origin main
-
-rmdir /s /q node_modules
-rmdir /s /q client\node_modules
-rmdir /s /q client\build
-
-
-# Root level
-/node_modules
-/build
-.env*
-
-# Inside client
-/client/node_modules
-/client/build
-/client/coverage
-/client/.env*
-*.log
-.DS_Store
-
+git add client/src
+git add client/public
+git add client/package.json
+git add client/README.md
+git add client/.gitignore
