@@ -33,3 +33,18 @@ git push -u origin main
 rmdir /s /q node_modules
 rmdir /s /q client\node_modules
 rmdir /s /q client\build
+
+
+# Root level
+/node_modules
+/build
+.env*
+
+# Inside client
+/client/node_modules
+/client/build
+/client/coverage
+/client/.env*
+*.log
+.DS_Store
+
