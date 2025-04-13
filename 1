@@ -1,5 +1,10 @@
-git add client/src
-git add client/public
-git add client/package.json
-git add client/README.md
-git add client/.gitignore
+git rm --cached client
+rm .gitmodules
+
+
+git config -f .git/config --remove-section submodule.client
+
+
+git add client
+git commit -m "Re-added client as a normal folder"
+git push
