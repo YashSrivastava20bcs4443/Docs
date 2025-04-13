@@ -15,3 +15,11 @@ Get-ChildItem .\client -Force
 git add client
 git commit -m "Converted client from submodule to folder"
 git push
+
+
+git rm --cached client
+rm 'client'
+git add client
+git commit -m "Fixed lingering submodule pointer, added client folder properly"
+git push
+
