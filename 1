@@ -53,7 +53,8 @@ app.get('/api/detail', async (req, res) => {
             'closed_by_ivr',
             'abandoned_under_10',
             'abandoned_over_10',
-            'answered_calls'
+            'answered_calls',
+            'abandoned_in_10' // Added as alias
         ];
         if (tfnSearch && validCategories.includes(category)) {
             query += queryParams.length ? ' AND' : ' WHERE';
@@ -87,14 +88,15 @@ app.get('/api/detail', async (req, res) => {
                     'AND "endReason" = \'Contact Hang Up via Script\'';
                 break;
             case 'abandoned_under_10':
+            case 'abandoned_in_10': // Added alias to handle the frontend input
                 query += queryParams.length ? ' AND' : ' WHERE';
                 query += ' "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                    'AND "abandoned" = \'True\' AND COALESCE(NULLIF("preQueueSeconds", \'\'), \'0\')::numeric < 10'; // Added COALESCE for robustness
+                    'AND "abandoned" = \'True\' AND COALESCE(NULLIF("preQueueSeconds", \'\'), \'0\')::numeric < 10';
                 break;
             case 'abandoned_over_10':
                 query += queryParams.length ? ' AND' : ' WHERE';
                 query += ' "masterContactId" = "contactId" AND "isOutbound" = \'False\' AND "mediaTypeId" = \'4\' ' +
-                    'AND "abandoned" = \'True\' AND COALESCE(NULLIF("preQueueSeconds", \'\'), \'0\')::numeric > 10'; // Added COALESCE for consistency
+                    'AND "abandoned" = \'True\' AND COALESCE(NULLIF("preQueueSeconds", \'\'), \'0\')::numeric > 10';
                 break;
             case 'answered_calls':
                 query += queryParams.length ? ' AND' : ' WHERE';
