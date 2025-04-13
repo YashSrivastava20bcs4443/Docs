@@ -19,6 +19,11 @@ git rm -r --cached node_modules
 git add .
 git commit -m "Added .gitignore and removed node_modules"
 
+git rm -r --cached node_modules
+git rm -r --cached client/node_modules  # Ensure client node_modules is untracked
+git add .
+git commit -m "Removed node_modules from tracking per .gitignore"
+
 
 git remote -v
 
