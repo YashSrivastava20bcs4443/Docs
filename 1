@@ -3,9 +3,17 @@ git add .
 git commit -m "Initial commit of React app"
 
 
+# Server-side node_modules (if separate from client)
 node_modules/
-build/
+
+# Logs and temp files
 *.log
+
+# Client build (already ignored in client/.gitignore, but explicit for clarity)
+client/build/
+
+# Optional: Ignore other root-level temp files
+*.tmp
 
 git rm -r --cached node_modules
 git add .
