@@ -6,19 +6,20 @@ def decode_vbe(input_file, output_file):
         with open(input_file, 'r', encoding='utf-8', errors='ignore') as f:
             encoded_content = f.read()
 
-        # Debugging: Print first 50 characters to inspect the file
-        print(f"First 50 characters of file: {encoded_content[:50]}")
+        # Debugging: Print first 100 characters and last 50 characters
+        print(f"First 100 characters of file: {encoded_content[:100]}")
+        print(f"Last 50 characters of file: {encoded_content[-50:]}")
 
         # Remove leading/trailing whitespace
         encoded_content = encoded_content.strip()
 
-        # Check for #@~^ or @@~^ marker (handle variations)
+        # Check for #@~^ or @@~^ marker
         if not (encoded_content.startswith('#@~^') or encoded_content.startswith('@@~^')):
             print("Error: File does not start with #@~^ or @@~^ marker.")
             print("This may not be a standard .vbe file.")
             return
 
-        # Try to find encoded data with flexible regex
+        # Try to find encoded data
         match = re.search(r'[@#]@~[\^](.*?)(==\^@#|$)', encoded_content, re.DOTALL)
         if not match:
             print("Error: Could not find encoded data between @~^ and ==^@#.")
@@ -28,12 +29,18 @@ def decode_vbe(input_file, output_file):
         encoded_data = match.group(1)
         print(f"Found encoded data (length: {len(encoded_data)} characters)")
 
-        # VBE encoding key table (simplified)
-        key_table = [
-            [chr(i) for i in range(128)],
-            [chr(i) for i in range(128)],
-            [chr(i) for i in range(128)]
-        ]
+        # Attempt to detect a key table (simplified heuristic)
+        # Some .vbe files include a table before or after the encoded data
+        key_table = None
+        table_match = re.search(r'([A-Za-z0-9+/=]{64,})', encoded_content)
+        if table_match:
+            print("Possible key table detected (first 50 chars):", table_match.group(1)[:50])
+            # Placeholder: We’d need to parse this table correctly
+            # For now, use default table
+            key_table = [[chr(i) for i in range(128)] for _ in range(3)]
+        else:
+            print("No key table detected; using default ASCII table.")
+            key_table = [[chr(i) for i in range(128)] for _ in range(3)]
 
         # Decode the script
         decoded = ''
@@ -81,15 +88,21 @@ def decode_vbe(input_file, output_file):
 
             i += 1
 
-        # Print the decoded content to console
-        print("\nDecoded Content (in text format):\n")
-        print(decoded)
+        # Print preview of decoded content (first 1000 characters)
+        print("\nDecoded Content Preview (first 1000 characters):\n")
+        print(decoded[:1000])
         print("\n" + "-"*50 + "\n")
 
         # Write the decoded output to the file
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(decoded)
-        print(f"Decoded script also written to {output_file}")
+        print(f"Decoded script written to {output_file}")
+
+        # Save raw encoded data for analysis
+        raw_output = output_file + ".raw.txt"
+        with open(raw_output, 'w', encoding='utf-8') as f:
+            f.write(encoded_data)
+        print(f"Raw encoded data written to {raw_output}")
 
     except FileNotFoundError:
         print(f"Error: File '{input_file}' not found.")
