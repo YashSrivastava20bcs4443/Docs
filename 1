@@ -1,25 +1,29 @@
 import re
 
-def decode_vbe_text(encoded_content):
+def decode_vbe(input_file, output_file):
     try:
+        # Read the .vbe file
+        with open(input_file, 'r', encoding='utf-8', errors='ignore') as f:
+            encoded_content = f.read()
+
+        # Debugging: Print first 50 characters to inspect the file
+        print(f"First 50 characters of file: {encoded_content[:50]}")
+
         # Remove leading/trailing whitespace
         encoded_content = encoded_content.strip()
 
-        # Debugging: Show first 50 characters
-        print(f"First 50 characters of input: {encoded_content[:50]}")
-
-        # Check for #@~^ marker
-        if not encoded_content.startswith('#@~^'):
-            print("Error: Input does not start with #@~^ marker.")
-            print("This may not be a valid .vbe encoded string.")
-            return None
+        # Check for #@~^ or @@~^ marker (handle variations)
+        if not (encoded_content.startswith('#@~^') or encoded_content.startswith('@@~^')):
+            print("Error: File does not start with #@~^ or @@~^ marker.")
+            print("This may not be a standard .vbe file.")
+            return
 
         # Try to find encoded data with flexible regex
-        match = re.search(r'#@~[\^](.*?)(==\^@#|$)', encoded_content, re.DOTALL)
+        match = re.search(r'[@#]@~[\^](.*?)(==\^@#|$)', encoded_content, re.DOTALL)
         if not match:
-            print("Error: Could not find encoded data between #@~^ and ==^@#.")
+            print("Error: Could not find encoded data between @~^ and ==^@#.")
             print("Possible issues: Missing ==^@# marker or non-standard encoding.")
-            return None
+            return
 
         encoded_data = match.group(1)
         print(f"Found encoded data (length: {len(encoded_data)} characters)")
@@ -77,39 +81,27 @@ def decode_vbe_text(encoded_content):
 
             i += 1
 
-        return decoded
+        # Print the decoded content to console
+        print("\nDecoded Content (in text format):\n")
+        print(decoded)
+        print("\n" + "-"*50 + "\n")
 
+        # Write the decoded output to the file
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(decoded)
+        print(f"Decoded script also written to {output_file}")
+
+    except FileNotFoundError:
+        print(f"Error: File '{input_file}' not found.")
     except Exception as e:
         print(f"Error during decoding: {str(e)}")
-        return None
 
 def main():
-    print("Paste or type the .vbe encoded text below (press Enter twice to finish):")
-    
-    # Collect multi-line input until two consecutive newlines
-    lines = []
-    while True:
-        line = input()
-        if line == "" and lines and lines[-1] == "":
-            break
-        lines.append(line)
-    
-    # Join the input lines
-    encoded_content = "\n".join(lines).strip()
+    # Prompt user for input and output file paths
+    input_file = input("Enter the path to the .vbe file: ").strip()
+    output_file = input("Enter the path for the decoded output file (e.g., decoded.txt): ").strip()
 
-    if not encoded_content:
-        print("Error: No input provided.")
-        return
-
-    # Decode the input
-    decoded = decode_vbe_text(encoded_content)
-
-    # Display the result
-    if decoded:
-        print("\nDecoded VBScript:\n")
-        print(decoded)
-    else:
-        print("\nNo decoded output generated.")
+    decode_vbe(input_file, output_file)
 
 if __name__ == "__main__":
     main()
