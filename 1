@@ -1,8 +1,6 @@
 import re
-import sys
-import argparse
 
-def decode_vbe(input_file, output_file=None):
+def decode_vbe(input_file, output_file):
     try:
         # Read the .vbe file
         with open(input_file, 'r', encoding='utf-8', errors='ignore') as f:
@@ -25,14 +23,13 @@ def decode_vbe(input_file, output_file=None):
         encoded_data = match.group(1)
 
         # VBE encoding uses a substitution cipher with a key table
-        # The key table maps encoded characters to their decoded equivalents
         key_table = [
             [chr(i) for i in range(128)],  # Standard ASCII
             [chr(i) for i in range(128)],  # First substitution
             [chr(i) for i in range(128)]   # Second substitution
         ]
 
-        # The VBE encoding uses three sets of characters, toggled by escape chars
+        # Decode the script
         decoded = ''
         escape = False
         table_index = 0
@@ -52,39 +49,34 @@ def decode_vbe(input_file, output_file=None):
                 elif char == '#':
                     decoded += '\r'    # Carriage return
                 elif char == '(':
-                    table_index = (table_index + 1) % 3  # Switch key table
+                    table_index = (table_index + 1) % 3
                 elif char == ')':
-                    table_index = (table_index - 1) % 3  # Switch key table
+                    table_index = (table_index - 1) % 3
                 elif char == '^':
-                    decoded += '@'    # Literal @
+                    decoded += '@'
                 elif char == '+':
-                    decoded += ' '    # Space
+                    decoded += ' '
                 elif char == '<':
-                    decoded += '<'    # Literal <
+                    decoded += '<'
                 elif char == '>':
-                    decoded += '>'    # Literal >
+                    decoded += '>'
                 elif char == '*':
-                    decoded += '*'    # Literal *
+                    decoded += '*'
                 elif char == '/':
-                    decoded += '/'    # Literal /
+                    decoded += '/'
                 escape = False
             else:
-                # Decode character using the current key table
                 if ord(char) < 128:
                     decoded += key_table[table_index][ord(char)]
                 else:
-                    decoded += char  # Non-ASCII chars are usually unchanged
+                    decoded += char
 
             i += 1
 
-        # Write or print the decoded output
-        if output_file:
-            with open(output_file, 'w', encoding='utf-8') as f:
-                f.write(decoded)
-            print(f"Decoded script written to {output_file}")
-        else:
-            print("\nDecoded VBScript:\n")
-            print(decoded)
+        # Write the decoded output to the specified file
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(decoded)
+        print(f"Decoded script written to {output_file}")
 
     except FileNotFoundError:
         print(f"Error: File '{input_file}' not found.")
@@ -92,12 +84,12 @@ def decode_vbe(input_file, output_file=None):
         print(f"Error during decoding: {str(e)}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Decode a .vbe (VBScript Encoded) file.")
-    parser.add_argument("input_file", help="Path to the .vbe file to decode")
-    parser.add_argument("-o", "--output", help="Path to save the decoded VBScript", default=None)
-    args = parser.parse_args()
+    # Prompt user for input and output file paths
+    input_file = input("Enter the path to the .vbe file: ").strip()
+    output_file = input("Enter the path for the decoded output file (e.g., decoded.vbs): ").strip()
 
-    decode_vbe(args.input_file, args.output)
+    # Call the decode function with provided paths
+    decode_vbe(input_file, output_file)
 
 if __name__ == "__main__":
     main()
