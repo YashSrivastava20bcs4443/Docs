@@ -1,25 +1,103 @@
-git rm --cached client
-rm .gitmodules
+import re
+import sys
+import argparse
 
+def decode_vbe(input_file, output_file=None):
+    try:
+        # Read the .vbe file
+        with open(input_file, 'r', encoding='utf-8', errors='ignore') as f:
+            encoded_content = f.read()
 
-git config -f .git/config --remove-section submodule.client
+        # Remove any leading/trailing whitespace and comments
+        encoded_content = encoded_content.strip()
 
+        # Check if the file starts with the typical #@~^ marker
+        if not encoded_content.startswith('#@~^'):
+            print("Error: File does not appear to be a valid .vbe file.")
+            return
 
-git add client
-git commit -m "Re-added client as a normal folder"
-git push
+        # Extract the encoded data between #@~^ and ==^@#
+        match = re.search(r'#@~[\^](.*?)==\^@#', encoded_content, re.DOTALL)
+        if not match:
+            print("Error: Could not find encoded data.")
+            return
 
+        encoded_data = match.group(1)
 
-Remove-Item -Recurse -Force .\client\.git
-Get-ChildItem .\client -Force
-git add client
-git commit -m "Converted client from submodule to folder"
-git push
+        # VBE encoding uses a substitution cipher with a key table
+        # The key table maps encoded characters to their decoded equivalents
+        key_table = [
+            [chr(i) for i in range(128)],  # Standard ASCII
+            [chr(i) for i in range(128)],  # First substitution
+            [chr(i) for i in range(128)]   # Second substitution
+        ]
 
+        # The VBE encoding uses three sets of characters, toggled by escape chars
+        decoded = ''
+        escape = False
+        table_index = 0
 
-git rm --cached client
-rm 'client'
-git add client
-git commit -m "Fixed lingering submodule pointer, added client folder properly"
-git push
+        i = 0
+        while i < len(encoded_data):
+            char = encoded_data[i]
 
+            if char == '@' and not escape:
+                escape = True
+                i += 1
+                continue
+
+            if escape:
+                if char == '&':
+                    decoded += '\r\n'  # Newline
+                elif char == '#':
+                    decoded += '\r'    # Carriage return
+                elif char == '(':
+                    table_index = (table_index + 1) % 3  # Switch key table
+                elif char == ')':
+                    table_index = (table_index - 1) % 3  # Switch key table
+                elif char == '^':
+                    decoded += '@'    # Literal @
+                elif char == '+':
+                    decoded += ' '    # Space
+                elif char == '<':
+                    decoded += '<'    # Literal <
+                elif char == '>':
+                    decoded += '>'    # Literal >
+                elif char == '*':
+                    decoded += '*'    # Literal *
+                elif char == '/':
+                    decoded += '/'    # Literal /
+                escape = False
+            else:
+                # Decode character using the current key table
+                if ord(char) < 128:
+                    decoded += key_table[table_index][ord(char)]
+                else:
+                    decoded += char  # Non-ASCII chars are usually unchanged
+
+            i += 1
+
+        # Write or print the decoded output
+        if output_file:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(decoded)
+            print(f"Decoded script written to {output_file}")
+        else:
+            print("\nDecoded VBScript:\n")
+            print(decoded)
+
+    except FileNotFoundError:
+        print(f"Error: File '{input_file}' not found.")
+    except Exception as e:
+        print(f"Error during decoding: {str(e)}")
+
+def main():
+    parser = argparse.ArgumentParser(description="Decode a .vbe (VBScript Encoded) file.")
+    parser.add_argument("input_file", help="Path to the .vbe file to decode")
+    parser.add_argument("-o", "--output", help="Path to save the decoded VBScript", default=None)
+    args = parser.parse_args()
+
+    decode_vbe(args.input_file, args.output)
+
+if __name__ == "__main__":
+    main()
