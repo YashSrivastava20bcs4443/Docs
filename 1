@@ -6,27 +6,33 @@ def decode_vbe(input_file, output_file):
         with open(input_file, 'r', encoding='utf-8', errors='ignore') as f:
             encoded_content = f.read()
 
-        # Remove any leading/trailing whitespace and comments
+        # Debugging: Print first 50 characters to inspect the file
+        print(f"First 50 characters of file: {encoded_content[:50]}")
+
+        # Remove leading/trailing whitespace
         encoded_content = encoded_content.strip()
 
-        # Check if the file starts with the typical #@~^ marker
+        # Check for #@~^ marker
         if not encoded_content.startswith('#@~^'):
-            print("Error: File does not appear to be a valid .vbe file.")
+            print("Error: File does not start with #@~^ marker.")
+            print("This may not be a standard .vbe file.")
             return
 
-        # Extract the encoded data between #@~^ and ==^@#
-        match = re.search(r'#@~[\^](.*?)==\^@#', encoded_content, re.DOTALL)
+        # Try to find encoded data with flexible regex
+        match = re.search(r'#@~[\^](.*?)(==\^@#|$)', encoded_content, re.DOTALL)
         if not match:
-            print("Error: Could not find encoded data.")
+            print("Error: Could not find encoded data between #@~^ and ==^@#.")
+            print("Possible issues: Missing ==^@# marker or non-standard encoding.")
             return
 
         encoded_data = match.group(1)
+        print(f"Found encoded data (length: {len(encoded_data)} characters)")
 
-        # VBE encoding uses a substitution cipher with a key table
+        # VBE encoding key table (simplified)
         key_table = [
-            [chr(i) for i in range(128)],  # Standard ASCII
-            [chr(i) for i in range(128)],  # First substitution
-            [chr(i) for i in range(128)]   # Second substitution
+            [chr(i) for i in range(128)],
+            [chr(i) for i in range(128)],
+            [chr(i) for i in range(128)]
         ]
 
         # Decode the script
@@ -45,9 +51,9 @@ def decode_vbe(input_file, output_file):
 
             if escape:
                 if char == '&':
-                    decoded += '\r\n'  # Newline
+                    decoded += '\r\n'
                 elif char == '#':
-                    decoded += '\r'    # Carriage return
+                    decoded += '\r'
                 elif char == '(':
                     table_index = (table_index + 1) % 3
                 elif char == ')':
@@ -64,6 +70,8 @@ def decode_vbe(input_file, output_file):
                     decoded += '*'
                 elif char == '/':
                     decoded += '/'
+                else:
+                    decoded += char  # Handle unexpected escape chars
                 escape = False
             else:
                 if ord(char) < 128:
@@ -73,7 +81,7 @@ def decode_vbe(input_file, output_file):
 
             i += 1
 
-        # Write the decoded output to the specified file
+        # Write the decoded output
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(decoded)
         print(f"Decoded script written to {output_file}")
@@ -88,7 +96,6 @@ def main():
     input_file = input("Enter the path to the .vbe file: ").strip()
     output_file = input("Enter the path for the decoded output file (e.g., decoded.vbs): ").strip()
 
-    # Call the decode function with provided paths
     decode_vbe(input_file, output_file)
 
 if __name__ == "__main__":
