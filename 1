@@ -1,1 +1,76 @@
+const express = require('express');
+const { Pool } = require('pg');
+const cors = require('cors');
+const path = require('path');
+const compression = require('compression');
+const winston = require('winston');
+require('dotenv').config();
 
+const app = express();
+
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://serverip:3001',
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+}));
+app.use(express.json());
+app.use(compression());
+app.use(express.static(path.join(__dirname, 'client', 'build')));
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple(),
+  }));
+}
+
+const pool = new Pool({
+  host: process.env.DB_HOST || '10.7.32.134',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'automation@123',
+  database: process.env.DB_NAME || 'postgres',
+  port: process.env.DB_PORT || 5432,
+});
+
+app.use((err, req, res, next) => {
+  logger.error('Server error', { error: err.message, stack: err.stack });
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
+});
+
+// API Endpoints (Add your /api/stats and /api/detail here)
+app.get('/api/stats', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT 1 AS test'); // Replace with your stats query
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.get('/api/detail', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT 1 AS test'); // Replace with your detail query
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  logger.info(`Server running on port ${PORT}`);
+});
+
+module.exports = app;
