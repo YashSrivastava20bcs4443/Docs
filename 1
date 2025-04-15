@@ -1,120 +1,79 @@
-import re
+const express = require('express');
+const { Pool } = require('pg');
+const cors = require('cors');
+const path = require('path');
+const compression = require('compression');
+const winston = require('winston');
+require('dotenv').config();
 
-def decode_vbe(input_file, output_file):
-    try:
-        # Read the .vbe file
-        with open(input_file, 'r', encoding='utf-8', errors='ignore') as f:
-            encoded_content = f.read()
+const app = express();
 
-        # Debugging: Print first 100 characters and last 50 characters
-        print(f"First 100 characters of file: {encoded_content[:100]}")
-        print(f"Last 50 characters of file: {encoded_content[-50:]}")
+// Middleware
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://serverip:3001', // Adjust to your server IP or domain
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+}));
+app.use(express.json());
+app.use(compression()); // Enable compression for performance
+app.use(express.static(path.join(__dirname, 'client', 'build')));
 
-        # Remove leading/trailing whitespace
-        encoded_content = encoded_content.strip()
+// Logging
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
 
-        # Check for #@~^ or @@~^ marker
-        if not (encoded_content.startswith('#@~^') or encoded_content.startswith('@@~^')):
-            print("Error: File does not start with #@~^ or @@~^ marker.")
-            print("This may not be a standard .vbe file.")
-            return
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple(),
+  }));
+}
 
-        # Try to find encoded data
-        match = re.search(r'[@#]@~[\^](.*?)(==\^@#|$)', encoded_content, re.DOTALL)
-        if not match:
-            print("Error: Could not find encoded data between @~^ and ==^@#.")
-            print("Possible issues: Missing ==^@# marker or non-standard encoding.")
-            return
+// Database Pool
+const pool = new Pool({
+  host: process.env.DB_HOST || '10.7.32.134',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'automation@123',
+  database: process.env.DB_NAME || 'postgres',
+  port: process.env.DB_PORT || 5432,
+});
 
-        encoded_data = match.group(1)
-        print(f"Found encoded data (length: {len(encoded_data)} characters)")
+// Error Handling Middleware
+app.use((err, req, res, next) => {
+  logger.error('Server error', { error: err.message, stack: err.stack });
+  res.status(500).json({ error: 'Internal Server Error' });
+});
 
-        # Attempt to detect a key table (simplified heuristic)
-        # Some .vbe files include a table before or after the encoded data
-        key_table = None
-        table_match = re.search(r'([A-Za-z0-9+/=]{64,})', encoded_content)
-        if table_match:
-            print("Possible key table detected (first 50 chars):", table_match.group(1)[:50])
-            # Placeholder: We’d need to parse this table correctly
-            # For now, use default table
-            key_table = [[chr(i) for i in range(128)] for _ in range(3)]
-        else:
-            print("No key table detected; using default ASCII table.")
-            key_table = [[chr(i) for i in range(128)] for _ in range(3)]
+// Serve React App
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
+});
 
-        # Decode the script
-        decoded = ''
-        escape = False
-        table_index = 0
+// Start Server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  logger.info(`Server running on port ${PORT}`);
+});
 
-        i = 0
-        while i < len(encoded_data):
-            char = encoded_data[i]
+module.exports = app; // For potential IISnode use
 
-            if char == '@' and not escape:
-                escape = True
-                i += 1
-                continue
 
-            if escape:
-                if char == '&':
-                    decoded += '\r\n'
-                elif char == '#':
-                    decoded += '\r'
-                elif char == '(':
-                    table_index = (table_index + 1) % 3
-                elif char == ')':
-                    table_index = (table_index - 1) % 3
-                elif char == '^':
-                    decoded += '@'
-                elif char == '+':
-                    decoded += ' '
-                elif char == '<':
-                    decoded += '<'
-                elif char == '>':
-                    decoded += '>'
-                elif char == '*':
-                    decoded += '*'
-                elif char == '/':
-                    decoded += '/'
-                else:
-                    decoded += char  # Handle unexpected escape chars
-                escape = False
-            else:
-                if ord(char) < 128:
-                    decoded += key_table[table_index][ord(char)]
-                else:
-                    decoded += char
 
-            i += 1
 
-        # Print preview of decoded content (first 1000 characters)
-        print("\nDecoded Content Preview (first 1000 characters):\n")
-        print(decoded[:1000])
-        print("\n" + "-"*50 + "\n")
 
-        # Write the decoded output to the file
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(decoded)
-        print(f"Decoded script written to {output_file}")
 
-        # Save raw encoded data for analysis
-        raw_output = output_file + ".raw.txt"
-        with open(raw_output, 'w', encoding='utf-8') as f:
-            f.write(encoded_data)
-        print(f"Raw encoded data written to {raw_output}")
 
-    except FileNotFoundError:
-        print(f"Error: File '{input_file}' not found.")
-    except Exception as e:
-        print(f"Error during decoding: {str(e)}")
 
-def main():
-    # Prompt user for input and output file paths
-    input_file = input("Enter the path to the .vbe file: ").strip()
-    output_file = input("Enter the path for the decoded output file (e.g., decoded.txt): ").strip()
-
-    decode_vbe(input_file, output_file)
-
-if __name__ == "__main__":
-    main()
+PORT=3000
+FRONTEND_URL=http://serverip:3001
+DB_HOST=10.7.32.134
+DB_USER=postgres
+DB_PASSWORD=automation@123
+DB_NAME=postgres
+DB_PORT=5432
+NODE_ENV=production
