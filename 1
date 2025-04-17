@@ -1,5 +1,17 @@
-curl http://localhost:3000/api/stats
-curl http://localhost:3000/api/detail
-curl http://localhost:3000/api/tfn-wise?tfnSearch=test
-curl http://localhost:3000/api/ivr-bucket?startDate=2025-04-01&endDate=2025-04-17
-curl http://localhost:3000/api/charts?startDate=2025-04-01&endDate=2025-04-17
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <system.webServer>
+    <handlers>
+      <add name="iisnode" path="script.js" verb="*" modules="iisnode" />
+    </handlers>
+    <rewrite>
+      <rules>
+        <rule name="DynamicContent">
+          <match url="/*" />
+          <action type="Rewrite" url="script.js" />
+        </rule>
+      </rules>
+    </rewrite>
+    <iisnode nodeProcessCommandLine="C:\Program Files\nodejs\node.exe" />
+  </system.webServer>
+</configuration>
