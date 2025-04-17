@@ -1,17 +1,1 @@
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <system.webServer>
-    <handlers>
-      <add name="iisnode" path="script.js" verb="*" modules="iisnode" />
-    </handlers>
-    <rewrite>
-      <rules>
-        <rule name="DynamicContent">
-          <match url="/*" />
-          <action type="Rewrite" url="script.js" />
-        </rule>
-      </rules>
-    </rewrite>
-    <iisnode nodeProcessCommandLine="C:\Program Files\nodejs\node.exe" />
-  </system.webServer>
-</configuration>
+
