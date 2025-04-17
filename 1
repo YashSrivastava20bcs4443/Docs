@@ -1,1 +1,93 @@
+// For /api/stats: Replace res.json(result.rows[0]) with:
+const response = {
+  ivr_offered: parseInt(result.rows[0].ivr_offered || 0),
+  ivr_abandoned: parseInt(result.rows[0].ivr_abandoned || 0),
+  queue_abandoned: parseInt(result.rows[0].queue_abandoned || 0),
+  closed_by_ivr: parseInt(result.rows[0].closed_by_ivr || 0),
+  abandoned_in_10_sec: parseInt(result.rows[0].abandoned_in_10_sec || 0),
+  abandoned_in_over_10_sec: parseInt(result.rows[0].abandoned_in_over_10_sec || 0),
+  answered_calls: parseInt(result.rows[0].answered_calls || 0)
+};
+res.json(response);
 
+// For /api/detail: Replace res.json(result.rows) with:
+const response = result.rows.map(row => ({
+  TFN: row.TFN,
+  Description: row.Description,
+  ivr_offered: parseInt(row.ivr_offered || 0),
+  ivr_abandoned: parseInt(row.ivr_abandoned || 0),
+  queue_abandoned: parseInt(row.queue_abandoned || 0),
+  closed_by_ivr: parseInt(row.closed_by_ivr || 0),
+  abandoned_under_10: parseInt(row.abandoned_under_10 || 0),
+  abandoned_over_10: parseInt(row.abandoned_over_10 || 0),
+  answered_calls: parseInt(row.answered_calls || 0),
+  Portal: row.Portal,
+  TFN_Type: row.TFN_Type
+}));
+res.json(response);
+
+//For /api/tfn-wise:Replace res.json(result.rows) with:
+const response = result.rows.map(row => ({
+  "Number (toAddress)": row["Number (toAddress)"],
+  offered_calls: parseInt(row.offered_calls || 0),
+  ivr_abandon: parseInt(row.ivr_abandon || 0),
+  queue_abandon: parseInt(row.queue_abandon || 0),
+  polite_disconnect: parseInt(row.polite_disconnect || 0),
+  answered: parseInt(row.answered || 0)
+}));
+res.json(response);
+
+// For /api/ivr-bucket: Replace res.json(result.rows || []) with:
+const response = result.rows.map(row => ({
+  date: row.date,
+  time: row.time,
+  offered_calls: parseInt(row.offered_calls || 0),
+  ivr_abandon: parseInt(row.ivr_abandon || 0),
+  "0-30 Seconds": parseInt(row["0-30 Seconds"] || 0),
+  "30-60 Seconds": parseInt(row["30-60 Seconds"] || 0),
+  "60-120 Seconds": parseInt(row["60-120 Seconds"] || 0),
+  ">120 Seconds": parseInt(row[">120 Seconds"] || 0)
+}));
+res.json(response);
+
+//For /api/charts: Replace res.json(chartsData) with:
+
+const response = {
+  queueStatus: chartsData.queueStatus.map(row => ({
+    status: row.status,
+    count: parseInt(row.count || 0)
+  })),
+  avgQueueTime: chartsData.avgQueueTime.map(row => ({
+    campaign: row.campaign,
+    avg_queue_time: parseFloat(row.avg_queue_time || 0)
+  })),
+  topAgents: chartsData.topAgents.map(row => ({
+    agent: row.agent,
+    call_volume: parseInt(row.call_volume || 0)
+  })),
+  avgHandleTime: chartsData.avgHandleTime.map(row => ({
+    agent: row.agent,
+    avg_handle_time: parseFloat(row.avg_handle_time || 0)
+  })),
+  endReason: chartsData.endReason.map(row => ({
+    end_reason: row.end_reason,
+    count: parseInt(row.count || 0)
+  })),
+  shortVsCompleted: chartsData.shortVsCompleted.map(row => ({
+    status: row.status,
+    count: parseInt(row.count || 0)
+  })),
+  callsPerCampaign: chartsData.callsPerCampaign.map(row => ({
+    campaign: row.campaign,
+    count: parseInt(row.count || 0)
+  })),
+  transferType: chartsData.transferType.map(row => ({
+    transfer_type: row.transfer_type,
+    count: parseInt(row.count || 0)
+  })),
+  callsBySkill: chartsData.callsBySkill.map(row => ({
+    skill: row.skill,
+    count: parseInt(row.count || 0)
+  }))
+};
+res.json(response);
