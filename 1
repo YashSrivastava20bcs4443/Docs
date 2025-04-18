@@ -1,30 +1,28 @@
-const express = require('express');
-const path = require('path');
-const { Pool } = require('pg');
-const cors = require('cors');
-require('dotenv').config();
+worker_processes  1;
 
-console.log('Starting script.js...');
+events {
+    worker_connections  1024;
+}
 
-const app = express();
+http {
+    server {
+        listen 80;
+        server_name 10.7.32.134;
 
-app.use(cors({ origin: 'http://10.7.32.134' }));
-app.use(express.json());
+        location / {
+            proxy_pass http://localhost:3000;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+        }
 
-// Static file serving middleware (point to client/build)
-app.use('/static', express.static(path.join(__dirname, 'client', 'build', 'static')));
-app.use(express.static(path.join(__dirname, 'client', 'build')));
+        location /static/ {
+            alias C:/TFN-Web-Dashboard/client/build/static/;
+        }
 
-
-
-// Wildcard route
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-module.exports = app;
+        error_log C:/nginx/logs/error.log;
+        access_log C:/nginx/logs/access.log;
+    }
+}
