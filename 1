@@ -1,3 +1,30 @@
-<style>body { background-color: red !important; } #root { border: 5px solid blue !important; }</style>
+const express = require('express');
+const path = require('path');
+const { Pool } = require('pg');
+const cors = require('cors');
+require('dotenv').config();
+
+console.log('Starting script.js...');
+
+const app = express();
+
+app.use(cors({ origin: 'http://10.7.32.134' }));
+app.use(express.json());
+
+// Static file serving middleware (point to client/build)
+app.use('/static', express.static(path.join(__dirname, 'client', 'build', 'static')));
+app.use(express.static(path.join(__dirname, 'client', 'build')));
 
 
+
+// Wildcard route
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client', 'build', 'index.html'));
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+module.exports = app;
