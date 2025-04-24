@@ -1,250 +1,781 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import Plotly from 'plotly.js-dist-min';
-import './style.css';
+/* Common styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Roboto', sans-serif;
+}
 
-const Dashboard = () => {
-  const [stats, setStats] = useState({});
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [portal, setPortal] = useState('');
-  const [tfnType, setTfnType] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Sidebar hidden by default
+body {
+  background-color: #F0F0F0; /* Light grey background color */
+  color: #333;
+  line-height: 1.6;
+}
 
-  const fetchStats = async () => {
-    const queryParams = new URLSearchParams({
-      startDate,
-      endDate,
-      startTime,
-      endTime,
-      portal,
-      tfn: tfnType
-    }).toString();
-    try {
-      const response = await fetch(`/api/stats?${queryParams}`);
-      if (!response.ok) throw new Error('Network response not ok');
-      const data = await response.json();
-      setStats(data);
-      updateChart(data);
-      updatePieChart(data);
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
-  };
+a {
+  text-decoration: none;
+  color: inherit;
+}
 
-  useEffect(() => {
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const year = today.getFullYear();
-    setStartDate(`${year}-${month}-${day}`);
-    setEndDate(`${year}-${month}-${day}`);
-    fetchStats();
-  }, []);
+/* Hover effect for text elements with light green and blue gradient */
+p:hover,
+h3:hover,
+td:hover,
+th:hover,
+a:hover:not(.sidebar a):not(.dropdown-content a) {
+  background: linear-gradient(90deg, #ccffcc, #cce5ff); /* Light green to light blue */
+  transition: background 0.3s ease; /* Smooth transition */
+}
 
-  const handleFilter = () => fetchStats();
+/* Main layout container */
+.dashboard-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
 
-  const updateChart = (data) => {
-    const barData = [{
-      x: ['IVR Offrd', 'IVR Abndnd', 'Q Abndnd', 'Cls by IVR', 'Abnd <10s', 'Abnd >10s', 'Ansrd Calls'],
-      y: [data.ivr_offered || 0, data.ivr_abandoned || 0, data.queue_abandoned || 0, data.closed_by_ivr || 0, data.abandoned_in_10_sec || 0, data.abandoned_in_over_10_sec || 0, data.answered_calls || 0],
-      z: [0, 0, 0, 0, 0, 0, 0],
-      type: 'bar',
-      marker: { color: 'rgba(75, 192, 192, 0.6)', line: { color: 'rgba(75, 192, 192, 1)', width: 1 } },
-      text: [data.ivr_offered || 0, data.ivr_abandoned || 0, data.queue_abandoned || 0, data.closed_by_ivr || 0, data.abandoned_in_10_sec || 0, data.abandoned_in_over_10_sec || 0, data.answered_calls || 0],
-      textposition: 'auto'
-    }];
-    const layout = { title: 'Call Statistics (3D Bar)', scene: { xaxis: { title: 'Categories' }, yaxis: { title: 'Count', rangemode: 'tozero' }, zaxis: { title: 'Depth', range: [-1, 1] } }, margin: { l: 50, r: 30, t: 50, b: 50 } };
-    Plotly.newPlot('summaryChart', barData, layout);
-  };
+/* Main content area */
+.main-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
 
-  const updatePieChart = (data) => {
-    const pieData = [{
-      labels: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in > 10 Sec', 'Answered Calls'],
-      values: [data.ivr_offered || 0, data.ivr_abandoned || 0, data.queue_abandoned || 0, data.closed_by_ivr || 0, data.abandoned_in_10_sec || 0, data.abandoned_in_over_10_sec || 0, data.answered_calls || 0],
-      type: 'pie',
-      hole: 0.4,
-      marker: {
-        colors: ['rgba(75, 192, 192, 0.6)', 'rgba(255, 99, 132, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(201, 203, 207, 0.6)', 'rgba(255, 159, 64, 0.6)'],
-        line: { color: ['rgba(75, 192, 192, 1)', 'rgba(255, 99, 132, 1)', 'rgba(255, 206, 86, 1)', 'rgba(54, 162, 235, 1)', 'rgba(153, 102, 255, 1)', 'rgba(201, 203, 207, 1)', 'rgba(255, 159, 64, 1)'], width: 2 }
-      },
-      textinfo: 'percent+label',
-      hoverinfo: 'label+percent+value',
-      rotation: 45,
-      direction: 'clockwise'
-    }];
-    const layout = { title: 'Call Statistics (3D-like Pie)', showlegend: true, legend: { x: 1, y: 0.5, traceorder: 'normal', font: { family: 'sans-serif', size: 12, color: '#000' }, bgcolor: '#E2E2E2', bordercolor: '#FFFFFF', borderwidth: 2 }, margin: { l: 40, r: 30, t: 50, b: 50 } };
-    Plotly.newPlot('pieChart', pieData, layout);
-  };
+/* Header */
+header {
+  background: linear-gradient(135deg, #153677, #45a049);
+  color: #fff;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 1000;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
 
-  const openDetailPage = (category) => {
-    window.open(`/detail?category=${category}&startDate=${startDate}&endDate=${endDate}&portal=${portal}&tfn=${tfnType}`, '_blank');
-  };
+header .logo {
+  font-size: 24px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+}
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
+header .logo i {
+  margin-right: 10px;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
 
-  return (
-    <div className="dashboard-container">
-      {/* Main Content Area */}
-      <div className="main-content">
-        <header>
-          <div className="logo"><i className="fas fa-headset"></i> Contact Center Dashboard</div>
-          <button className="toggle-btn" onClick={toggleSidebar}>
-            <i className={isSidebarOpen ? 'fas fa-times' : 'fas fa-bars'}></i>
-          </button>
-          <div className="profile">
-            <img src="profile.jpg" alt="User Profile" className="profile-img" />
-            <span className="username">Admin</span>
-            <div className="dropdown">
-              <button className="dropbtn"><i className="fas fa-cog"></i> Settings</button>
-              <div className="dropdown-content">
-                <a href="#"><i className="fas fa-user"></i> Profile</a>
-                <a href="#"><i className="fas fa-sign-out-alt"></i> Logout</a>
-              </div>
-            </div>
-          </div>
-        </header>
+header .logo i:hover {
+  transform: scale(1.2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
 
-        <div className="content-wrapper">
-          {/* Left Side Menu Panel */}
-          <div className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
-            <h2>Menu</h2>
-            <ul>
-              <li><Link to="/charts"><i className="fas fa-chart-bar"></i> Charts</Link></li>
-              <li><Link to="/ivr-bucket"><i className="fas fa-phone-square-alt"></i> IVR Bucket</Link></li>
-              <li><Link to="/tfn-wise"><i className="fas fa-list-alt"></i> TFN-Wise</Link></li>
-            </ul>
-          </div>
+.toggle-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  transition: transform 0.3s, color 0.3s;
+}
 
-          <div className="container">
-            <section className="search-bar">
-              <input type="text" id="searchInput" placeholder="Search data..." onKeyUp={() => window.searchTable()} />
-            </section>
-            <section className="filter-panel">
-              <div className="filter">
-                <div className="filter-item">
-                  <label htmlFor="start-date"><i className="fas fa-calendar-alt"></i> Start Date:</label>
-                  <input type="date" id="start-date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                </div>
-                <div className="filter-item">
-                  <label htmlFor="end-date"><i className="fas fa-calendar-alt"></i> End Date:</label>
-                  <input type="date" id="end-date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                </div>
-                <div className="filter-item">
-                  <label htmlFor="start-time"><i className="fas fa-clock"></i> Start Time:</label>
-                  <input type="time" id="start-time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-                </div>
-                <div className="filter-item">
-                  <label htmlFor="end-time"><i className="fas fa-clock"></i> End Time:</label>
-                  <input type="time" id="end-time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-                </div>
-                <div className="filter-item">
-                  <label htmlFor="portal"><i className="fas fa-globe"></i> Portal:</label>
-                  <select id="portal" value={portal} onChange={(e) => setPortal(e.target.value)}>
-                    <option value="">Select</option>
-                    <option value="CDA">CheapOair</option>
-                    <option value="OT">OneTravel</option>
-                    <option value="CDA SP">CheapOairSP</option>
-                    <option value="COA CA">CheapOairCA</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div className="filter-item">
-                  <label htmlFor="tfn-type"><i className="fas fa-phone-alt"></i> TFN Type:</label>
-                  <select id="tfn-type" value={tfnType} onChange={(e) => setTfnType(e.target.value)}>
-                    <option value="">Select</option>
-                    <option value="Mkt">Marketing</option>
-                    <option value="NM">NonMarketing</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div className="filter-item">
-                  <button className="btn" onClick={handleFilter}><i className="fas fa-filter"></i> Apply Filter</button>
-                </div>
-              </div>
-            </section>
-            <section className="summary-cards">
-              <div className="card" onClick={() => openDetailPage('ivr_offered')}>
-                <h3>IVR Offered</h3>
-                <div className="card-content">
-                  <span className="card-icon ivr-offered-icon"><i className="fas fa-phone-volume"></i></span>
-                  <p id="ivroffered">{stats.ivr_offered || 0}</p>
-                  <span className="tooltip">Total calls offered by IVR</span>
-                </div>
-              </div>
-              <div className="card" onClick={() => openDetailPage('ivr_abandoned')}>
-                <h3>IVR Abandoned</h3>
-                <div className="card-content">
-                  <span className="card-icon ivr-abandoned-icon"><i className="fas fa-user-slash"></i></span>
-                  <p id="ivrAbandoned">{stats.ivr_abandoned || 0}</p>
-                  <span className="tooltip">Total calls abandoned in IVR</span>
-                </div>
-              </div>
-              <div className="card" onClick={() => openDetailPage('queue_abandoned')}>
-                <h3>Queue Abandoned</h3>
-                <div className="card-content">
-                  <span className="card-icon queue-abandoned-icon"><i className="fas fa-times-circle"></i></span>
-                  <p id="queueAbandoned">{stats.queue_abandoned || 0}</p>
-                  <span className="tooltip">Total calls abandoned in queue</span>
-                </div>
-              </div>
-              <div className="card" onClick={() => openDetailPage('closed_by_ivr')}>
-                <h3>Closed by IVR</h3>
-                <div className="card-content">
-                  <span className="card-icon closed-by-ivr-icon"><i className="fas fa-lock"></i></span>
-                  <p id="closedByIvr">{stats.closed_by_ivr || 0}</p>
-                  <span className="tooltip">Total calls closed by IVR</span>
-                </div>
-              </div>
-              <div className="card" onClick={() => openDetailPage('abandoned_under_10')}>
-                <h3>Abandoned in 10 Sec</h3>
-                <div className="card-content">
-                  <span className="card-icon abandoned-under-10-icon"><i className="fas fa-stopwatch"></i></span>
-                  <p id="abandonedUnder10">{stats.abandoned_in_10_sec || 0}</p>
-                  <span className="tooltip">Calls abandoned within 10 seconds</span>
-                </div>
-              </div>
-              <div className="card" onClick={() => openDetailPage('abandoned_over_10')}>
-                <h3>Abandoned in >10 Sec</h3>
-                <div className="card-content">
-                  <span className="card-icon abandoned-over-10-icon"><i className="fas fa-hourglass-end"></i></span>
-                  <p id="abandonedOver10">{stats.abandoned_in_over_10_sec || 0}</p>
-                  <span className="tooltip">Calls abandoned after 10 seconds</span>
-                </div>
-              </div>
-              <div className="card" onClick={() => openDetailPage('answered_calls')}>
-                <h3>Answered Calls</h3>
-                <div className="card-content">
-                  <span className="card-icon answered-calls-icon"><i className="fas fa-phone-alt"></i></span>
-                  <p id="answeredCalls">{stats.answered_calls || 0}</p>
-                  <span className="tooltip">Total answered calls</span>
-                </div>
-              </div>
-            </section>
-            <section className="chart-container side-by-side-charts">
-              <div id="summaryChart" className="chart"></div>
-              <div id="pieChart" className="chart"></div>
-            </section>
-          </div>
-        </div>
+.toggle-btn:hover {
+  transform: scale(1.2);
+  color: #ddd;
+}
 
-        <footer>
-          <div className="footer-content">
-            <p>© 2025 Contact Center Dashboard. All rights reserved.</p>
-            <ul>
-              <li><a href="#"><i className="fas fa-envelope"></i> Contact</a></li>
-              <li><a href="#"><i className="fas fa-shield-alt"></i> Privacy Policy</a></li>
-              <li><a href="#"><i className="fas fa-file-contract"></i> Terms of Service</a></li>
-            </ul>
-          </div>
-        </footer>
-      </div>
-    </div>
-  );
-};
+.profile {
+  display: flex;
+  align-items: center;
+}
 
-export default Dashboard;
+.profile-img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 10px;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.profile-img:hover {
+  transform: scale(1.2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.username {
+  margin-right: 10px;
+}
+
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropbtn {
+  background-color: #153677;
+  color: white;
+  padding: 10px;
+  font-size: 16px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.dropbtn i {
+  margin-left: 5px;
+}
+
+.dropbtn:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: #f9f9f9;
+  min-width: 160px;
+  box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.2);
+  z-index: 1;
+  right: 0;
+}
+
+.dropdown-content a {
+  color: black;
+  padding: 12px 16px;
+  text-decoration: none;
+  display: block;
+}
+
+.dropdown-content a:hover {
+  background-color: #f1f1f1;
+}
+
+.dropdown:hover .dropdown-content {
+  display: block;
+}
+
+/* Content wrapper for sidebar and container */
+.content-wrapper {
+  display: flex;
+  margin-top: 80px; /* Adjusted for fixed header height */
+  flex-grow: 1;
+}
+
+/* Left-side menu panel */
+.sidebar {
+  width: 250px;
+  background-color: #fff;
+  padding: 20px;
+  box-shadow: 4px 0 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.sidebar.open {
+  transform: translateX(0);
+}
+
+.sidebar.closed {
+  transform: translateX(-250px);
+}
+
+.sidebar h2 {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #003366;
+}
+
+.sidebar ul {
+  list-style: none;
+}
+
+.sidebar li {
+  margin-bottom: 10px;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.sidebar li:hover {
+  transform: translateY(-5px);
+}
+
+.sidebar a {
+  color: #333;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  transition: color 0.3s;
+}
+
+.sidebar a i {
+  margin-right: 5px;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.sidebar a i:hover {
+  transform: scale(1.2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.sidebar a:hover {
+  color: #45a049;
+}
+
+/* Container */
+.container {
+  flex-grow: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transition: margin-left 0.3s ease;
+}
+
+/* Filter Panel */
+.filter-panel {
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  background-color: #f9f9f9;
+  animation: fadeIn 1s;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 3D effect */
+}
+
+.filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-end;
+}
+
+.filter-item {
+  display: inline-block;
+  margin-right: 20px;
+}
+
+.filter-panel label {
+  margin-bottom: 5px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+}
+
+.filter-panel label i {
+  margin-right: 5px;
+}
+
+.filter-panel input,
+.filter-panel select {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1); /* 3D effect */
+}
+
+.filter-panel .btn {
+  padding: 10px 20px;
+  background-color: #003366;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.3s, box-shadow 0.3s;
+  animation: pulse 2s infinite;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 3D effect */
+}
+
+.filter-panel .btn:hover {
+  background-color: #45a049;
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); /* Enhanced 3D effect */
+}
+
+.filter-panel .btn i {
+  margin-right: 5px;
+}
+
+/* Filter section for chart_detail.html */
+.filter-section {
+  padding: 20px;
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  justify-content: center;
+}
+
+.filter-section label {
+  font-weight: 500;
+  color: #003366;
+}
+
+.filter-section input[type="date"] {
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.filter-section button {
+  padding: 8px 15px;
+  background-color: #003366;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.filter-section button:hover {
+  background-color: #0056b3;
+}
+
+/* Summary Cards */
+.summary-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.card {
+  flex: 1;
+  min-width: 180px;
+  max-width: 220px;
+  background-color: #e9ecef;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 3D effect */
+  transition: transform 0.3s, box-shadow 0.3s;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); /* Enhanced 3D effect */
+}
+
+.card h3 {
+  margin-bottom: 10px;
+  font-size: 16px;
+  color: #003366;
+}
+
+.card p {
+  font-size: 20px;
+  font-weight: bold;
+  color: #333;
+  margin: 0;
+}
+
+.card .tooltip {
+  visibility: hidden;
+  width: 200px;
+  background-color: #333;
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 5px;
+  position: absolute;
+  z-index: 1;
+  bottom: 125%; /* Position above the card */
+  left: 50%;
+  margin-left: -100px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.card .tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%; /* Arrow points to the card */
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #333 transparent transparent transparent;
+}
+
+.card:hover .tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.card-icon {
+  font-size: 30px;
+  margin-bottom: 10px;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.card-icon:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); /* Enhanced 3D effect */
+}
+
+.ivr-offered-icon {
+  color: rgba(75, 192, 192, 1);
+}
+
+.ivr-abandoned-icon {
+  color: rgba(255, 99, 132, 1);
+}
+
+.queue-abandoned-icon {
+  color: rgba(255, 206, 86, 1);
+}
+
+.closed-by-ivr-icon {
+  color: rgba(54, 162, 235, 1);
+}
+
+.abandoned-under-10-icon {
+  color: rgba(153, 102, 255, 1);
+}
+
+.abandoned-over-10-icon {
+  color: rgba(201, 203, 207, 1);
+}
+
+.answered-calls-icon {
+  color: rgba(255, 159, 64, 1);
+}
+
+/* Chart Placeholder for index.html */
+.side-by-side-charts {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.side-by-side-charts .chart {
+  flex: 1;
+  height: 525px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Chart Placeholder for charts.html */
+.charts-page-charts {
+  margin-bottom: 20px;
+}
+
+.charts-page-charts .chart {
+  width: 100%;
+  height: 400px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 3D effect */
+}
+
+/* Bullet points for chart names in charts.html */
+.chart-container h3 {
+  list-style-type: disc; /* Bullet points */
+  margin-left: 20px; /* Indent for bullets */
+  font-size: 18px;
+  color: #003366;
+}
+
+/* Chart Icons Section */
+.chart-icons {
+  padding: 20px;
+  text-align: center;
+}
+
+.chart-icons h2 {
+  margin-bottom: 20px;
+  font-size: 24px;
+  color: #003366;
+}
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 20px;
+  padding: 20px;
+}
+
+.chart-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 15px;
+  background-color: #e9ecef;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #333;
+  transition: transform 0.3s, box-shadow 0.3s;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.chart-icon:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(90deg, #ccffcc, #cce5ff); /* Light green to blue on hover */
+}
+
+.chart-icon p {
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 10px;
+}
+
+/* Square Icon Styling (for Images) */
+.square-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 4px; /* Optional: slight rounding */
+  object-fit: contain; /* Changed to contain for better scaling */
+}
+
+/* Fallback Styling */
+.icon-fallback {
+  display: none; /* Hidden by default */
+  width: 50px;
+  height: 50px;
+  background-color: #003366; /* Dark blue background */
+  color: #fff; /* White text */
+  font-size: 14px;
+  font-weight: bold;
+  text-align: center;
+  line-height: 50px; /* Center text vertically */
+  border-radius: 4px;
+}
+
+/* Data Table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  animation: fadeIn 1s;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 3D effect */
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px;
+  border: 1px solid #ccc;
+  text-align: left;
+  font-size: 14px;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.data-table th {
+  background-color: #f8f9fa;
+  text-align: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 3D effect */
+}
+
+.data-table td {
+  background-color: #fff;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1); /* 3D effect */
+}
+
+.data-table tr:hover {
+  background-color: #ddd;
+  transform: translateY(-3px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Enhanced 3D effect */
+}
+
+/* Footer */
+footer {
+  background-color: #153677;
+  color: #fff;
+  padding: 20px;
+  text-align: center;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.footer-content ul {
+  list-style: none;
+  display: flex;
+  gap: 20px;
+}
+
+.footer-content ul li a {
+  color: #fff;
+  font-size: 14px;
+}
+
+.footer-content ul li a:hover {
+  color: #45a049;
+}
+
+/* Buttons */
+.btn {
+  padding: 10px 20px;
+  background-color: #003366;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.3s, box-shadow 0.3s;
+  animation: pulse 2s infinite;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* 3D effect */
+}
+
+.btn:hover {
+  background-color: #45a049;
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); /* Enhanced 3D effect */
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+  .content-wrapper {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    transform: translateX(0) !important; /* Disable slide on mobile */
+  }
+
+  .container {
+    margin: 20px auto;
+  }
+
+  .toggle-btn {
+    display: none; /* Hide toggle on mobile since sidebar is static */
+  }
+
+  header {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .profile {
+    margin-top: 10px;
+  }
+
+  .filter-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-panel input,
+  .filter-panel select {
+    width: 100%;
+  }
+
+  .summary-cards {
+    flex-direction: column;
+  }
+
+  .side-by-side-charts {
+    flex-direction: column;
+  }
+
+  .side-by-side-charts .chart {
+    height: 300px;
+  }
+
+  .footer-content {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .footer-content ul {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-item {
+    display: block;
+    margin-bottom: 15px;
+  }
+
+  .filter-item label,
+  .filter-item input,
+  .filter-item select {
+    display: block;
+    width: 100%;
+  }
+
+  .btn,
+  .apply-filter-btn,
+  .download-btn {
+    width: 100%;
+  }
+}
+
+/* Search Bar */
+.search-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+
+.search-bar input {
+  padding: 10px;
+  width: 300px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1); /* 3D effect */
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid #333;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Overlay for loading spinner */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
