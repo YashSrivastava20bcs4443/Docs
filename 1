@@ -11,7 +11,7 @@ const Dashboard = () => {
   const [endTime, setEndTime] = useState('');
   const [portal, setPortal] = useState('');
   const [tfnType, setTfnType] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768); // Sidebar visible on desktop by default
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Sidebar hidden by default
 
   const fetchStats = async () => {
     const queryParams = new URLSearchParams({
@@ -42,13 +42,6 @@ const Dashboard = () => {
     setStartDate(`${year}-${month}-${day}`);
     setEndDate(`${year}-${month}-${day}`);
     fetchStats();
-
-    // Update sidebar state on window resize
-    const handleResize = () => {
-      setIsSidebarOpen(window.innerWidth > 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleFilter = () => fetchStats();
@@ -96,11 +89,11 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-container">
+      {/* Main Content Area */}
       <div className="main-content">
         <header>
-          <div className="hamburger-menu" onClick={toggleSidebar} title="Toggle menu">
+          <div className="hamburger-toggle" onClick={toggleSidebar}>
             <i className={isSidebarOpen ? 'fas fa-times' : 'fas fa-bars'}></i>
-            <span className="menu-label">Menu</span>
           </div>
           <div className="logo"><i className="fas fa-headset"></i> Contact Center Dashboard</div>
           <div className="profile">
@@ -117,6 +110,7 @@ const Dashboard = () => {
         </header>
 
         <div className="content-wrapper">
+          {/* Left Side Menu Panel (Overlay) */}
           <div className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
             <h2>Menu</h2>
             <ul>
@@ -215,7 +209,7 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="card" onClick={() => openDetailPage('abandoned_over_10')}>
-                <h3>Abandoned in >10 Sec</h3>
+                <h3>Abandoned in {'>'}10 Sec</h3>
                 <div className="card-content">
                   <span className="card-icon abandoned-over-10-icon"><i className="fas fa-hourglass-end"></i></span>
                   <p id="abandonedOver10">{stats.abandoned_in_over_10_sec || 0}</p>
