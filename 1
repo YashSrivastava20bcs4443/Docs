@@ -1,1 +1,240 @@
-'IVR Offrd', 'IVR Abndnd', 'Q Abndnd', 'Cls by IVR', 'Abnd <10s', 'Abnd >10s', 'Ansrd Calls'
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import Plotly from 'plotly.js-dist-min';
+import './style.css';
+
+const Dashboard = () => {
+  const [stats, setStats] = useState({});
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [portal, setPortal] = useState('');
+  const [tfnType, setTfnType] = useState('');
+
+  const fetchStats = async () => {
+    const queryParams = new URLSearchParams({
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      portal,
+      tfn: tfnType
+    }).toString();
+    try {
+      const response = await fetch(`/api/stats?${queryParams}`);
+      if (!response.ok) throw new Error('Network response not ok');
+      const data = await response.json();
+      setStats(data);
+      updateChart(data);
+      updatePieChart(data);
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  useEffect(() => {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    setStartDate(`${year}-${month}-${day}`);
+    setEndDate(`${year}-${month}-${day}`);
+    fetchStats();
+  }, []);
+
+  const handleFilter = () => fetchStats();
+
+  const updateChart = (data) => {
+    const barData = [{
+      x: ['IVR Offrd', 'IVR Abndnd', 'Q Abndnd', 'Cls by IVR', 'Abnd <10s', 'Abnd >10s', 'Ansrd Calls'],
+      y: [data.ivr_offered || 0, data.ivr_abandoned || 0, data.queue_abandoned || 0, data.closed_by_ivr || 0, data.abandoned_in_10_sec || 0, data.abandoned_in_over_10_sec || 0, data.answered_calls || 0],
+      z: [0, 0, 0, 0, 0, 0, 0],
+      type: 'bar',
+      marker: { color: 'rgba(75, 192, 192, 0.6)', line: { color: 'rgba(75, 192, 192, 1)', width: 1 } },
+      text: [data.ivr_offered || 0, data.ivr_abandoned || 0, data.queue_abandoned || 0, data.closed_by_ivr || 0, data.abandoned_in_10_sec || 0, data.abandoned_in_over_10_sec || 0, data.answered_calls || 0],
+      textposition: 'auto'
+    }];
+    const layout = { title: 'Call Statistics (3D Bar)', scene: { xaxis: { title: 'Categories' }, yaxis: { title: 'Count', rangemode: 'tozero' }, zaxis: { title: 'Depth', range: [-1, 1] } }, margin: { l: 50, r: 30, t: 50, b: 50 } };
+    Plotly.newPlot('summaryChart', barData, layout);
+  };
+
+  const updatePieChart = (data) => {
+    const pieData = [{
+      labels: ['IVR Offered', 'IVR Abandoned', 'Queue Abandoned', 'Closed by IVR', 'Abandoned in 10 Sec', 'Abandoned in > 10 Sec', 'Answered Calls'],
+      values: [data.ivr_offered || 0, data.ivr_abandoned || 0, data.queue_abandoned || 0, data.closed_by_ivr || 0, data.abandoned_in_10_sec || 0, data.abandoned_in_over_10_sec || 0, data.answered_calls || 0],
+      type: 'pie',
+      hole: 0.4,
+      marker: {
+        colors: ['rgba(75, 192, 192, 0.6)', 'rgba(255, 99, 132, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(201, 203, 207, 0.6)', 'rgba(255, 159, 64, 0.6)'],
+        line: { color: ['rgba(75, 192, 192, 1)', 'rgba(255, 99, 132, 1)', 'rgba(255, 206, 86, 1)', 'rgba(54, 162, 235, 1)', 'rgba(153, 102, 255, 1)', 'rgba(201, 203, 207, 1)', 'rgba(255, 159, 64, 1)'], width: 2 }
+      },
+      textinfo: 'percent+label',
+      hoverinfo: 'label+percent+value',
+      rotation: 45,
+      direction: 'clockwise'
+    }];
+    const layout = { title: 'Call Statistics (3D-like Pie)', showlegend: true, legend: { x: 1, y: 0.5, traceorder: 'normal', font: { family: 'sans-serif', size: 12, color: '#000' }, bgcolor: '#E2E2E2', bordercolor: '#FFFFFF', borderwidth: 2 }, margin: { l: 40, r: 30, t: 50, b: 50 } };
+    Plotly.newPlot('pieChart', pieData, layout);
+  };
+
+  const openDetailPage = (category) => {
+    window.open(`/detail?category=${category}&startDate=${startDate}&endDate=${endDate}&portal=${portal}&tfn=${tfnType}`, '_blank');
+  };
+
+  return (
+    <div className="dashboard-container">
+      {/* Left Side Menu Panel */}
+      <div className="sidebar">
+        <h2>Menu</h2>
+        <ul>
+          <li><Link to="/charts"><i className="fas fa-chart-bar"></i> Charts</Link></li>
+          <li><Link to="/ivr-bucket"><i className="fas fa-phone-square-alt"></i> IVR Bucket</Link></li>
+          <li><Link to="/tfn-wise"><i className="fas fa-list-alt"></i> TFN-Wise</Link></li>
+        </ul>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="main-content">
+        <header>
+          <div className="logo"><i className="fas fa-headset"></i> Contact Center Dashboard</div>
+          <div className="profile">
+            <img src="profile.jpg" alt="User Profile" className="profile-img" />
+            <span className="username">Admin</span>
+            <div className="dropdown">
+              <button className="dropbtn"><i className="fas fa-cog"></i> Settings</button>
+              <div className="dropdown-content">
+                <a href="#"><i className="fas fa-user"></i> Profile</a>
+                <a href="#"><i className="fas fa-sign-out-alt"></i> Logout</a>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="container">
+          <section className="search-bar">
+            <input type="text" id="searchInput" placeholder="Search data..." onKeyUp={() => window.searchTable()} />
+          </section>
+          <section className="filter-panel">
+            <div className="filter">
+              <div className="filter-item">
+                <label htmlFor="start-date"><i className="fas fa-calendar-alt"></i> Start Date:</label>
+                <input type="date" id="start-date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div className="filter-item">
+                <label htmlFor="end-date"><i className="fas fa-calendar-alt"></i> End Date:</label>
+                <input type="date" id="end-date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
+              <div className="filter-item">
+                <label htmlFor="start-time"><i className="fas fa-clock"></i> Start Time:</label>
+                <input type="time" id="start-time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              </div>
+              <div className="filter-item">
+                <label htmlFor="end-time"><i className="fas fa-clock"></i> End Time:</label>
+                <input type="time" id="end-time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+              </div>
+              <div className="filter-item">
+                <label htmlFor="portal"><i className="fas fa-globe"></i> Portal:</label>
+                <select id="portal" value={portal} onChange={(e) => setPortal(e.target.value)}>
+                  <option value="">Select</option>
+                  <option value="CDA">CheapOair</option>
+                  <option value="OT">OneTravel</option>
+                  <option value="CDA SP">CheapOairSP</option>
+                  <option value="COA CA">CheapOairCA</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="filter-item">
+                <label htmlFor="tfn-type"><i className="fas fa-phone-alt"></i> TFN Type:</label>
+                <select id="tfn-type" value={tfnType} onChange={(e) => setTfnType(e.target.value)}>
+                  <option value="">Select</option>
+                  <option value="Mkt">Marketing</option>
+                  <option value="NM">NonMarketing</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="filter-item">
+                <button className="btn" onClick={handleFilter}><i className="fas fa-filter"></i> Apply Filter</button>
+              </div>
+            </div>
+          </section>
+          <section className="summary-cards">
+            <div className="card" onClick={() => openDetailPage('ivr_offered')}>
+              <h3>IVR Offered</h3>
+              <div className="card-content">
+                <span className="card-icon ivr-offered-icon"><i className="fas fa-phone-volume"></i></span>
+                <p id="ivroffered">{stats.ivr_offered || 0}</p>
+                <span className="tooltip">Total calls offered by IVR</span>
+              </div>
+            </div>
+            <div className="card" onClick={() => openDetailPage('ivr_abandoned')}>
+              <h3>IVR Abandoned</h3>
+              <div className="card-content">
+                <span className="card-icon ivr-abandoned-icon"><i className="fas fa-user-slash"></i></span>
+                <p id="ivrAbandoned">{stats.ivr_abandoned || 0}</p>
+                <span className="tooltip">Total calls abandoned in IVR</span>
+              </div>
+            </div>
+            <div className="card" onClick={() => openDetailPage('queue_abandoned')}>
+              <h3>Queue Abandoned</h3>
+              <div className="card-content">
+                <span className="card-icon queue-abandoned-icon"><i className="fas fa-times-circle"></i></span>
+                <p id="queueAbandoned">{stats.queue_abandoned || 0}</p>
+                <span className="tooltip">Total calls abandoned in queue</span>
+              </div>
+            </div>
+            <div className="card" onClick={() => openDetailPage('closed_by_ivr')}>
+              <h3>Closed by IVR</h3>
+              <div className="card-content">
+                <span className="card-icon closed-by-ivr-icon"><i className="fas fa-lock"></i></span>
+                <p id="closedByIvr">{stats.closed_by_ivr || 0}</p>
+                <span className="tooltip">Total calls closed by IVR</span>
+              </div>
+            </div>
+            <div className="card" onClick={() => openDetailPage('abandoned_under_10')}>
+              <h3>Abandoned in 10 Sec</h3>
+              <div className="card-content">
+                <span className="card-icon abandoned-under-10-icon"><i className="fas fa-stopwatch"></i></span>
+                <p id="abandonedUnder10">{stats.abandoned_in_10_sec || 0}</p>
+                <span className="tooltip">Calls abandoned within 10 seconds</span>
+              </div>
+            </div>
+            <div className="card" onClick={() => openDetailPage('abandoned_over_10')}>
+              <h3>Abandoned in {'>'}10 Sec</h3>
+              <div className="card-content">
+                <span className="card-icon abandoned-over-10-icon"><i className="fas fa-hourglass-end"></i></span>
+                <p id="abandonedOver10">{stats.abandoned_in_over_10_sec || 0}</p>
+                <span className="tooltip">Calls abandoned after 10 seconds</span>
+              </div>
+            </div>
+            <div className="card" onClick={() => openDetailPage('answered_calls')}>
+              <h3>Answered Calls</h3>
+              <div className="card-content">
+                <span className="card-icon answered-calls-icon"><i className="fas fa-phone-alt"></i></span>
+                <p id="answeredCalls">{stats.answered_calls || 0}</p>
+                <span className="tooltip">Total answered calls</span>
+              </div>
+            </div>
+          </section>
+          <section className="chart-container side-by-side-charts">
+            <div id="summaryChart" className="chart"></div>
+            <div id="pieChart" className="chart"></div>
+          </section>
+        </div>
+
+        <footer>
+          <div className="footer-content">
+            <p>© 2025 Contact Center Dashboard. All rights reserved.</p>
+            <ul>
+              <li><a href="#"><i className="fas fa-envelope"></i> Contact</a></li>
+              <li><a href="#"><i className="fas fa-shield-alt"></i> Privacy Policy</a></li>
+              <li><a href="#"><i className="fas fa-file-contract"></i> Terms of Service</a></li>
+            </ul>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
