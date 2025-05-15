@@ -1,6 +1,5 @@
-AlertsManagementAlerts
+search "userservices.api"
 | where TimeGenerated > ago(50m)
-| where tostring(Essentials.targetResourceName) == "userservices.api"  // Replace with your resource name
 | where tostring(Essentials.severity) == "Sev0"
 | project 
     AlertName = tostring(Essentials.alertRule),
