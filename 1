@@ -1,12 +1,1 @@
-requests
-| where timestamp >= ago(30m)
-| where appName == "userservices.api"
-| summarize
-    TotalRequests = count(),
-    FailedRequests = countif(success == false),
-    AvgDuration = avg(duration),
-    MaxDuration = max(duration)
-    by name, resultCode, url
-| project timestamp, name, resultCode, url, TotalRequests, FailedRequests, AvgDuration, MaxDuration
-| order by timestamp desc
-| take 5
+
