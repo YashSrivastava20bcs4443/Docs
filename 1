@@ -1,1 +1,12 @@
-
+AppRequests
+| where TimeGenerated >= ago(10m)
+| where AppName == "YOUR_APP_NAME"
+| summarize 
+    TotalRequests = count(),
+    FailedRequests = countif(Success == false),
+    AvgDuration = avg(Duration),
+    MaxDuration = max(Duration)
+    by Name, ResultCode, Url
+| project TimeGenerated, Name, ResultCode, Url, TotalRequests, FailedRequests, AvgDuration, MaxDuration
+| order by TimeGenerated desc
+| take 5
