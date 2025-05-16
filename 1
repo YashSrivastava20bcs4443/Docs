@@ -1,14 +1,1 @@
-search "userservices.api"
-| where TimeGenerated > ago(50m)
-| where tostring(Essentials.severity) == "Sev0"
-| project 
-    AlertName = tostring(Essentials.alertRule),
-    Severity = tostring(Essentials.severity),
-    AffectedResource = tostring(Essentials.targetResourceName),
-    AlertCondition = tostring(Properties.condition),
-    FireTime = TimeGenerated,
-    MonitorService = tostring(Essentials.monitorService),
-    SignalType = tostring(Essentials.signalType),
-    ResourceGroup = tostring(Essentials.resourceGroup),
-    Status = tostring(Essentials.alertState)
-| order by FireTime desc
+
