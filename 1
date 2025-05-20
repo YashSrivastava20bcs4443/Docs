@@ -1,1 +1,21 @@
+Here’s a clear mapping table for the suggested fields used in mapped_data, based on the sample raw Splunk alert you provided:
+
+Mapped Field	Key in Raw Splunk Alert	Example Value	Notes
+
+EventLevel	severity	Critical	Taken directly from raw alert (Critical) — no hardcoding.
+EventStatus	status	anomalous	Optional fallback to statusExtended if needed.
+EventTitle	messageTitle	Critical Alert: Real Browser Detector	Human-readable title of the event.
+EventBlob	Full JSON blob	{...}	Entire original raw event data (used as backup/reference).
+EventTimestamp	timestamp	2025-05-19T20:53:00.000Z	Original event occurrence time (not ingestion time).
+@timestamp	Generated in script	Current UTC timestamp when mapping is processed.	Used for indexing freshness.
+EventSource	detector	Real Browser Detector	The alerting rule or tool that generated the alert.
+EventNode	dimensions.location	AWS LZ - Los Angeles	Location from where the alert originated.
+EventInstance	dimensions.test	[COA.com-Desktop] STA Vacations[ Flights+ Car]	Specific instance or test name.
+EventValue	inputs.stream.value	0.0	The actual metric or signal value that triggered the alert.
+EventResource	originatingMetric	synthetics.run.uptime.percent	The metric/resource involved.
+EventMatchID	incidentId	GrTVuYuA4AE	Unique ID that ties to the alert/incident in Splunk/SignalFx.
+
+
+Let me know if you want to enrich any of these fields (e.g., resolve detectorUrl to a clickable link or add derived tags).
+
 
