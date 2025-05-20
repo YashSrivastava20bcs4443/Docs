@@ -1,8 +1,5 @@
-raw_index = 'raw-splunk-events-*'  # Change index
-common_index_name = f'common-events-{datetime.now().strftime("%Y-%m-%d")}'
-
 def get_data_from_raw_index():
-    payload = {
+    payload = json.dumps({
         "size": 100,
         "query": {
             "range": {
@@ -13,49 +10,29 @@ def get_data_from_raw_index():
             }
         },
         "sort": [{"@timestamp": {"order": "desc"}}]
-    }
+    })
 
     try:
-        result = es.search(index=raw_index, body=payload)
+        result = es.search(index='raw-splunk-events-*', body=payload)
+
         if result['hits']['total']['value'] > 0:
-            for hit in result['hits']['hits']:
-                record = hit['_source']
+            latest_records = [hit['_source'] for hit in result['hits']['hits']]
+            for record in latest_records:
+                # Print extracted values from raw data for checking
+                print("\n--- Raw Splunk Alert Mappings ---")
+                print("severity:", record.get("severity", "CRITICAL"))
+                print("messageTitle:", record.get("messageTitle", "Splunk Alert"))
+                print("timestamp:", record.get("timestamp", record.get("@timestamp", utc_now)))
+                print("detector:", record.get("detector", "Splunk"))
+                print("dimensions.location:", record.get("dimensions", {}).get("location", "Unknown"))
+                print("dimensions.test:", record.get("dimensions", {}).get("test", ""))
+                print("inputs.stream.value:", record.get("inputs", {}).get("stream", {}).get("value", ""))
+                print("originatingMetric:", record.get("originatingMetric", "Unknown"))
+                print("incidentId:", record.get("incidentId", "Will generate from hash"))
+                print("----------------------------------")
+
                 push_data_to_common_events(record)
+        else:
+            print("No recent records found in raw-splunk-events-* index.")
     except Exception as e:
         print(f"Error fetching documents from raw index: {e}")
-
-
-def push_data_to_common_events(data):
-    try:
-        # Raw fields from Splunk alert
-        severity = data.get("severity", "INFO")
-        status = data.get("status", "Active")
-        event_title = data.get("messageTitle", "Splunk Alert")
-        event_blob = data  # full raw JSON
-        event_timestamp = data.get("timestamp", data.get("@timestamp", utc_now))
-        detector = data.get("detector", "Splunk")
-        location = data.get("dimensions", {}).get("location", "Unknown")
-        instance = data.get("dimensions", {}).get("test", "")
-        metric_value = data.get("inputs", {}).get("stream", {}).get("value", "N/A")
-        originating_metric = data.get("originatingMetric", "Unknown")
-        eventmatchid = data.get("incidentId", hashlib.sha256((detector + location + originating_metric).encode()).hexdigest())
-
-        mapped_data = {
-            "EventLevel": severity,
-            "EventStatus": status,
-            "EventTitle": event_title,
-            "EventBlob": event_blob,
-            "EventTimestamp": event_timestamp,
-            "@timestamp": utc_now,
-            "EventSource": detector,
-            "EventNode": location,
-            "EventInstance": instance,
-            "EventValue": metric_value,
-            "EventResource": originating_metric,
-            "EventMatchID": eventmatchid
-        }
-
-        es.index(index=common_index_name, body=mapped_data)
-        print("Document indexed successfully in live dashboard.")
-    except Exception as e:
-        print(f"Error indexing Splunk alert: {e}")
