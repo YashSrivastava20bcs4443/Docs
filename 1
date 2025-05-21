@@ -1,1 +1,6 @@
-
+service = webdriver.chrome.service.Service(executable_path='C:/Jobs/Staging/EMS/ChromeDriver/chromedriver.exe')
+options = webdriver.ChromeOptions()
+options.add_argument(r"--user-data-dir=C:\Users\<YourUsername>\AppData\Local\Google\Chrome\User Data")
+options.add_argument("--profile-directory=Default")  # or "Profile 1" if that's what Chrome uses
+driver = webdriver.Chrome(service=service, options=options)
+driver.maximize_window()
