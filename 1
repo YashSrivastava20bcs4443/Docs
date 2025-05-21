@@ -1,9 +1,1 @@
-from selenium.webdriver.chrome.service import Service
-    from selenium.webdriver.chrome.options import Options
 
-    options = Options()
-    options.add_argument("user-data-dir=C:/Users/YOUR_USERNAME/AppData/Local/Google/Chrome/User Data")
-    options.add_argument("profile-directory=Default")  # or "Profile 1" or whatever your main profile is
-
-    service = Service(executable_path='C:/Jobs/Staging/EMS/ChromeDriver/chromedriver.exe')
-    driver = webdriver.Chrome(service=service, options=options)
