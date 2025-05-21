@@ -1,1 +1,38 @@
+def push_data_to_common_events(data):
+    message = data  # Raw Splunk event as dict
+    event_blob = json.dumps(message)  # Full alert JSON
+    event_source = "Splunk"
+    event_instance = " "
+    event_resource = " "
+    event_node = message.get("dimensions", {}).get("test", "Unknown")
+    event_title = f"{message.get('messageTitle', 'Splunk Alert')} - {event_node}"
+    event_value = message.get("inputs", {}).get("stream", {}).get("value", "")
+    event_level = message.get("severity", "CRITICAL").upper()
+    event_timestamp = message.get("timestamp", data.get("@timestamp", utc_now))
 
+    concatenated_values = f"{event_source}{event_node}{event_resource}{event_instance}"
+    eventmatchid = hashlib.sha256(concatenated_values.encode()).hexdigest()
+
+    mapped_data = {
+        "EventLevel": event_level,
+        "EventStatus": "Active",
+        "EventTitle": event_title,
+        "EventBlob": event_blob,
+        "EventTimestamp": event_timestamp,
+        "@timestamp": utc_now,
+        "EventSource": event_source,
+        "EventNode": event_node,
+        "EventInstance": event_instance,
+        "EventValue": event_value,
+        "EventResource": event_resource,
+        "EventMatchID": eventmatchid
+    }
+
+    # Print mapped data before indexing
+    print("\n--- Mapped Data for Verification ---")
+    for key, value in mapped_data.items():
+        print(f"{key}: {value}")
+    print("--------------------------------------------------")
+
+    # Uncomment when ready to push to Elasticsearch
+    # response = es.index(index=common_index_name, body=mapped_data)
