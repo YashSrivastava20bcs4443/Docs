@@ -1,2 +1,52 @@
-gte": "2025-05-23T06:00:00.000Z",
-"lte": "2025-05-23T07:00:00.000Z"
+from datetime import datetime, timezone
+from elasticsearch import Elasticsearch
+
+es = Elasticsearch(
+    [elasticsearch_url],
+    basic_auth=(e_username, e_password),
+)
+
+def fetch_critical_splunk_alerts():
+    index_name = f'common-events-{datetime.now().strftime("%Y-%m-%d")}'
+    
+    today = datetime.now().strftime("%Y-%m-%d")
+    time_range_start = f"{today}T10:00:00"
+    time_range_end = f"{today}T12:30:00"
+
+    query = {
+        "size": 1000,
+        "query": {
+            "bool": {
+                "must": [
+                    {"match": {"EventSource": "Splunk"}},
+                    {"match": {"EventLevel": "3 - CRITICAL"}},
+                    {
+                        "range": {
+                            "EventTimestamp": {
+                                "gte": time_range_start,
+                                "lte": time_range_end
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        "_source": ["EventMatchID", "EventTimestamp"]
+    }
+
+    try:
+        response = es.search(index=index_name, body=query)
+        hits = response.get('hits', {}).get('hits', [])
+        
+        print(f"\n--- Total matching records: {len(hits)} ---\n")
+        for record in hits:
+            source = record.get('_source', {})
+            print("Event_matchid:", source.get('EventMatchID', ''))
+            print("id:", record.get('_id'))
+            print("time:", source.get('EventTimestamp'))
+            print("-" * 40)
+
+    except Exception as e:
+        print(f"Error fetching records: {e}")
+
+fetch_critical_splunk_alerts()
