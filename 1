@@ -1,1 +1,52 @@
+from datetime import datetime, timezone
+from elasticsearch import Elasticsearch
 
+es = Elasticsearch(
+    [elasticsearch_url],
+    basic_auth=(e_username, e_password),
+)
+
+def fetch_critical_splunk_alerts():
+    index_name = f'common-events-{datetime.now().strftime("%Y-%m-%d")}'
+    
+    query = {
+        "size": 1000,
+        "query": {
+            "bool": {
+                "must": [
+                    {"match": {"EventSource": "Splunk"}},
+                    {"match": {"EventLevel": "3 - CRITICAL"}},
+                    {
+                        "range": {
+                            "@timestamp": {
+                                "gte": "now-5h",
+                                "lte": "now"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        "_source": ["EventMatchID", "EventTimestamp", "@timestamp"]
+    }
+
+    try:
+        response = es.search(index=index_name, body=query)
+        hits = response.get('hits', {}).get('hits', [])
+        
+        print(f"\n--- Total matching records in last 5 hours: {len(hits)} ---\n")
+        for record in hits:
+            source = record.get('_source', {})
+            raw_ts = source.get('@timestamp', '')
+            try:
+                dt_object = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+                formatted_time = dt_object.strftime("%b %d, %Y %H:%M:%S.%f")[:-3]
+            except:
+                formatted_time = raw_ts
+            print("Event_matchid:", source.get('EventMatchID', ''))
+            print("id:", record.get('_id'))
+            print("time:", formatted_time)
+            print("-" * 40)
+
+    except Exception as e:
+        print(f"Error fetching records: {e}")
