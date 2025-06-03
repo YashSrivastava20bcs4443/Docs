@@ -1,0 +1,10 @@
+Provider,Plan Type,Annual Price (USD),Pricing Unit,Support Type
+MongoDB Inc.,Enterprise Advanced Core,6500,Per Server,"Full enterprise features, Ops Manager, BI Connector"
+MongoDB Inc.,Enterprise Advanced Advanced,10000,Per Server,All Core features plus more services
+MongoDB Inc.,Community Edition Support - Production,3000,Per Production Server,"24/7 support, consultative assistance"
+MongoDB Inc.,Community Edition Support - QA,1500,Per QA Server,Support for QA/testing environment
+Canonical,Self-Managed Support,500,Per Node,"24/7 support, security patches"
+Canonical,Managed Support,3099,Per Node,"Full management, SLAs"
+Bobcares,Pay-As-You-Go,468,Per Month,"Immediate support, admin tasks"
+Bobcares,Limitless Server Support,1068,Per Month,Unlimited server support
+DWAgentAI,Standard/Pro/Enterprise,Contact for pricing,Custom,"Integration, monitoring, custom architecture"
